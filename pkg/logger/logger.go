@@ -1,63 +1,86 @@
 package logger
 
 import (
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var (
-	infoLogger  *log.Logger
-	warnLogger  *log.Logger
-	errorLogger *log.Logger
-	debugLogger *log.Logger
-)
+type Rotation struct {
+	MaxSizeMB  int
+	MaxBackups int
+	MaxAgeDays int
+}
 
-// Init 初始化日志系统
-func Init(logPath string, level string) error {
-	// 确保日志目录存在
-	dir := filepath.Dir(logPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+var state struct {
+	sync.RWMutex
+	logger *log.Logger
+	writer *lumberjack.Logger
+	level  int
+}
+
+func Init(logPath, level string) error {
+	return InitWithRotation(logPath, level, Rotation{MaxSizeMB: 100, MaxBackups: 3, MaxAgeDays: 7})
+}
+
+func InitWithRotation(logPath, level string, rotation Rotation) error {
+	levels := map[string]int{"debug": 0, "info": 1, "warn": 2, "error": 3}
+	if level == "" {
+		level = "info"
+	}
+	threshold, ok := levels[strings.ToLower(level)]
+	if !ok {
+		return fmt.Errorf("invalid log level %q", level)
+	}
+	if err := os.MkdirAll(filepath.Dir(logPath), 0750); err != nil {
 		return err
 	}
-
 	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
-
-	infoLogger = log.New(file, "[INFO] ", log.Ldate|log.Ltime|log.Lshortfile)
-	warnLogger = log.New(file, "[WARN] ", log.Ldate|log.Ltime|log.Lshortfile)
-	errorLogger = log.New(file, "[ERROR] ", log.Ldate|log.Ltime|log.Lshortfile)
-	debugLogger = log.New(file, "[DEBUG] ", log.Ldate|log.Ltime|log.Lshortfile)
-
+	if err := file.Close(); err != nil {
+		return err
+	}
+	writer := &lumberjack.Logger{Filename: logPath, MaxSize: rotation.MaxSizeMB, MaxBackups: rotation.MaxBackups, MaxAge: rotation.MaxAgeDays, Compress: true}
+	state.Lock()
+	defer state.Unlock()
+	if state.writer != nil {
+		_ = state.writer.Close()
+	}
+	state.writer = writer
+	state.logger = log.New(io.MultiWriter(os.Stderr, writer), "", log.Ldate|log.Ltime)
+	state.level = threshold
 	return nil
 }
 
-// Info 打印信息级别日志
-func Info(format string, v ...interface{}) {
-	if infoLogger != nil {
-		infoLogger.Printf(format, v...)
+func Close() error {
+	state.Lock()
+	defer state.Unlock()
+	if state.writer == nil {
+		return nil
+	}
+	err := state.writer.Close()
+	state.writer = nil
+	state.logger = nil
+	return err
+}
+
+func write(level int, name, format string, values ...interface{}) {
+	state.RLock()
+	defer state.RUnlock()
+	if state.logger != nil && level >= state.level {
+		state.logger.Printf("["+name+"] "+format, values...)
 	}
 }
 
-// Warn 打印警告级别日志
-func Warn(format string, v ...interface{}) {
-	if warnLogger != nil {
-		warnLogger.Printf(format, v...)
-	}
-}
-
-// Error 打印错误级别日志
-func Error(format string, v ...interface{}) {
-	if errorLogger != nil {
-		errorLogger.Printf(format, v...)
-	}
-}
-
-// Debug 打印调试级别日志
-func Debug(format string, v ...interface{}) {
-	if debugLogger != nil {
-		debugLogger.Printf(format, v...)
-	}
-}
+func Debug(format string, values ...interface{}) { write(0, "DEBUG", format, values...) }
+func Info(format string, values ...interface{})  { write(1, "INFO", format, values...) }
+func Warn(format string, values ...interface{})  { write(2, "WARN", format, values...) }
+func Error(format string, values ...interface{}) { write(3, "ERROR", format, values...) }

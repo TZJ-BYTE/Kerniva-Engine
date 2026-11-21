@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -18,41 +19,27 @@ func defaultConfigNoEnv() *Config {
 		MaxMemory:       256 * 1024 * 1024,
 		MaxMemoryPolicy: "noeviction",
 
-		PersistenceEnabled:    false,
-		PersistenceType:       "rust",
-		DataDir:               "./data",
-		ColdStartStrategy:     "lazy_load",
-		PersistenceWriteMode:  "strong",
-		PersistenceDurability: "wal_fsync",
+		PersistenceEnabled:       true,
+		PersistenceType:          "kerniva",
+		DataDir:                  "./data",
+		ColdStartStrategy:        "lazy_load",
+		PersistenceWriteMode:     "strong",
+		PersistenceDurability:    "sync",
+		EngineSegmentSize:        4 << 20,
+		EngineCheckpointAfterOps: 1024,
 
 		AOFEnabled: false,
 		AOFPath:    "./data/appendonly.aof",
 		RDBPath:    "./data/dump.rdb",
 
-		BlockSize:       4096,
-		MemTableSize:    4 << 20,
-		WriteBufferSize: 64 << 20,
-		MaxOpenFiles:    1000,
-		BloomFilterBits: 10,
-
-		LogLevel: "info",
-		LogPath:  "./logs/redigo.log",
+		LogLevel:      "info",
+		LogPath:       "./logs/kerniva.log",
+		LogMaxSizeMB:  100,
+		LogMaxBackups: 3,
+		LogMaxAgeDays: 7,
 
 		PprofEnabled: false,
 		PprofAddr:    "127.0.0.1:6060",
-
-		OffloadEnabled:    false,
-		OffloadBackend:    "fs",
-		OffloadEndpoint:   "127.0.0.1:9000",
-		OffloadAccessKey:  "",
-		OffloadSecretKey:  "",
-		OffloadBucket:     "redigo-data",
-		OffloadUseSSL:     false,
-		OffloadRegion:     "us-east-1",
-		OffloadBasePrefix: "",
-		OffloadMinLevel:   2,
-		OffloadKeepLocal:  true,
-		OffloadFSRoot:     "./offload",
 	}
 }
 
@@ -62,7 +49,9 @@ func LoadFromFile(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := yaml.Unmarshal(b, cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(b))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(cfg); err != nil {
 		return nil, fmt.Errorf("parse config file: %w", err)
 	}
 	cfg.applyEnvOverrides()

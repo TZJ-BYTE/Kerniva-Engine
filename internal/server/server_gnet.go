@@ -2,15 +2,18 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/command"
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/network"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/command"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/network"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 	"github.com/panjf2000/gnet/v2"
 )
 
@@ -18,39 +21,73 @@ type GnetServer struct {
 	config    *config.Config
 	dbManager *database.DBManager
 	registry  *command.CommandRegistry
+	pubsub    *PubSubHub
 	eng       gnet.Engine
+	ctx       context.Context
+	cancel    context.CancelFunc
+	workers   sync.WaitGroup
+	lifecycle sync.Mutex
+	stopOnce  sync.Once
+	stopErr   error
+	initErr   error
+	booted    bool
 }
 
 func NewGnetServer(cfg *config.Config) network.Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	command.InitDefaultCommands()
-	manager := database.NewDBManager(cfg)
+	manager, initErr := database.NewDBManagerChecked(cfg)
 	command.SetDBManager(manager)
 	return &GnetServer{
+		ctx:       ctx,
+		cancel:    cancel,
+		initErr:   initErr,
 		config:    cfg,
 		dbManager: manager,
 		registry:  command.DefaultRegistry,
+		pubsub:    NewPubSubHub(),
 	}
 }
 
 func (s *GnetServer) Start() error {
+	if s.initErr != nil {
+		return s.initErr
+	}
+	if s.ctx.Err() != nil {
+		return nil
+	}
 	addr := fmt.Sprintf("tcp://%s:%d", s.config.Host, s.config.Port)
-	logger.Info("RediGo 服务器启动在 %s (gnet)", addr)
+	logger.Info("Kerniva 服务器启动在 %s (gnet)", addr)
 	return gnet.Run(s, addr, gnet.WithMulticore(true), gnet.WithReusePort(true))
 }
 
 func (s *GnetServer) Stop() error {
-	logger.Info("Stopping gnet server...")
-	// 关闭 DBManager
-	if s.dbManager != nil {
-		if err := s.dbManager.Close(); err != nil {
-			logger.Warn("关闭 DBManager 失败：%v", err)
+	s.stopOnce.Do(func() {
+		s.lifecycle.Lock()
+		s.cancel()
+		booted := s.booted
+		s.lifecycle.Unlock()
+		if booted {
+			s.stopErr = s.eng.Stop(context.Background())
 		}
-	}
-	return s.eng.Stop(context.Background())
+		s.workers.Wait()
+		if s.dbManager != nil {
+			if err := s.dbManager.Close(); err != nil && s.stopErr == nil {
+				s.stopErr = err
+			}
+		}
+	})
+	return s.stopErr
 }
 
 func (s *GnetServer) OnBoot(eng gnet.Engine) gnet.Action {
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
 	s.eng = eng
+	s.booted = true
+	if s.ctx.Err() != nil {
+		return gnet.Shutdown
+	}
 	logger.Info("gnet engine is running")
 	return gnet.None
 }
@@ -65,12 +102,45 @@ func (s *GnetServer) OnShutdown(eng gnet.Engine) {
 
 func (s *GnetServer) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 	logger.Info("New connection: %s", c.RemoteAddr().String())
-	c.SetContext(NewConnectionContext(s.dbManager.GetDefaultDB()))
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
+	if s.ctx.Err() != nil {
+		return nil, gnet.Close
+	}
+	ctx := newConnectionContext(s.ctx, s.dbManager.GetDefaultDB(), s.pubsub, nil)
+	ctx.pubsubWriter = &gnetPubSubWriter{conn: c, ctx: ctx}
+	c.SetContext(ctx)
+	s.workers.Add(1)
+	go func() {
+		defer s.workers.Done()
+		defer s.pubsub.CleanupConnection(ctx)
+		runConnectionCommands(ctx, s.dbManager, s.registry, func(payload []byte) error {
+			done := make(chan error, 1)
+			if err := c.AsyncWrite(payload, func(_ gnet.Conn, err error) error {
+				done <- err
+				if err == nil && ctx.needsWake.Swap(false) {
+					return c.Wake(nil)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			select {
+			case err := <-done:
+				return err
+			case <-ctx.Context.Done():
+				return ctx.Context.Err()
+			}
+		}, func() { _ = c.Close() })
+	}()
 	return nil, gnet.None
 }
 
 func (s *GnetServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	logger.Info("Connection closed: %s", c.RemoteAddr().String())
+	if connCtx, ok := c.Context().(*ConnectionContext); ok {
+		connCtx.Cancel()
+	}
 	return gnet.None
 }
 
@@ -87,19 +157,20 @@ func (s *GnetServer) OnTraffic(c gnet.Conn) gnet.Action {
 
 	offset := 0
 	connCtx := c.Context().(*ConnectionContext)
-	connCtx.writeBuf = connCtx.writeBuf[:0]
 
 	for {
+		if len(connCtx.requests) == cap(connCtx.requests) {
+			connCtx.needsWake.Store(true)
+			break
+		}
 		req, n, err := protocol.ParseOneRequestFast(data[offset:])
 		if err != nil {
 			logger.Error("Parser error: %v", err)
-			resp := protocol.MakeError(err)
-			connCtx.writeBuf = protocol.AppendResponse(connCtx.writeBuf, resp)
-			protocol.ReleaseResponse(resp)
-			if _, werr := c.Write(connCtx.writeBuf); werr != nil {
-				logger.Error("Write error: %v", werr)
+			if !connCtx.enqueueRequest(nil, err, false) {
+				return gnet.Close
 			}
-			return gnet.Close
+			_, _ = c.Discard(len(data))
+			return gnet.None
 		}
 
 		if n == 0 {
@@ -107,19 +178,11 @@ func (s *GnetServer) OnTraffic(c gnet.Conn) gnet.Action {
 			break
 		}
 
-		// 特殊处理 SELECT 命令
-		if req.Cmd == "SELECT" {
-			s.handleSelectCommand(c, connCtx, req.Args)
-		} else {
-			if out, ok := fastPathExecute(connCtx.writeBuf, connCtx.DB, req.Cmd, req.Args); ok {
-				connCtx.writeBuf = out
-			} else {
-				resp := s.registry.Execute(connCtx.DB, req.Cmd, req.Args)
-				connCtx.writeBuf = protocol.AppendResponse(connCtx.writeBuf, resp)
-				protocol.ReleaseResponse(resp)
-			}
-		}
+		accepted := connCtx.enqueueRequest(req, nil, false)
 		protocol.ReleaseRequest(req)
+		if !accepted {
+			return gnet.Close
+		}
 
 		offset += n
 
@@ -129,15 +192,14 @@ func (s *GnetServer) OnTraffic(c gnet.Conn) gnet.Action {
 	}
 
 	// 丢弃已处理的数据
-	if _, err := c.Discard(offset); err != nil {
-		logger.Error("Discard error: %v", err)
-		return gnet.Close
-	}
-	if len(connCtx.writeBuf) > 0 {
-		if _, err := c.Write(connCtx.writeBuf); err != nil {
-			logger.Error("Write error: %v", err)
+	if offset > 0 {
+		if _, err := c.Discard(offset); err != nil {
+			logger.Error("Discard error: %v", err)
 			return gnet.Close
 		}
+	}
+	if c.InboundBuffered() > maxConnectionBufferedBytes {
+		return gnet.Close
 	}
 
 	return gnet.None
@@ -174,4 +236,31 @@ func (s *GnetServer) handleSelectCommand(c gnet.Conn, ctx *ConnectionContext, ar
 		ctx.writeBuf = protocol.AppendResponse(ctx.writeBuf, resp)
 		protocol.ReleaseResponse(resp)
 	}
+}
+
+type gnetPubSubWriter struct {
+	conn    gnet.Conn
+	ctx     *ConnectionContext
+	pending atomic.Int64
+}
+
+func (w *gnetPubSubWriter) WriteAsync(payload []byte) error {
+	if w.pending.Add(int64(len(payload))) > maxConnectionBufferedBytes {
+		w.pending.Add(-int64(len(payload)))
+		w.ctx.Cancel()
+		_ = w.conn.Close()
+		return errors.New("ERR pubsub output buffer is full")
+	}
+	err := w.conn.AsyncWrite(payload, func(_ gnet.Conn, err error) error {
+		w.pending.Add(-int64(len(payload)))
+		if err != nil {
+			w.ctx.Cancel()
+			_ = w.conn.Close()
+		}
+		return nil
+	})
+	if err != nil {
+		w.pending.Add(-int64(len(payload)))
+	}
+	return err
 }

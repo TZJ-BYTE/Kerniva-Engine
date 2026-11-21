@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 )
 
 func BenchmarkFastPath_GET(b *testing.B) {
@@ -44,4 +44,3 @@ func BenchmarkFastPath_INCR(b *testing.B) {
 		buf, _ = fastPathExecute(buf, db, "INCR", args)
 	}
 }
-

@@ -1,0 +1,12 @@
+[package]
+name = "kerniva_engine"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Kerniva 的新一代存储引擎原型：segment log + 内存索引 + checkpoint"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]

@@ -3,7 +3,7 @@ package command
 import (
 	"bytes"
 
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
 func argString(args [][]byte, i int) string {

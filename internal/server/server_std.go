@@ -2,17 +2,19 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
-	"time"
+	"sync"
+	"sync/atomic"
 
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/command"
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/network"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/command"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/network"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
 func writeAllConn(conn net.Conn, b []byte) error {
@@ -21,6 +23,9 @@ func writeAllConn(conn net.Conn, b []byte) error {
 		if err != nil {
 			return err
 		}
+		if n == 0 {
+			return io.ErrNoProgress
+		}
 		b = b[n:]
 	}
 	return nil
@@ -28,12 +33,19 @@ func writeAllConn(conn net.Conn, b []byte) error {
 
 // StdServer 基于标准库 net 的 Redis 服务器
 type StdServer struct {
-	config    *config.Config
-	listener  net.Listener
-	dbManager *database.DBManager
-	registry  *command.CommandRegistry
-	ctx       context.Context
-	cancel    context.CancelFunc
+	config       *config.Config
+	listener     net.Listener
+	dbManager    *database.DBManager
+	registry     *command.CommandRegistry
+	pubsub       *PubSubHub
+	ctx          context.Context
+	cancel       context.CancelFunc
+	connections  map[net.Conn]struct{}
+	connectionMu sync.Mutex
+	workers      sync.WaitGroup
+	stopOnce     sync.Once
+	stopErr      error
+	initErr      error
 }
 
 // NewStdServer 创建标准服务器
@@ -42,20 +54,26 @@ func NewStdServer(cfg *config.Config) network.Server {
 
 	// 初始化命令注册表
 	command.InitDefaultCommands()
-	manager := database.NewDBManager(cfg)
+	manager, initErr := database.NewDBManagerChecked(cfg)
 	command.SetDBManager(manager)
 
 	return &StdServer{
-		config:    cfg,
-		dbManager: manager,
-		registry:  command.DefaultRegistry,
-		ctx:       ctx,
-		cancel:    cancel,
+		config:      cfg,
+		dbManager:   manager,
+		registry:    command.DefaultRegistry,
+		pubsub:      NewPubSubHub(),
+		ctx:         ctx,
+		cancel:      cancel,
+		connections: make(map[net.Conn]struct{}),
+		initErr:     initErr,
 	}
 }
 
 // Start 启动服务器
 func (s *StdServer) Start() error {
+	if s.initErr != nil {
+		return s.initErr
+	}
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 
 	listener, err := net.Listen("tcp", addr)
@@ -63,8 +81,15 @@ func (s *StdServer) Start() error {
 		return fmt.Errorf("failed to listen on %s: %v", addr, err)
 	}
 
+	s.connectionMu.Lock()
+	if s.ctx.Err() != nil {
+		s.connectionMu.Unlock()
+		_ = listener.Close()
+		return nil
+	}
 	s.listener = listener
-	logger.Info("RediGo 服务器启动在 %s (Standard Net)", addr)
+	s.connectionMu.Unlock()
+	logger.Info("Kerniva 服务器启动在 %s (Standard Net)", addr)
 
 	for {
 		conn, err := listener.Accept()
@@ -84,17 +109,46 @@ func (s *StdServer) Start() error {
 			_ = tcpConn.SetWriteBuffer(1 << 20)
 		}
 
-		go s.handleConnection(conn)
+		s.connectionMu.Lock()
+		if s.ctx.Err() != nil {
+			s.connectionMu.Unlock()
+			_ = conn.Close()
+			return nil
+		}
+		s.connections[conn] = struct{}{}
+		s.workers.Add(1)
+		s.connectionMu.Unlock()
+		go func() {
+			defer s.workers.Done()
+			defer func() { s.connectionMu.Lock(); delete(s.connections, conn); s.connectionMu.Unlock() }()
+			s.handleConnection(conn)
+		}()
 	}
 }
 
 // handleConnection 处理客户端连接
 func (s *StdServer) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
 	logger.Info("新连接：%s", conn.RemoteAddr().String())
 
-	connCtx := NewConnectionContext(s.dbManager.GetDefaultDB())
+	connCtx := newConnectionContext(s.ctx, s.dbManager.GetDefaultDB(), s.pubsub, nil)
+	writer := newStdPubSubWriter(conn, connCtx)
+	connCtx.pubsubWriter = writer
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		runConnectionCommands(connCtx, s.dbManager, s.registry, func(payload []byte) error {
+			return connCtx.writeNetConn(conn, payload)
+		}, func() { _ = conn.Close() })
+	}()
+	defer func() {
+		connCtx.Cancel()
+		_ = conn.Close()
+		<-workerDone
+		s.pubsub.CleanupConnection(connCtx)
+		_ = writer.Close()
+		<-writer.done
+		_ = conn.Close()
+	}()
 	buf := make([]byte, 256*1024)
 	start, end := 0, 0
 
@@ -111,6 +165,9 @@ func (s *StdServer) handleConnection(conn net.Conn) {
 				end -= start
 				start = 0
 			} else {
+				if len(buf) >= maxConnectionBufferedBytes {
+					return
+				}
 				nb := make([]byte, len(buf)*2)
 				copy(nb, buf)
 				buf = nb
@@ -123,59 +180,120 @@ func (s *StdServer) handleConnection(conn net.Conn) {
 				logger.Info("连接关闭：%s", conn.RemoteAddr().String())
 				return
 			}
-			logger.Error("读取请求错误：%v", err)
-			resp := protocol.MakeError(err)
-			connCtx.respBuf = protocol.EncodeResponseInto(connCtx.respBuf, resp)
-			protocol.ReleaseResponse(resp)
-			_ = writeAllConn(conn, connCtx.respBuf)
-			continue
+			return
 		}
 		if n == 0 {
 			continue
 		}
 
 		end += n
-		connCtx.writeBuf = connCtx.writeBuf[:0]
 
 		for {
 			req, consumed, perr := protocol.ParseOneRequestFast(buf[start:end])
 			if perr != nil {
-				resp := protocol.MakeError(perr)
-				connCtx.writeBuf = protocol.AppendResponse(connCtx.writeBuf, resp)
-				protocol.ReleaseResponse(resp)
-				_ = writeAllConn(conn, connCtx.writeBuf)
+				if connCtx.enqueueRequest(nil, perr, true) {
+					select {
+					case <-workerDone:
+					case <-s.ctx.Done():
+					}
+				}
 				return
 			}
 			if consumed == 0 {
 				break
 			}
 
-			if req.Cmd == "SELECT" {
-				s.handleSelectCommand(conn, connCtx, req.Args)
-			} else {
-				if out, ok := fastPathExecute(connCtx.writeBuf, connCtx.DB, req.Cmd, req.Args); ok {
-					connCtx.writeBuf = out
-				} else {
-					resp := s.registry.Execute(connCtx.DB, req.Cmd, req.Args)
-					connCtx.writeBuf = protocol.AppendResponse(connCtx.writeBuf, resp)
-					protocol.ReleaseResponse(resp)
-				}
-			}
+			accepted := connCtx.enqueueRequest(req, nil, true)
 			protocol.ReleaseRequest(req)
+			if !accepted {
+				return
+			}
 			start += consumed
 			if start >= end {
 				start, end = 0, 0
+			}
+			if start >= end {
 				break
 			}
 		}
+	}
+}
 
-		if len(connCtx.writeBuf) > 0 {
-			if err := writeAllConn(conn, connCtx.writeBuf); err != nil {
-				logger.Error("写入响应错误：%v", err)
-				return
-			}
+type stdPubSubWriter struct {
+	conn      net.Conn
+	ctx       *ConnectionContext
+	queue     chan []byte
+	pending   atomic.Int64
+	done      chan struct{}
+	mu        sync.RWMutex
+	closed    bool
+	closeOnce sync.Once
+}
+
+func newStdPubSubWriter(conn net.Conn, ctx *ConnectionContext) *stdPubSubWriter {
+	w := &stdPubSubWriter{
+		conn:  conn,
+		ctx:   ctx,
+		queue: make(chan []byte, 64),
+		done:  make(chan struct{}),
+	}
+	go w.run()
+	return w
+}
+
+func (w *stdPubSubWriter) WriteAsync(payload []byte) error {
+	if w.pending.Add(int64(len(payload))) > maxConnectionBufferedBytes {
+		w.pending.Add(-int64(len(payload)))
+		w.ctx.Cancel()
+		_ = w.conn.Close()
+		return errors.New("ERR pubsub output buffer is full")
+	}
+	w.mu.RLock()
+	if w.closed {
+		w.mu.RUnlock()
+		w.pending.Add(-int64(len(payload)))
+		return net.ErrClosed
+	}
+	select {
+	case w.queue <- payload:
+		w.mu.RUnlock()
+		return nil
+	default:
+		w.mu.RUnlock()
+		w.pending.Add(-int64(len(payload)))
+		_ = w.Close()
+		w.ctx.Cancel()
+		_ = w.conn.Close()
+		return errors.New("ERR pubsub output buffer is full")
+	}
+}
+
+func (w *stdPubSubWriter) Close() error {
+	w.closeOnce.Do(func() {
+		w.mu.Lock()
+		w.closed = true
+		close(w.queue)
+		w.mu.Unlock()
+	})
+	return nil
+}
+
+func (w *stdPubSubWriter) run() {
+	defer close(w.done)
+	for payload := range w.queue {
+		err := w.ctx.writeNetConn(w.conn, payload)
+		w.pending.Add(-int64(len(payload)))
+		if err != nil {
+			_ = w.conn.Close()
+			return
 		}
 	}
+}
+
+func (ctx *ConnectionContext) writeNetConn(conn net.Conn, payload []byte) error {
+	ctx.writeMu.Lock()
+	defer ctx.writeMu.Unlock()
+	return writeAllConn(conn, payload)
 }
 
 // handleSelectCommand 处理 SELECT 命令
@@ -211,45 +329,20 @@ func (s *StdServer) handleSelectCommand(conn net.Conn, ctx *ConnectionContext, a
 
 // Stop 停止服务器
 func (s *StdServer) Stop() error {
-	logger.Info("=== Server Stop called ===")
-
-	s.cancel()
-
-	// 异步关闭 listener，设置超时避免阻塞
-	if s.listener != nil {
-		logger.Info("Closing listener with timeout...")
-		done := make(chan struct{})
-		go func() {
-			err := s.listener.Close()
-			if err != nil {
-				logger.Warn("Error closing listener: %v", err)
-			} else {
-				logger.Info("Listener closed successfully")
-			}
-			close(done)
-		}()
-
-		// 等待最多 1 秒
-		select {
-		case <-done:
-			// Listener 已关闭
-		case <-time.After(1 * time.Second):
-			logger.Warn("Listener close timeout, continuing shutdown...")
+	s.stopOnce.Do(func() {
+		s.cancel()
+		s.connectionMu.Lock()
+		if s.listener != nil {
+			_ = s.listener.Close()
 		}
-	}
-
-	// 关闭数据库管理器（会关闭所有数据库和 LSM 引擎）
-	if s.dbManager != nil {
-		logger.Info("Closing database manager...")
-		err := s.dbManager.Close()
-		if err != nil {
-			logger.Error("Failed to close database manager: %v", err)
-			return err
-		} else {
-			logger.Info("Database manager closed successfully")
+		for conn := range s.connections {
+			_ = conn.Close()
 		}
-	}
-
-	logger.Info("=== RediGo 服务器已停止 ===")
-	return nil
+		s.connectionMu.Unlock()
+		s.workers.Wait()
+		if s.dbManager != nil {
+			s.stopErr = s.dbManager.Close()
+		}
+	})
+	return s.stopErr
 }

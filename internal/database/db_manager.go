@@ -2,14 +2,12 @@ package database
 
 import (
 	"fmt"
-	"os"
+	"math"
 	"path/filepath"
-	"strings"
 	"sync"
 
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/persistence"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
 // DBManager 数据库管理器
@@ -18,25 +16,30 @@ type DBManager struct {
 	lock      sync.RWMutex
 	config    *config.Config
 
-	// LSM 持久化支持
 	persistenceEnabled bool
 	dataDir            string
-	lsmOptions         *persistence.Options
+	engineOptions      *EngineOptions
 }
 
 // NewDBManager 创建数据库管理器
 func NewDBManager(cfg *config.Config) *DBManager {
+	manager, err := NewDBManagerChecked(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return manager
+}
+
+func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	databases := make([]*Database, cfg.DBCount)
 
 	// 检查是否启用持久化
 	persistenceEnabled := cfg.PersistenceEnabled
 	var dataDir string
-	var lsmOptions *persistence.Options
-
-	if persistenceEnabled && strings.Contains(strings.ToLower(os.Args[0]), ".test") {
-		persistenceEnabled = false
-	}
-	runBackground := !strings.Contains(strings.ToLower(os.Args[0]), ".test")
+	var engineOptions *EngineOptions
 
 	if persistenceEnabled {
 		dataDir = cfg.DataDir
@@ -44,37 +47,12 @@ func NewDBManager(cfg *config.Config) *DBManager {
 			dataDir = "./data"
 		}
 
-		lsmOptions = persistence.DefaultOptions()
-		// 可以根据需要调整 LSM 配置
-		lsmOptions.BlockSize = cfg.BlockSize
-		lsmOptions.MemTableSize = cfg.MemTableSize
-		switch strings.ToLower(cfg.PersistenceDurability) {
-		case "", "wal_fsync", "lsm":
-			lsmOptions.SyncWAL = true
-		case "wal":
-			lsmOptions.SyncWAL = false
-		default:
-			lsmOptions.SyncWAL = true
+		engineOptions = DefaultEngineOptions()
+		if cfg.EngineSegmentSize > 0 {
+			engineOptions.SegmentSizeBytes = uint64(cfg.EngineSegmentSize)
 		}
-
-		// 存算分离配置
-		lsmOptions.EnableOffloading = cfg.OffloadEnabled
-		lsmOptions.OffloadBackend = cfg.OffloadBackend
-		lsmOptions.OffloadEndpoint = cfg.OffloadEndpoint
-		lsmOptions.OffloadAccessKey = cfg.OffloadAccessKey
-		lsmOptions.OffloadSecretKey = cfg.OffloadSecretKey
-		lsmOptions.OffloadBucket = cfg.OffloadBucket
-		lsmOptions.OffloadUseSSL = cfg.OffloadUseSSL
-		lsmOptions.OffloadRegion = cfg.OffloadRegion
-		lsmOptions.OffloadMinLevel = cfg.OffloadMinLevel
-		lsmOptions.OffloadKeepLocal = cfg.OffloadKeepLocal
-		lsmOptions.OffloadFSRoot = cfg.OffloadFSRoot
-
-		// 如果使用 minio，确保前缀区分不同 DB
-		if cfg.OffloadEnabled && cfg.OffloadBackend == "minio" {
-			logger.Info("启用存算分离 (Backend: MinIO, Endpoint: %s, Bucket: %s)", cfg.OffloadEndpoint, cfg.OffloadBucket)
-		} else if cfg.OffloadEnabled && cfg.OffloadBackend == "fs" {
-			logger.Info("启用存算分离 (Backend: FS)")
+		if cfg.EngineCheckpointAfterOps > 0 {
+			engineOptions.CheckpointAfterOps = uint64(cfg.EngineCheckpointAfterOps)
 		}
 
 		logger.Info("启用 Rust 持久化引擎，数据目录：%s", dataDir)
@@ -84,45 +62,43 @@ func NewDBManager(cfg *config.Config) *DBManager {
 	for i := 0; i < cfg.DBCount; i++ {
 		var db *Database
 		var err error
+		maxMemory := cfg.MaxMemory
+		if maxMemory == 0 {
+			maxMemory = math.MaxInt64
+		}
+		dbConfig := &DatabaseConfig{Type: MemoryOnly, MaxMemory: maxMemory, MaxMemoryPolicy: cfg.MaxMemoryPolicy}
 
 		if persistenceEnabled {
 			// 为每个数据库创建独立的子目录
 			dbDataDir := filepath.Join(dataDir, fmt.Sprintf("db_%d", i))
 
-			// 为每个 DB 配置独立的前缀（避免对象存储上 Key 冲突）
-			dbOptions := *lsmOptions // 浅拷贝基础配置
-			if dbOptions.EnableOffloading {
-				base := cfg.OffloadBasePrefix
-				if base != "" && !strings.HasSuffix(base, "/") {
-					base += "/"
-				}
-				dbOptions.OffloadPrefix = base + fmt.Sprintf("db_%d/", i)
-			}
+			dbOptions := *engineOptions
 
-			dbConfig := &DatabaseConfig{
-				Type:              LSMPersistent,
+			dbConfig = &DatabaseConfig{
+				Type:              Persistent,
 				DataDir:           dbDataDir,
 				Options:           &dbOptions,
 				ColdStartStrategy: cfg.ColdStartStrategy,
 				WriteMode:         cfg.PersistenceWriteMode,
 				Durability:        cfg.PersistenceDurability,
+				MaxMemory:         maxMemory,
+				MaxMemoryPolicy:   cfg.MaxMemoryPolicy,
 			}
 
 			db, err = NewDatabaseWithConfig(i, dbConfig)
-			if err != nil {
-				logger.Error("创建数据库 %d 失败：%v", i, err)
-				// 如果创建失败，回退到内存模式
-				db = NewDatabase(i)
-			}
 		} else {
-			db = NewDatabase(i)
+			db, err = NewDatabaseWithConfig(i, dbConfig)
 			logger.Debug("数据库 %d 使用纯内存模式", i)
+		}
+		if err != nil {
+			for _, opened := range databases[:i] {
+				_ = opened.Close()
+			}
+			return nil, fmt.Errorf("initialize database %d: %w", i, err)
 		}
 
 		databases[i] = db
-		if runBackground {
-			db.StartExpireCleaner()
-		}
+		db.StartExpireCleaner()
 	}
 
 	if persistenceEnabled {
@@ -136,8 +112,8 @@ func NewDBManager(cfg *config.Config) *DBManager {
 		config:             cfg,
 		persistenceEnabled: persistenceEnabled,
 		dataDir:            dataDir,
-		lsmOptions:         lsmOptions,
-	}
+		engineOptions:      engineOptions,
+	}, nil
 }
 
 // GetDefaultDB 获取默认数据库 (DB 0)

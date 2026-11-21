@@ -16,4 +16,3 @@ func BytesToStringCopy(b []byte) string {
 func ParseInt(b []byte) (int, error) {
 	return parseIntBytes(b)
 }
-

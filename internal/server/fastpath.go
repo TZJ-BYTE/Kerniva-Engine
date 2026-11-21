@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
 func fastPathExecute(dst []byte, db *database.Database, cmd string, args [][]byte) ([]byte, bool) {

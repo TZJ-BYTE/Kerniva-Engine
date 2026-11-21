@@ -3,8 +3,8 @@ package command
 import (
 	"errors"
 
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
 type FlushAllCommand struct{}

@@ -1,8 +1,8 @@
 package command
 
 import (
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
 // Command 命令接口

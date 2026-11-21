@@ -1,17 +1,15 @@
-//go:build windows
-
 package rustengine
 
 import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
-	"syscall"
 	"unsafe"
+
+	"github.com/ebitengine/purego"
 )
 
 type SyncPolicy uint32
@@ -38,12 +36,12 @@ type Stats struct {
 	PendingReclaims uint64
 }
 
-type redigoBuf struct {
-	Ptr uintptr
+type kernivaBuf struct {
+	Ptr unsafe.Pointer
 	Len uintptr
 }
 
-type redigoStats struct {
+type kernivaStats struct {
 	Keys            uint64
 	ActiveSegmentID uint64
 	SegmentCount    uint64
@@ -52,30 +50,58 @@ type redigoStats struct {
 	PendingReclaims uint64
 }
 
+type WriteOp struct {
+	Key    []byte
+	Value  []byte
+	Delete bool
+}
+
+type nativeWriteOp struct {
+	Kind     uint32
+	KeyPtr   unsafe.Pointer
+	KeyLen   uintptr
+	ValuePtr unsafe.Pointer
+	ValueLen uintptr
+}
+
+type nativeProc struct{ address uintptr }
+
+//go:uintptrescapes
+func (p *nativeProc) Call(args ...uintptr) (uintptr, uintptr, error) {
+	r1, r2, _ := purego.SyscallN(p.address, args...)
+	return r1, r2, nil
+}
+
 type dllAPI struct {
-	dll             *syscall.DLL
-	bufFree         *syscall.Proc
-	engineOpen      *syscall.Proc
-	engineClose     *syscall.Proc
-	enginePut       *syscall.Proc
-	engineGet       *syscall.Proc
-	engineDelete    *syscall.Proc
-	engineCompact   *syscall.Proc
-	engineStats     *syscall.Proc
-	engineIterOpen  *syscall.Proc
-	engineIterNext  *syscall.Proc
-	engineIterClose *syscall.Proc
+	dll                    uintptr
+	bufFree                *nativeProc
+	engineOpen             *nativeProc
+	engineClose            *nativeProc
+	enginePut              *nativeProc
+	engineGet              *nativeProc
+	engineDelete           *nativeProc
+	engineClear            *nativeProc
+	engineWriteBatch       *nativeProc
+	engineSync             *nativeProc
+	engineCheckpoint       *nativeProc
+	engineCompact          *nativeProc
+	engineMaybeCompact     *nativeProc
+	engineMaybeCheckpoint  *nativeProc
+	engineShouldCheckpoint *nativeProc
+	engineStats            *nativeProc
+	engineIterOpen         *nativeProc
+	engineIterNext         *nativeProc
+	engineIterClose        *nativeProc
 }
 
 type Engine struct {
+	mu     sync.RWMutex
 	handle uintptr
-	opts   Options
 }
 
 var (
-	loadOnce sync.Once
-	loadErr  error
-	api      *dllAPI
+	loadMu sync.Mutex
+	api    *dllAPI
 )
 
 func Open(opts Options) (*Engine, error) {
@@ -93,7 +119,7 @@ func Open(opts Options) (*Engine, error) {
 	}
 
 	pathBytes := append([]byte(opts.DataDir), 0)
-	var errBuf redigoBuf
+	var errBuf kernivaBuf
 	handle, _, _ := api.engineOpen.Call(
 		uintptr(unsafe.Pointer(&pathBytes[0])),
 		uintptr(opts.SegmentSizeBytes),
@@ -107,20 +133,26 @@ func Open(opts Options) (*Engine, error) {
 
 	return &Engine{
 		handle: handle,
-		opts:   opts,
 	}, nil
 }
 
 func (e *Engine) Put(key, value []byte) error {
-	if e == nil || e.handle == 0 {
+	if e == nil {
 		return errors.New("rust engine is closed")
 	}
-	var errBuf redigoBuf
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
+	}
+	defer runtime.KeepAlive(key)
+	defer runtime.KeepAlive(value)
+	var errBuf kernivaBuf
 	rc, _, _ := api.enginePut.Call(
 		e.handle,
-		bytesPtr(key),
+		uintptr(unsafe.Pointer(unsafe.SliceData(key))),
 		uintptr(len(key)),
-		bytesPtr(value),
+		uintptr(unsafe.Pointer(unsafe.SliceData(value))),
 		uintptr(len(value)),
 		uintptr(unsafe.Pointer(&errBuf)),
 	)
@@ -131,14 +163,20 @@ func (e *Engine) Put(key, value []byte) error {
 }
 
 func (e *Engine) Get(key []byte) ([]byte, bool, error) {
-	if e == nil || e.handle == 0 {
+	if e == nil {
 		return nil, false, errors.New("rust engine is closed")
 	}
-	var valueBuf redigoBuf
-	var errBuf redigoBuf
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return nil, false, errors.New("rust engine is closed")
+	}
+	defer runtime.KeepAlive(key)
+	var valueBuf kernivaBuf
+	var errBuf kernivaBuf
 	rc, _, _ := api.engineGet.Call(
 		e.handle,
-		bytesPtr(key),
+		uintptr(unsafe.Pointer(unsafe.SliceData(key))),
 		uintptr(len(key)),
 		uintptr(unsafe.Pointer(&valueBuf)),
 		uintptr(unsafe.Pointer(&errBuf)),
@@ -146,7 +184,7 @@ func (e *Engine) Get(key []byte) ([]byte, bool, error) {
 	switch int32(rc) {
 	case 1:
 		defer freeBuf(valueBuf)
-		value := append([]byte(nil), unsafe.Slice((*byte)(unsafe.Pointer(valueBuf.Ptr)), int(valueBuf.Len))...)
+		value := append([]byte(nil), unsafe.Slice((*byte)(valueBuf.Ptr), int(valueBuf.Len))...)
 		return value, true, nil
 	case 0:
 		return nil, false, nil
@@ -156,13 +194,19 @@ func (e *Engine) Get(key []byte) ([]byte, bool, error) {
 }
 
 func (e *Engine) Delete(key []byte) error {
-	if e == nil || e.handle == 0 {
+	if e == nil {
 		return errors.New("rust engine is closed")
 	}
-	var errBuf redigoBuf
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
+	}
+	defer runtime.KeepAlive(key)
+	var errBuf kernivaBuf
 	rc, _, _ := api.engineDelete.Call(
 		e.handle,
-		bytesPtr(key),
+		uintptr(unsafe.Pointer(unsafe.SliceData(key))),
 		uintptr(len(key)),
 		uintptr(unsafe.Pointer(&errBuf)),
 	)
@@ -172,12 +216,57 @@ func (e *Engine) Delete(key []byte) error {
 	return nil
 }
 
+func (e *Engine) WriteBatch(operations []WriteOp) error {
+	if e == nil {
+		return errors.New("rust engine is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
+	}
+	return e.writeBatchLocked(operations)
+}
+
+func (e *Engine) writeBatchLocked(operations []WriteOp) error {
+	if len(operations) == 0 {
+		return nil
+	}
+	native := make([]nativeWriteOp, len(operations))
+	for i, operation := range operations {
+		kind := uint32(1)
+		if operation.Delete {
+			kind = 2
+		}
+		native[i] = nativeWriteOp{
+			Kind:     kind,
+			KeyPtr:   unsafe.Pointer(unsafe.SliceData(operation.Key)),
+			KeyLen:   uintptr(len(operation.Key)),
+			ValuePtr: unsafe.Pointer(unsafe.SliceData(operation.Value)),
+			ValueLen: uintptr(len(operation.Value)),
+		}
+	}
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineWriteBatch.Call(e.handle, uintptr(unsafe.Pointer(&native[0])), uintptr(len(native)), uintptr(unsafe.Pointer(&errBuf)))
+	runtime.KeepAlive(operations)
+	runtime.KeepAlive(native)
+	if int32(rc) != 0 {
+		return consumeErr("write batch rust engine", errBuf)
+	}
+	return nil
+}
+
 func (e *Engine) CompactUntilStable(maxRounds int) (uint64, error) {
-	if e == nil || e.handle == 0 {
+	if e == nil {
+		return 0, errors.New("rust engine is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
 		return 0, errors.New("rust engine is closed")
 	}
 	var rewritten uint64
-	var errBuf redigoBuf
+	var errBuf kernivaBuf
 	rc, _, _ := api.engineCompact.Call(
 		e.handle,
 		uintptr(maxRounds),
@@ -190,12 +279,102 @@ func (e *Engine) CompactUntilStable(maxRounds int) (uint64, error) {
 	return rewritten, nil
 }
 
+func (e *Engine) MaybeCompact() (uint64, error) {
+	if e == nil {
+		return 0, errors.New("rust engine is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return 0, errors.New("rust engine is closed")
+	}
+	var rewritten uint64
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineMaybeCompact.Call(e.handle, uintptr(unsafe.Pointer(&rewritten)), uintptr(unsafe.Pointer(&errBuf)))
+	if int32(rc) != 0 {
+		return 0, consumeErr("maybe compact rust engine", errBuf)
+	}
+	return rewritten, nil
+}
+
+func (e *Engine) MaybeCheckpoint() error {
+	if e == nil {
+		return errors.New("rust engine is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
+	}
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineMaybeCheckpoint.Call(
+		e.handle,
+		uintptr(unsafe.Pointer(&errBuf)),
+	)
+	if int32(rc) != 0 {
+		return consumeErr("maybe_checkpoint rust engine", errBuf)
+	}
+	return nil
+}
+
+func (e *Engine) Sync() error {
+	if e == nil {
+		return errors.New("rust engine is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
+	}
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineSync.Call(e.handle, uintptr(unsafe.Pointer(&errBuf)))
+	if int32(rc) != 0 {
+		return consumeErr("sync rust engine", errBuf)
+	}
+	return nil
+}
+
+func (e *Engine) Checkpoint() error {
+	if e == nil {
+		return errors.New("rust engine is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
+	}
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineCheckpoint.Call(e.handle, uintptr(unsafe.Pointer(&errBuf)))
+	if int32(rc) != 0 {
+		return consumeErr("checkpoint rust engine", errBuf)
+	}
+	return nil
+}
+
+func (e *Engine) ShouldCheckpoint() bool {
+	if e == nil {
+		return false
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return false
+	}
+	rc, _, _ := api.engineShouldCheckpoint.Call(e.handle)
+	return int32(rc) != 0
+}
+
 func (e *Engine) Stats() (Stats, error) {
-	if e == nil || e.handle == 0 {
+	if e == nil {
 		return Stats{}, errors.New("rust engine is closed")
 	}
-	var out redigoStats
-	var errBuf redigoBuf
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return Stats{}, errors.New("rust engine is closed")
+	}
+	var out kernivaStats
+	var errBuf kernivaBuf
 	rc, _, _ := api.engineStats.Call(
 		e.handle,
 		uintptr(unsafe.Pointer(&out)),
@@ -215,11 +394,19 @@ func (e *Engine) Stats() (Stats, error) {
 }
 
 func (e *Engine) LoadAllKeys() (map[string][]byte, error) {
-	if e == nil || e.handle == 0 {
+	if e == nil {
 		return nil, errors.New("rust engine is closed")
 	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.handle == 0 {
+		return nil, errors.New("rust engine is closed")
+	}
+	return e.loadAllKeysLocked()
+}
 
-	var errBuf redigoBuf
+func (e *Engine) loadAllKeysLocked() (map[string][]byte, error) {
+	var errBuf kernivaBuf
 	iterHandle, _, _ := api.engineIterOpen.Call(
 		e.handle,
 		uintptr(unsafe.Pointer(&errBuf)),
@@ -231,9 +418,9 @@ func (e *Engine) LoadAllKeys() (map[string][]byte, error) {
 
 	out := make(map[string][]byte)
 	for {
-		var keyBuf redigoBuf
-		var valueBuf redigoBuf
-		var nextErr redigoBuf
+		var keyBuf kernivaBuf
+		var valueBuf kernivaBuf
+		var nextErr kernivaBuf
 		rc, _, _ := api.engineIterNext.Call(
 			iterHandle,
 			uintptr(unsafe.Pointer(&keyBuf)),
@@ -242,8 +429,8 @@ func (e *Engine) LoadAllKeys() (map[string][]byte, error) {
 		)
 		switch int32(rc) {
 		case 1:
-			key := string(append([]byte(nil), unsafe.Slice((*byte)(unsafe.Pointer(keyBuf.Ptr)), int(keyBuf.Len))...))
-			value := append([]byte(nil), unsafe.Slice((*byte)(unsafe.Pointer(valueBuf.Ptr)), int(valueBuf.Len))...)
+			key := string(append([]byte(nil), unsafe.Slice((*byte)(keyBuf.Ptr), int(keyBuf.Len))...))
+			value := append([]byte(nil), unsafe.Slice((*byte)(valueBuf.Ptr), int(valueBuf.Len))...)
 			freeBuf(keyBuf)
 			freeBuf(valueBuf)
 			out[key] = value
@@ -261,30 +448,34 @@ func (e *Engine) Reset() error {
 	if e == nil {
 		return nil
 	}
-	if err := e.Close(); err != nil {
-		return err
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.handle == 0 {
+		return errors.New("rust engine is closed")
 	}
-	if err := os.RemoveAll(e.opts.DataDir); err != nil {
-		return fmt.Errorf("remove rust engine dir: %w", err)
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineClear.Call(e.handle, uintptr(unsafe.Pointer(&errBuf)))
+	if int32(rc) != 0 {
+		return consumeErr("clear rust engine", errBuf)
 	}
-	reopened, err := Open(e.opts)
-	if err != nil {
-		return err
-	}
-	e.handle = reopened.handle
-	reopened.handle = 0
 	return nil
 }
 
 func (e *Engine) Close() error {
-	if e == nil || e.handle == 0 {
+	if e == nil {
 		return nil
 	}
-	var errBuf redigoBuf
-	rc, _, _ := api.engineClose.Call(
-		e.handle,
-		uintptr(unsafe.Pointer(&errBuf)),
-	)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.closeLocked()
+}
+
+func (e *Engine) closeLocked() error {
+	if e.handle == 0 {
+		return nil
+	}
+	var errBuf kernivaBuf
+	rc, _, _ := api.engineClose.Call(e.handle, uintptr(unsafe.Pointer(&errBuf)))
 	e.handle = 0
 	if int32(rc) != 0 {
 		return consumeErr("close rust engine", errBuf)
@@ -293,136 +484,179 @@ func (e *Engine) Close() error {
 }
 
 func ensureDLL() error {
-	loadOnce.Do(func() {
-		root, err := repoRoot()
-		if err != nil {
-			loadErr = err
-			return
-		}
-		engineDir := filepath.Join(root, "engine_v2")
-		dllPath := filepath.Join(engineDir, "target", "release", "engine_v2.dll")
-		if err := buildDLL(engineDir); err != nil {
-			loadErr = err
-			return
-		}
-		api, loadErr = loadDLL(dllPath)
-	})
-	return loadErr
-}
-
-func buildDLL(engineDir string) error {
-	cmd := exec.Command("cargo", "build", "--release")
-	cmd.Dir = engineDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("build rust engine dll: %w", err)
+	loadMu.Lock()
+	defer loadMu.Unlock()
+	if api != nil {
+		return nil
 	}
-	return nil
+	filename := "libkerniva_engine.so"
+	switch runtime.GOOS {
+	case "windows":
+		filename = "kerniva_engine.dll"
+	case "darwin":
+		filename = "libkerniva_engine.dylib"
+	}
+	var candidates []string
+	if explicit := os.Getenv("KERNIVA_ENGINE_LIBRARY"); explicit != "" {
+		candidates = []string{explicit}
+	} else {
+		executable, err := os.Executable()
+		if err == nil {
+			candidates = append(candidates, filepath.Join(filepath.Dir(executable), filename))
+		}
+		current, err := os.Getwd()
+		if err == nil {
+			for dir := current; ; dir = filepath.Dir(dir) {
+				candidates = append(candidates, filepath.Join(dir, "bin", filename), filepath.Join(dir, "kerniva_engine", "target", "release", filename))
+				if filepath.Dir(dir) == dir {
+					break
+				}
+			}
+		}
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err != nil {
+			continue
+		}
+		loaded, err := loadDLL(candidate)
+		if err != nil {
+			return err
+		}
+		api = loaded
+		return nil
+	}
+	return fmt.Errorf("prebuilt Kerniva Engine library %s not found, run the build script or set KERNIVA_ENGINE_LIBRARY", filename)
 }
 
 func loadDLL(path string) (*dllAPI, error) {
-	dll, err := syscall.LoadDLL(path)
+	dll, err := openLibrary(path)
 	if err != nil {
 		return nil, fmt.Errorf("load rust engine dll: %w", err)
 	}
 
-	find := func(name string) (*syscall.Proc, error) {
-		proc, procErr := dll.FindProc(name)
+	loaded := false
+	defer func() {
+		if !loaded {
+			closeLibrary(dll)
+		}
+	}()
+	find := func(name string) (*nativeProc, error) {
+		address, procErr := findSymbol(dll, name)
 		if procErr != nil {
 			return nil, fmt.Errorf("find proc %s: %w", name, procErr)
 		}
-		return proc, nil
+		return &nativeProc{address: address}, nil
 	}
 
-	bufFree, err := find("redigo_buf_free")
+	bufFree, err := find("kerniva_buf_free")
 	if err != nil {
 		return nil, err
 	}
-	engineOpen, err := find("redigo_engine_open")
+	engineOpen, err := find("kerniva_engine_open")
 	if err != nil {
 		return nil, err
 	}
-	engineClose, err := find("redigo_engine_close")
+	engineClose, err := find("kerniva_engine_close")
 	if err != nil {
 		return nil, err
 	}
-	enginePut, err := find("redigo_engine_put")
+	enginePut, err := find("kerniva_engine_put")
 	if err != nil {
 		return nil, err
 	}
-	engineGet, err := find("redigo_engine_get")
+	engineGet, err := find("kerniva_engine_get")
 	if err != nil {
 		return nil, err
 	}
-	engineDelete, err := find("redigo_engine_delete")
+	engineDelete, err := find("kerniva_engine_delete")
 	if err != nil {
 		return nil, err
 	}
-	engineCompact, err := find("redigo_engine_compact_until_stable")
+	engineClear, err := find("kerniva_engine_clear")
 	if err != nil {
 		return nil, err
 	}
-	engineStats, err := find("redigo_engine_stats")
+	engineCompact, err := find("kerniva_engine_compact_until_stable")
 	if err != nil {
 		return nil, err
 	}
-	engineIterOpen, err := find("redigo_engine_iter_open")
+	engineMaybeCompact, err := find("kerniva_engine_maybe_compact")
 	if err != nil {
 		return nil, err
 	}
-	engineIterNext, err := find("redigo_engine_iter_next")
+	engineMaybeCheckpoint, err := find("kerniva_engine_maybe_checkpoint")
 	if err != nil {
 		return nil, err
 	}
-	engineIterClose, err := find("redigo_engine_iter_close")
+	engineShouldCheckpoint, err := find("kerniva_engine_should_checkpoint")
+	if err != nil {
+		return nil, err
+	}
+	engineStats, err := find("kerniva_engine_stats")
+	if err != nil {
+		return nil, err
+	}
+	engineIterOpen, err := find("kerniva_engine_iter_open")
+	if err != nil {
+		return nil, err
+	}
+	engineIterNext, err := find("kerniva_engine_iter_next")
+	if err != nil {
+		return nil, err
+	}
+	engineIterClose, err := find("kerniva_engine_iter_close")
 	if err != nil {
 		return nil, err
 	}
 
+	engineWriteBatch, err := find("kerniva_engine_write_batch")
+	if err != nil {
+		return nil, err
+	}
+	engineSync, err := find("kerniva_engine_sync")
+	if err != nil {
+		return nil, err
+	}
+	engineCheckpoint, err := find("kerniva_engine_checkpoint")
+	if err != nil {
+		return nil, err
+	}
+	loaded = true
 	return &dllAPI{
-		dll:             dll,
-		bufFree:         bufFree,
-		engineOpen:      engineOpen,
-		engineClose:     engineClose,
-		enginePut:       enginePut,
-		engineGet:       engineGet,
-		engineDelete:    engineDelete,
-		engineCompact:   engineCompact,
-		engineStats:     engineStats,
-		engineIterOpen:  engineIterOpen,
-		engineIterNext:  engineIterNext,
-		engineIterClose: engineIterClose,
+		dll:                    dll,
+		bufFree:                bufFree,
+		engineOpen:             engineOpen,
+		engineClose:            engineClose,
+		enginePut:              enginePut,
+		engineGet:              engineGet,
+		engineDelete:           engineDelete,
+		engineClear:            engineClear,
+		engineWriteBatch:       engineWriteBatch,
+		engineSync:             engineSync,
+		engineCheckpoint:       engineCheckpoint,
+		engineCompact:          engineCompact,
+		engineMaybeCompact:     engineMaybeCompact,
+		engineMaybeCheckpoint:  engineMaybeCheckpoint,
+		engineShouldCheckpoint: engineShouldCheckpoint,
+		engineStats:            engineStats,
+		engineIterOpen:         engineIterOpen,
+		engineIterNext:         engineIterNext,
+		engineIterClose:        engineIterClose,
 	}, nil
 }
 
-func repoRoot() (string, error) {
-	_, currentFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("resolve current file")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..")), nil
-}
-
-func bytesPtr(b []byte) uintptr {
-	if len(b) == 0 {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(&b[0]))
-}
-
-func freeBuf(buf redigoBuf) {
-	if buf.Ptr == 0 || buf.Len == 0 {
+func freeBuf(buf kernivaBuf) {
+	if buf.Ptr == nil || buf.Len == 0 {
 		return
 	}
 	api.bufFree.Call(uintptr(buf.Ptr), uintptr(buf.Len))
 }
 
-func consumeErr(prefix string, buf redigoBuf) error {
-	if buf.Ptr == 0 || buf.Len == 0 {
+func consumeErr(prefix string, buf kernivaBuf) error {
+	if buf.Ptr == nil || buf.Len == 0 {
 		return errors.New(prefix)
 	}
 	defer freeBuf(buf)
-	msg := string(unsafe.Slice((*byte)(unsafe.Pointer(buf.Ptr)), int(buf.Len)))
+	msg := string(unsafe.Slice((*byte)(buf.Ptr), int(buf.Len)))
 	return fmt.Errorf("%s: %s", prefix, msg)
 }

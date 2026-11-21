@@ -73,4 +73,3 @@ func TestDataValue_V3RoundTrip_Hash(t *testing.T) {
 		t.Fatalf("value: %#v", v.Data)
 	}
 }
-

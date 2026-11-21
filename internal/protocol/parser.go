@@ -292,9 +292,7 @@ func (p *Parser) readBulkString() (string, error) {
 	}
 
 	// 移除 \r\n
-	if length > 0 {
-		buf = buf[:length]
-	}
+	buf = buf[:length]
 
 	return string(buf), nil
 }
@@ -602,6 +600,11 @@ func appendResponse(dst *[]byte, resp *Response) {
 		}
 	case Array:
 		*dst = append(*dst, Array)
+		if resp.Value == nil {
+			*dst = append(*dst, '-', '1')
+			appendCRLF(dst)
+			return
+		}
 		switch arr := resp.Value.(type) {
 		case []string:
 			appendInt(dst, int64(len(arr)))
@@ -672,6 +675,13 @@ func MakeArrayResponses(items []*Response) *Response {
 	resp := acquireResponse()
 	resp.Type = Array
 	resp.Value = items
+	return resp
+}
+
+func MakeNullArray() *Response {
+	resp := acquireResponse()
+	resp.Type = Array
+	resp.Value = nil
 	return resp
 }
 

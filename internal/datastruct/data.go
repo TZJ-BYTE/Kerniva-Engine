@@ -19,6 +19,7 @@ func init() {
 	gob.Register(&Hash{})
 	gob.Register(&Set{})
 	gob.Register(&ZSet{})
+	gob.Register(&Stream{})
 }
 
 // DataValue 存储的数据值结构
@@ -60,6 +61,30 @@ func (dv *DataValue) ApproximateSize() int64 {
 			size += int64(len(k)) + 48 // map entry + float64 overhead
 		}
 		size += int64(len(v.Scores) * 24) // slice overhead
+	case *Stream:
+		for i := range v.Entries {
+			entry := v.Entries[i]
+			size += int64(len(entry.ID)) + 32
+			for j := range entry.Fields {
+				size += int64(len(entry.Fields[j])) + 16
+			}
+			size += int64(len(entry.Fields) * 8)
+		}
+		size += int64(len(v.Entries) * 48)
+		for gi := range v.Groups {
+			g := v.Groups[gi]
+			size += int64(len(g.Name)) + int64(len(g.LastDeliveredID)) + 64
+			for pi := range g.Pel {
+				pe := g.Pel[pi]
+				size += int64(len(pe.ID)) + int64(len(pe.ConsumerName)) + 32
+			}
+			size += int64(len(g.Pel) * 40)
+			for ci := range g.Consumers {
+				size += int64(len(g.Consumers[ci].Name)) + 24
+			}
+			size += int64(len(g.Consumers) * 16)
+		}
+		size += int64(len(v.Groups) * 32)
 	case string: // 兼容纯字符串 Value
 		size += int64(len(v))
 	}
@@ -240,6 +265,53 @@ func (dv *DataValue) serializeV3() ([]byte, bool) {
 			out = append(out, fb[:]...)
 		}
 		return out, true
+	case *Stream:
+		out = append(out, 7)
+		out = appendU64(out, v.LastMS)
+		out = appendU64(out, v.LastSeq)
+		out = appendU32(out, uint32(len(v.Entries)))
+		for i := range v.Entries {
+			entry := v.Entries[i]
+			out = appendU32(out, uint32(len(entry.ID)))
+			out = append(out, entry.ID...)
+			out = appendU32(out, uint32(len(entry.Fields)))
+			for j := range entry.Fields {
+				field := entry.Fields[j]
+				out = appendU32(out, uint32(len(field)))
+				out = append(out, field...)
+			}
+		}
+		out = appendU32(out, uint32(len(v.Groups)))
+		for gi := range v.Groups {
+			g := v.Groups[gi]
+			out = appendU32(out, uint32(len(g.Name)))
+			out = append(out, g.Name...)
+			out = appendU32(out, uint32(len(g.LastDeliveredID)))
+			out = append(out, g.LastDeliveredID...)
+			out = appendU32(out, uint32(len(g.Pel)))
+			for pi := range g.Pel {
+				pe := g.Pel[pi]
+				out = appendU32(out, uint32(len(pe.ID)))
+				out = append(out, pe.ID...)
+				out = appendU32(out, uint32(len(pe.ConsumerName)))
+				out = append(out, pe.ConsumerName...)
+				var tmp [8]byte
+				binary.LittleEndian.PutUint64(tmp[:], uint64(pe.DeliveredAt))
+				out = append(out, tmp[:]...)
+				binary.LittleEndian.PutUint64(tmp[:], uint64(pe.DeliveryCount))
+				out = append(out, tmp[:]...)
+			}
+			out = appendU32(out, uint32(len(g.Consumers)))
+			for ci := range g.Consumers {
+				c := g.Consumers[ci]
+				out = appendU32(out, uint32(len(c.Name)))
+				out = append(out, c.Name...)
+				var tmp [8]byte
+				binary.LittleEndian.PutUint64(tmp[:], uint64(c.SeenTime))
+				out = append(out, tmp[:]...)
+			}
+		}
+		return out, true
 	default:
 		return nil, false
 	}
@@ -251,16 +323,45 @@ func appendU32(dst []byte, v uint32) []byte {
 	return append(dst, b[:]...)
 }
 
+func appendU64(dst []byte, v uint64) []byte {
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], v)
+	return append(dst, b[:]...)
+}
+
 func deserializeDataValueV3(buf *bytes.Buffer) (*DataValue, error) {
 	data := buf.Bytes()
 	pos := 0
 	read := func(n int) ([]byte, bool) {
-		if pos+n > len(data) {
+		if n < 0 || n > len(data)-pos {
 			return nil, false
 		}
 		b := data[pos : pos+n]
 		pos += n
 		return b, true
+	}
+	readCount := func(minimumEntryBytes int) (int, bool) {
+		encoded, ok := read(4)
+		if !ok {
+			return 0, false
+		}
+		count := binary.LittleEndian.Uint32(encoded)
+		if uint64(count) > uint64((len(data)-pos)/minimumEntryBytes) {
+			return 0, false
+		}
+		return int(count), true
+	}
+	readString := func() (string, bool) {
+		encoded, ok := read(4)
+		if !ok {
+			return "", false
+		}
+		length := binary.LittleEndian.Uint32(encoded)
+		if uint64(length) > uint64(len(data)-pos) {
+			return "", false
+		}
+		value, ok := read(int(length))
+		return string(value), ok
 	}
 
 	b, ok := read(8)
@@ -313,12 +414,11 @@ func deserializeDataValueV3(buf *bytes.Buffer) (*DataValue, error) {
 		copy(out, vb)
 		dv.Value = &BytesString{Data: out}
 	case 3:
-		lb, ok := read(4)
+		cnt, ok := readCount(4)
 		if !ok {
 			FreeDataValue(dv)
 			return nil, fmt.Errorf("corrupt data")
 		}
-		cnt := int(binary.LittleEndian.Uint32(lb))
 		arr := make([]string, 0, cnt)
 		for i := 0; i < cnt; i++ {
 			lb, ok := read(4)
@@ -336,12 +436,11 @@ func deserializeDataValueV3(buf *bytes.Buffer) (*DataValue, error) {
 		}
 		dv.Value = &List{Data: arr}
 	case 4:
-		lb, ok := read(4)
+		cnt, ok := readCount(8)
 		if !ok {
 			FreeDataValue(dv)
 			return nil, fmt.Errorf("corrupt data")
 		}
-		cnt := int(binary.LittleEndian.Uint32(lb))
 		m := make(map[string]string, cnt)
 		for i := 0; i < cnt; i++ {
 			kl, ok := read(4)
@@ -370,12 +469,11 @@ func deserializeDataValueV3(buf *bytes.Buffer) (*DataValue, error) {
 		}
 		dv.Value = &Hash{Data: m}
 	case 5:
-		lb, ok := read(4)
+		cnt, ok := readCount(4)
 		if !ok {
 			FreeDataValue(dv)
 			return nil, fmt.Errorf("corrupt data")
 		}
-		cnt := int(binary.LittleEndian.Uint32(lb))
 		m := make(map[string]struct{}, cnt)
 		for i := 0; i < cnt; i++ {
 			kl, ok := read(4)
@@ -393,12 +491,11 @@ func deserializeDataValueV3(buf *bytes.Buffer) (*DataValue, error) {
 		}
 		dv.Value = &Set{Data: m}
 	case 6:
-		lb, ok := read(4)
+		cnt, ok := readCount(12)
 		if !ok {
 			FreeDataValue(dv)
 			return nil, fmt.Errorf("corrupt data")
 		}
-		cnt := int(binary.LittleEndian.Uint32(lb))
 		m := make(map[string]float64, cnt)
 		scores := make([]ZSetMember, 0, cnt)
 		for i := 0; i < cnt; i++ {
@@ -423,7 +520,145 @@ func deserializeDataValueV3(buf *bytes.Buffer) (*DataValue, error) {
 			m[member] = score
 			scores = append(scores, ZSetMember{Member: member, Score: score})
 		}
+		sort.Slice(scores, func(i, j int) bool {
+			if scores[i].Score == scores[j].Score {
+				return scores[i].Member < scores[j].Member
+			}
+			return scores[i].Score < scores[j].Score
+		})
 		dv.Value = &ZSet{Data: m, Scores: scores}
+	case 7:
+		mb, ok := read(8)
+		if !ok {
+			FreeDataValue(dv)
+			return nil, fmt.Errorf("corrupt data")
+		}
+		sb, ok := read(8)
+		if !ok {
+			FreeDataValue(dv)
+			return nil, fmt.Errorf("corrupt data")
+		}
+		cnt, ok := readCount(8)
+		if !ok {
+			FreeDataValue(dv)
+			return nil, fmt.Errorf("corrupt data")
+		}
+		lastMS := binary.LittleEndian.Uint64(mb)
+		lastSeq := binary.LittleEndian.Uint64(sb)
+		entries := make([]StreamEntry, 0, cnt)
+		for i := 0; i < cnt; i++ {
+			il, ok := read(4)
+			if !ok {
+				FreeDataValue(dv)
+				return nil, fmt.Errorf("corrupt data")
+			}
+			in := int(binary.LittleEndian.Uint32(il))
+			ib, ok := read(in)
+			if !ok {
+				FreeDataValue(dv)
+				return nil, fmt.Errorf("corrupt data")
+			}
+			fc, ok := readCount(4)
+			if !ok {
+				FreeDataValue(dv)
+				return nil, fmt.Errorf("corrupt data")
+			}
+			fields := make([]string, 0, fc)
+			for j := 0; j < fc; j++ {
+				lb, ok := read(4)
+				if !ok {
+					FreeDataValue(dv)
+					return nil, fmt.Errorf("corrupt data")
+				}
+				n := int(binary.LittleEndian.Uint32(lb))
+				fb, ok := read(n)
+				if !ok {
+					FreeDataValue(dv)
+					return nil, fmt.Errorf("corrupt data")
+				}
+				fields = append(fields, string(fb))
+			}
+			entries = append(entries, StreamEntry{ID: string(ib), Fields: fields})
+		}
+		dv.Value = &Stream{Entries: entries, LastMS: lastMS, LastSeq: lastSeq}
+		groups := make([]ConsumerGroup, 0)
+		// Older V3 stream values ended immediately after the entries.
+		if pos < len(data) {
+			gc, ok := readCount(16)
+			if !ok {
+				FreeDataValue(dv)
+				return nil, fmt.Errorf("corrupt stream groups")
+			}
+			groups = make([]ConsumerGroup, 0, gc)
+			for gi := 0; gi < gc; gi++ {
+				var cg ConsumerGroup
+				cg.Name, ok = readString()
+				if !ok {
+					FreeDataValue(dv)
+					return nil, fmt.Errorf("corrupt stream group name")
+				}
+				cg.LastDeliveredID, ok = readString()
+				if !ok {
+					FreeDataValue(dv)
+					return nil, fmt.Errorf("corrupt stream group ID")
+				}
+				pc, ok := readCount(24)
+				if !ok {
+					FreeDataValue(dv)
+					return nil, fmt.Errorf("corrupt stream pending entries")
+				}
+				cg.Pel = make([]PendingEntry, 0, pc)
+				for pi := 0; pi < pc; pi++ {
+					var pe PendingEntry
+					pe.ID, ok = readString()
+					if !ok {
+						FreeDataValue(dv)
+						return nil, fmt.Errorf("corrupt stream pending ID")
+					}
+					pe.ConsumerName, ok = readString()
+					if !ok {
+						FreeDataValue(dv)
+						return nil, fmt.Errorf("corrupt stream pending consumer")
+					}
+					delivered, ok := read(8)
+					if !ok {
+						FreeDataValue(dv)
+						return nil, fmt.Errorf("corrupt stream delivery time")
+					}
+					pe.DeliveredAt = int64(binary.LittleEndian.Uint64(delivered))
+					count, ok := read(8)
+					if !ok {
+						FreeDataValue(dv)
+						return nil, fmt.Errorf("corrupt stream delivery count")
+					}
+					pe.DeliveryCount = int64(binary.LittleEndian.Uint64(count))
+					cg.Pel = append(cg.Pel, pe)
+				}
+				cc, ok := readCount(12)
+				if !ok {
+					FreeDataValue(dv)
+					return nil, fmt.Errorf("corrupt stream consumers")
+				}
+				cg.Consumers = make([]Consumer, 0, cc)
+				for ci := 0; ci < cc; ci++ {
+					var c Consumer
+					c.Name, ok = readString()
+					if !ok {
+						FreeDataValue(dv)
+						return nil, fmt.Errorf("corrupt stream consumer name")
+					}
+					seen, ok := read(8)
+					if !ok {
+						FreeDataValue(dv)
+						return nil, fmt.Errorf("corrupt stream consumer time")
+					}
+					c.SeenTime = int64(binary.LittleEndian.Uint64(seen))
+					cg.Consumers = append(cg.Consumers, c)
+				}
+				groups = append(groups, cg)
+			}
+		}
+		dv.Value.(*Stream).Groups = groups
 	default:
 		FreeDataValue(dv)
 		return nil, fmt.Errorf("unknown value type")
@@ -617,11 +852,24 @@ func (zs *ZSet) Add(member string, score float64) bool {
 		zs.Data = make(map[string]float64)
 	}
 
-	_, exists := zs.Data[member]
+	previous, exists := zs.Data[member]
+	if len(zs.Scores) != len(zs.Data) {
+		zs.updateScores()
+	}
+	if exists && previous == score {
+		return false
+	}
+	if exists {
+		index := zs.scoreIndex(member, previous)
+		copy(zs.Scores[index:], zs.Scores[index+1:])
+		zs.Scores[len(zs.Scores)-1] = ZSetMember{}
+		zs.Scores = zs.Scores[:len(zs.Scores)-1]
+	}
 	zs.Data[member] = score
-
-	// 更新排序列表
-	zs.updateScores()
+	index := zs.scoreIndex(member, score)
+	zs.Scores = append(zs.Scores, ZSetMember{})
+	copy(zs.Scores[index+1:], zs.Scores[index:])
+	zs.Scores[index] = ZSetMember{Member: member, Score: score}
 	return !exists
 }
 
@@ -630,12 +878,48 @@ func (zs *ZSet) Remove(member string) bool {
 	if zs.Data == nil {
 		return false
 	}
-	if _, exists := zs.Data[member]; !exists {
+	score, exists := zs.Data[member]
+	if !exists {
 		return false
 	}
+	if len(zs.Scores) != len(zs.Data) {
+		zs.updateScores()
+	}
+	index := zs.scoreIndex(member, score)
 	delete(zs.Data, member)
-	zs.updateScores()
+	copy(zs.Scores[index:], zs.Scores[index+1:])
+	zs.Scores[len(zs.Scores)-1] = ZSetMember{}
+	zs.Scores = zs.Scores[:len(zs.Scores)-1]
 	return true
+}
+
+func (zs *ZSet) scoreIndex(member string, score float64) int {
+	return sort.Search(len(zs.Scores), func(i int) bool {
+		entry := zs.Scores[i]
+		return entry.Score > score || (entry.Score == score && entry.Member >= member)
+	})
+}
+
+// AddMany rebuilds the score index once for an entire command.
+func (zs *ZSet) AddMany(entries []ZSetMember) int64 {
+	if len(entries) == 1 {
+		if zs.Add(entries[0].Member, entries[0].Score) {
+			return 1
+		}
+		return 0
+	}
+	if zs.Data == nil {
+		zs.Data = make(map[string]float64, len(entries))
+	}
+	var added int64
+	for _, entry := range entries {
+		if _, exists := zs.Data[entry.Member]; !exists {
+			added++
+		}
+		zs.Data[entry.Member] = entry.Score
+	}
+	zs.updateScores()
+	return added
 }
 
 // Score 获取元素的分数
@@ -659,6 +943,9 @@ func (zs *ZSet) updateScores() {
 
 	// 按分数排序
 	sort.Slice(zs.Scores, func(i, j int) bool {
+		if zs.Scores[i].Score == zs.Scores[j].Score {
+			return zs.Scores[i].Member < zs.Scores[j].Member
+		}
 		return zs.Scores[i].Score < zs.Scores[j].Score
 	})
 }
@@ -672,4 +959,81 @@ func (zs *ZSet) RangeByScore(min, max float64) []ZSetMember {
 		}
 	}
 	return result
+}
+
+// StreamEntry Stream 条目
+type StreamEntry struct {
+	ID     string
+	Fields []string
+}
+
+// Stream Stream 类型
+type Stream struct {
+	Entries []StreamEntry
+	LastMS  uint64
+	LastSeq uint64
+	Groups  []ConsumerGroup
+}
+
+// ConsumerGroup 消费者组
+type ConsumerGroup struct {
+	Name            string
+	LastDeliveredID string
+	Pel             []PendingEntry
+	Consumers       []Consumer
+}
+
+// PendingEntry PEL 条目（待确认消息）
+type PendingEntry struct {
+	ID            string
+	ConsumerName  string
+	DeliveredAt   int64
+	DeliveryCount int64
+}
+
+// Consumer 消费者
+type Consumer struct {
+	Name     string
+	SeenTime int64
+}
+
+// FindGroup 查找消费者组
+func (s *Stream) FindGroup(name string) *ConsumerGroup {
+	for i := range s.Groups {
+		if s.Groups[i].Name == name {
+			return &s.Groups[i]
+		}
+	}
+	return nil
+}
+
+// FindConsumer 在组内查找消费者
+func (g *ConsumerGroup) FindConsumer(name string) *Consumer {
+	for i := range g.Consumers {
+		if g.Consumers[i].Name == name {
+			return &g.Consumers[i]
+		}
+	}
+	return nil
+}
+
+// FindPelEntry 在 PEL 中查找条目
+func (g *ConsumerGroup) FindPelEntry(id string) *PendingEntry {
+	for i := range g.Pel {
+		if g.Pel[i].ID == id {
+			return &g.Pel[i]
+		}
+	}
+	return nil
+}
+
+// RemovePelEntry 从 PEL 中移除指定条目
+func (g *ConsumerGroup) RemovePelEntry(id string) bool {
+	for i := range g.Pel {
+		if g.Pel[i].ID == id {
+			g.Pel = append(g.Pel[:i], g.Pel[i+1:]...)
+			return true
+		}
+	}
+	return false
 }

@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/network"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/network"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
 // NewServer 根据配置创建服务器

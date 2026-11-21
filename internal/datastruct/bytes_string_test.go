@@ -26,4 +26,3 @@ func TestBytesString_SerializeRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected data: %q", string(bs.Data))
 	}
 }
-

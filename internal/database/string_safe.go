@@ -2,27 +2,23 @@ package database
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
-func (db *Database) GetStringBytesCopy(key []byte) ([]byte, bool, error) {
+func (db *Database) getStringBytesCopyLocked(key []byte) ([]byte, bool, error) {
 	k := bytesToString(key)
-	shard := db.getShard(k)
-
-	shard.lock.RLock()
-	dv, exists := shard.data[k]
+	dv, exists, err := db.getLiveValue(k)
+	if err != nil {
+		return nil, false, err
+	}
 	if !exists || dv == nil {
-		shard.lock.RUnlock()
 		return nil, false, nil
 	}
-	now := time.Now().UnixMilli()
-	if dv.ExpireTime > 0 && now > dv.ExpireTime {
-		shard.lock.RUnlock()
-		return nil, false, nil
-	}
+
+	shard := db.getShard(k)
+	shard.lock.RLock()
 	switch v := dv.Value.(type) {
 	case *datastruct.String:
 		out := []byte(v.Data)
@@ -39,11 +35,30 @@ func (db *Database) GetStringBytesCopy(key []byte) ([]byte, bool, error) {
 	}
 }
 
-func (db *Database) GetStringCopy(key []byte) (string, bool, error) {
-	b, ok, err := db.GetStringBytesCopy(key)
+func (db *Database) getStringCopyLocked(key []byte) (string, bool, error) {
+	b, ok, err := db.getStringBytesCopyLocked(key)
 	if !ok || err != nil {
 		return "", ok, err
 	}
 	return protocol.BytesToString(b), true, nil
 }
 
+func (db *Database) GetStringBytesCopy(key []byte) (result0 []byte, result1 bool, err error) {
+	parallel := db.beginKeyOperation(bytesToString(key), false)
+	defer db.endKeyOperation(bytesToString(key), false, parallel)
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.getStringBytesCopyLocked(key)
+}
+
+func (db *Database) GetStringCopy(key []byte) (result0 string, result1 bool, err error) {
+	parallel := db.beginKeyOperation(bytesToString(key), false)
+	defer db.endKeyOperation(bytesToString(key), false, parallel)
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.getStringCopyLocked(key)
+}

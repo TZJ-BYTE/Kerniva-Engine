@@ -15,12 +15,13 @@ const (
 	NoLoad ColdStartStrategy = iota
 	// LoadAll 启动时全量加载到内存
 	LoadAll
-	// LazyLoad 懒加载（读取时 fallback 到 LSM）
+	// LazyLoad 懒加载（读取时 fallback 到持久化引擎）
 	LazyLoad
 )
 
 // Config 服务器配置
 type Config struct {
+	envError    error
 	Host        string `yaml:"host" json:"host"`
 	Port        int    `yaml:"port" json:"port"`
 	NetworkType string `yaml:"network_type" json:"network_type"` // "std", "gnet"
@@ -37,44 +38,27 @@ type Config struct {
 
 	// 持久化配置
 	PersistenceEnabled bool   `yaml:"persistence_enabled" json:"persistence_enabled"`
-	PersistenceType    string `yaml:"persistence_type" json:"persistence_type"` // "aof", "lsm", "hybrid"
+	PersistenceType    string `yaml:"persistence_type" json:"persistence_type"` // "kerniva" / "rust"
 	DataDir            string `yaml:"data_dir" json:"data_dir"`
 	ColdStartStrategy  string `yaml:"cold_start_strategy" json:"cold_start_strategy"` // "no_load", "load_all", "lazy_load"
 	AOFEnabled         bool   `yaml:"aof_enabled" json:"aof_enabled"`                 // 保留向后兼容
 	AOFPath            string `yaml:"aof_path" json:"aof_path"`
 	RDBPath            string `yaml:"rdb_path" json:"rdb_path"`
 
-	PersistenceWriteMode  string `yaml:"persistence_write_mode" json:"persistence_write_mode"` // "strong", "weak"
-	PersistenceDurability string `yaml:"persistence_durability" json:"persistence_durability"` // "wal", "wal_fsync", "lsm"
-
-	// LSM 配置
-	BlockSize       int   `yaml:"block_size" json:"block_size"`       // SSTable block 大小
-	MemTableSize    int   `yaml:"memtable_size" json:"memtable_size"` // MemTable 最大大小
-	WriteBufferSize int64 `yaml:"write_buffer_size" json:"write_buffer_size"`
-	MaxOpenFiles    int   `yaml:"max_open_files" json:"max_open_files"`
-	BloomFilterBits int   `yaml:"bloom_filter_bits" json:"bloom_filter_bits"`
+	PersistenceWriteMode     string `yaml:"persistence_write_mode" json:"persistence_write_mode"` // "strong", "weak"
+	PersistenceDurability    string `yaml:"persistence_durability" json:"persistence_durability"` // "none", "flush", "sync"
+	EngineSegmentSize        int64  `yaml:"engine_segment_size" json:"engine_segment_size"`
+	EngineCheckpointAfterOps int    `yaml:"engine_checkpoint_after_ops" json:"engine_checkpoint_after_ops"`
 
 	// 日志配置
-	LogLevel string `yaml:"log_level" json:"log_level"`
-	LogPath  string `yaml:"log_path" json:"log_path"`
+	LogLevel      string `yaml:"log_level" json:"log_level"`
+	LogPath       string `yaml:"log_path" json:"log_path"`
+	LogMaxSizeMB  int    `yaml:"log_max_size_mb" json:"log_max_size_mb"`
+	LogMaxBackups int    `yaml:"log_max_backups" json:"log_max_backups"`
+	LogMaxAgeDays int    `yaml:"log_max_age_days" json:"log_max_age_days"`
 
 	PprofEnabled bool   `yaml:"pprof_enabled" json:"pprof_enabled"`
 	PprofAddr    string `yaml:"pprof_addr" json:"pprof_addr"`
-
-	// 存算分离配置
-	OffloadEnabled    bool   `yaml:"offload_enabled" json:"offload_enabled"`
-	OffloadBackend    string `yaml:"offload_backend" json:"offload_backend"` // "fs" or "minio"
-	OffloadEndpoint   string `yaml:"offload_endpoint" json:"offload_endpoint"`
-	OffloadAccessKey  string `yaml:"offload_access_key" json:"offload_access_key"`
-	OffloadSecretKey  string `yaml:"offload_secret_key" json:"offload_secret_key"`
-	OffloadBucket     string `yaml:"offload_bucket" json:"offload_bucket"`
-	OffloadUseSSL     bool   `yaml:"offload_use_ssl" json:"offload_use_ssl"`
-	OffloadRegion     string `yaml:"offload_region" json:"offload_region"`
-	OffloadBasePrefix string `yaml:"offload_base_prefix" json:"offload_base_prefix"`
-
-	OffloadMinLevel  int    `yaml:"offload_min_level" json:"offload_min_level"`
-	OffloadKeepLocal bool   `yaml:"offload_keep_local" json:"offload_keep_local"`
-	OffloadFSRoot    string `yaml:"offload_fs_root" json:"offload_fs_root"`
 }
 
 // DefaultConfig 返回默认配置
@@ -85,92 +69,53 @@ func DefaultConfig() *Config {
 }
 
 func (c *Config) applyEnvOverrides() {
-	if v, ok := os.LookupEnv("REDIGO_PORT"); ok && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			c.Port = n
+	stringsByName := map[string]*string{
+		"KERNIVA_HOST": &c.Host, "KERNIVA_NETWORK_TYPE": &c.NetworkType,
+		"KERNIVA_PERSISTENCE_TYPE": &c.PersistenceType, "KERNIVA_DATA_DIR": &c.DataDir,
+		"KERNIVA_PERSISTENCE_WRITE_MODE": &c.PersistenceWriteMode, "KERNIVA_PERSISTENCE_DURABILITY": &c.PersistenceDurability,
+		"KERNIVA_COLD_START_STRATEGY": &c.ColdStartStrategy, "KERNIVA_MAX_MEMORY_POLICY": &c.MaxMemoryPolicy,
+		"KERNIVA_PPROF_ADDR": &c.PprofAddr, "KERNIVA_LOG_LEVEL": &c.LogLevel, "KERNIVA_LOG_PATH": &c.LogPath,
+	}
+	for name, target := range stringsByName {
+		if value, ok := os.LookupEnv(name); ok && value != "" {
+			*target = value
 		}
 	}
-	if v, ok := os.LookupEnv("REDIGO_NETWORK_TYPE"); ok && v != "" {
-		c.NetworkType = v
+	integersByName := map[string]*int{
+		"KERNIVA_PORT": &c.Port, "KERNIVA_DB_COUNT": &c.DBCount,
+		"KERNIVA_RESP_MAX_BULK_LEN": &c.RespMaxBulkLen, "KERNIVA_RESP_MAX_ARRAY_LEN": &c.RespMaxArrayLen,
+		"KERNIVA_ENGINE_CHECKPOINT_AFTER_OPS": &c.EngineCheckpointAfterOps,
+		"KERNIVA_LOG_MAX_SIZE_MB":             &c.LogMaxSizeMB, "KERNIVA_LOG_MAX_BACKUPS": &c.LogMaxBackups, "KERNIVA_LOG_MAX_AGE_DAYS": &c.LogMaxAgeDays,
 	}
-	if v, ok := os.LookupEnv("REDIGO_PERSISTENCE_ENABLED"); ok {
-		if b, err := strconv.ParseBool(v); err == nil {
-			c.PersistenceEnabled = b
+	for name, target := range integersByName {
+		if value, ok := os.LookupEnv(name); ok && value != "" {
+			parsed, err := strconv.Atoi(value)
+			if err != nil {
+				c.envError = fmt.Errorf("invalid %s: %w", name, err)
+				continue
+			}
+			*target = parsed
 		}
 	}
-	if v, ok := os.LookupEnv("REDIGO_PERSISTENCE_TYPE"); ok && v != "" {
-		c.PersistenceType = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_DATA_DIR"); ok && v != "" {
-		c.DataDir = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_RESP_MAX_BULK_LEN"); ok && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			c.RespMaxBulkLen = n
+	for name, target := range map[string]*int64{"KERNIVA_ENGINE_SEGMENT_SIZE": &c.EngineSegmentSize, "KERNIVA_MAX_MEMORY": &c.MaxMemory} {
+		if value, ok := os.LookupEnv(name); ok && value != "" {
+			parsed, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				c.envError = fmt.Errorf("invalid %s: %w", name, err)
+				continue
+			}
+			*target = parsed
 		}
 	}
-	if v, ok := os.LookupEnv("REDIGO_RESP_MAX_ARRAY_LEN"); ok && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			c.RespMaxArrayLen = n
+	for name, target := range map[string]*bool{"KERNIVA_PERSISTENCE_ENABLED": &c.PersistenceEnabled, "KERNIVA_PPROF_ENABLED": &c.PprofEnabled} {
+		if value, ok := os.LookupEnv(name); ok {
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				c.envError = fmt.Errorf("invalid %s: %w", name, err)
+				continue
+			}
+			*target = parsed
 		}
-	}
-	if v, ok := os.LookupEnv("REDIGO_PERSISTENCE_WRITE_MODE"); ok && v != "" {
-		c.PersistenceWriteMode = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_PERSISTENCE_DURABILITY"); ok && v != "" {
-		c.PersistenceDurability = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_ENABLED"); ok {
-		if b, err := strconv.ParseBool(v); err == nil {
-			c.OffloadEnabled = b
-		}
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_BACKEND"); ok && v != "" {
-		c.OffloadBackend = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_ENDPOINT"); ok && v != "" {
-		c.OffloadEndpoint = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_ACCESS_KEY"); ok && v != "" {
-		c.OffloadAccessKey = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_SECRET_KEY"); ok && v != "" {
-		c.OffloadSecretKey = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_BUCKET"); ok && v != "" {
-		c.OffloadBucket = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_USE_SSL"); ok {
-		if b, err := strconv.ParseBool(v); err == nil {
-			c.OffloadUseSSL = b
-		}
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_REGION"); ok && v != "" {
-		c.OffloadRegion = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_BASE_PREFIX"); ok {
-		c.OffloadBasePrefix = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_MIN_LEVEL"); ok && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			c.OffloadMinLevel = n
-		}
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_KEEP_LOCAL"); ok {
-		if b, err := strconv.ParseBool(v); err == nil {
-			c.OffloadKeepLocal = b
-		}
-	}
-	if v, ok := os.LookupEnv("REDIGO_OFFLOAD_FS_ROOT"); ok && v != "" {
-		c.OffloadFSRoot = v
-	}
-	if v, ok := os.LookupEnv("REDIGO_PPROF_ENABLED"); ok {
-		if b, err := strconv.ParseBool(v); err == nil {
-			c.PprofEnabled = b
-		}
-	}
-	if v, ok := os.LookupEnv("REDIGO_PPROF_ADDR"); ok && v != "" {
-		c.PprofAddr = v
 	}
 }
 
@@ -187,24 +132,65 @@ func (c *Config) GetColdStartStrategy() ColdStartStrategy {
 }
 
 func (c *Config) Validate() error {
+	if c == nil {
+		return fmt.Errorf("configuration is required")
+	}
+	if c.envError != nil {
+		return c.envError
+	}
 	if strings.TrimSpace(c.Host) == "" {
 		return fmt.Errorf("invalid host")
 	}
 	if c.Port <= 0 || c.Port > 65535 {
 		return fmt.Errorf("invalid port")
 	}
-	if c.OffloadEnabled && strings.EqualFold(strings.TrimSpace(c.OffloadBackend), "minio") {
-		ak := strings.TrimSpace(c.OffloadAccessKey)
-		sk := strings.TrimSpace(c.OffloadSecretKey)
-		if ak == "" || sk == "" {
-			return fmt.Errorf("invalid offload credentials")
+	if c.DBCount <= 0 {
+		return fmt.Errorf("db_count must be positive")
+	}
+	if c.MaxMemory < 0 || c.RespMaxBulkLen < 0 || c.RespMaxArrayLen < 0 {
+		return fmt.Errorf("memory and protocol limits must not be negative")
+	}
+	if c.LogMaxSizeMB < 0 || c.LogMaxBackups < 0 || c.LogMaxAgeDays < 0 {
+		return fmt.Errorf("log rotation limits must not be negative")
+	}
+	if err := validateChoice("network_type", c.NetworkType, "", "std", "gnet"); err != nil {
+		return err
+	}
+	if err := validateChoice("max_memory_policy", c.MaxMemoryPolicy, "", "noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"); err != nil {
+		return err
+	}
+	if err := validateChoice("cold_start_strategy", c.ColdStartStrategy, "", "no_load", "load_all", "lazy_load"); err != nil {
+		return err
+	}
+	if err := validateChoice("persistence_write_mode", c.PersistenceWriteMode, "", "strong", "weak"); err != nil {
+		return err
+	}
+	if err := validateChoice("persistence_durability", c.PersistenceDurability, "", "none", "flush", "sync", "wal", "wal_fsync", "lsm"); err != nil {
+		return err
+	}
+	if err := validateChoice("log_level", c.LogLevel, "", "debug", "info", "warn", "error"); err != nil {
+		return err
+	}
+	if c.PersistenceEnabled {
+		typ := strings.ToLower(strings.TrimSpace(c.PersistenceType))
+		if typ != "" && typ != "rust" && typ != "kerniva" {
+			return fmt.Errorf("invalid persistence_type")
 		}
-		if ak == "minioadmin" || sk == "minioadmin" {
-			return fmt.Errorf("invalid offload credentials")
+		if c.EngineSegmentSize != 0 && c.EngineSegmentSize < 4096 {
+			return fmt.Errorf("invalid engine_segment_size")
 		}
-		if strings.TrimSpace(c.OffloadEndpoint) == "" || strings.TrimSpace(c.OffloadBucket) == "" {
-			return fmt.Errorf("invalid offload config")
+		if c.EngineCheckpointAfterOps < 0 {
+			return fmt.Errorf("invalid engine_checkpoint_after_ops")
 		}
 	}
 	return nil
+}
+
+func validateChoice(name, value string, choices ...string) error {
+	for _, choice := range choices {
+		if value == choice {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid %s %q", name, value)
 }

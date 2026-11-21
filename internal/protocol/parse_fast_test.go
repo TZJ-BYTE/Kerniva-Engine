@@ -19,4 +19,3 @@ func TestParseOneRequestFast_HMGET(t *testing.T) {
 	}
 	ReleaseRequest(req)
 }
-

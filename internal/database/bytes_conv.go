@@ -15,4 +15,3 @@ func stringToBytesRO(s string) []byte {
 	}
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
-

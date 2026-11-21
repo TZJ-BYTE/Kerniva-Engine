@@ -23,4 +23,3 @@ func BenchmarkDatabase_IncrStringBytes_Hit(b *testing.B) {
 		_, _ = db.IncrStringBytes([]byte("counter"))
 	}
 }
-

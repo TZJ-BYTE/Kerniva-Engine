@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -10,68 +12,84 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/server"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/server"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
 func main() {
-	// 加载配置
-	configPath := flag.String("config", "config.yaml", "")
+	configPath := flag.String("config", "config.yaml", "configuration file")
+	stopFile := flag.String("stop-file", "", "local stop request file used by the control script")
 	flag.Parse()
-
-	cfg, err := config.LoadFromFile(*configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			cfg = config.DefaultConfig()
-		} else {
-			fmt.Fprintf(os.Stderr, "配置文件加载失败：%v\n", err)
-			os.Exit(1)
-		}
-	}
-
-	// 初始化日志
-	if err := logger.Init(cfg.LogPath, cfg.LogLevel); err != nil {
-		fmt.Fprintf(os.Stderr, "初始化日志失败：%v\n", err)
+	if err := run(*configPath, *stopFile); err != nil {
+		fmt.Fprintf(os.Stderr, "Kerniva: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	if err != nil {
-		logger.Warn("配置文件加载失败，已回退到默认配置：%v", err)
-	} else {
-		logger.Info("已加载配置文件：%s", *configPath)
+func run(configPath, stopFile string) error {
+	cfg, loadErr := config.LoadFromFile(configPath)
+	if loadErr != nil {
+		if !os.IsNotExist(loadErr) {
+			return loadErr
+		}
+		cfg = config.DefaultConfig()
 	}
-
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	rotation := logger.Rotation{MaxSizeMB: cfg.LogMaxSizeMB, MaxBackups: cfg.LogMaxBackups, MaxAgeDays: cfg.LogMaxAgeDays}
+	if err := logger.InitWithRotation(cfg.LogPath, cfg.LogLevel, rotation); err != nil {
+		return err
+	}
+	defer logger.Close()
+	if loadErr != nil {
+		logger.Warn("配置文件 %s 不存在，使用默认配置", configPath)
+	} else {
+		logger.Info("已加载配置文件 %s", configPath)
+	}
 	if cfg.PprofEnabled {
+		profiler := &http.Server{Addr: cfg.PprofAddr, ReadHeaderTimeout: 5 * time.Second}
 		go func() {
-			if err := http.ListenAndServe(cfg.PprofAddr, nil); err != nil {
-				logger.Warn("pprof server error: %v", err)
+			if err := profiler.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("pprof server: %v", err)
 			}
 		}()
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = profiler.Shutdown(ctx)
+		}()
 	}
-
-	logger.Info("正在启动 RediGo 服务器...")
-	logger.Info("配置：Host=%s, Port=%d, DBCount=%d", cfg.Host, cfg.Port, cfg.DBCount)
-
-	// 创建服务器
 	srv := server.NewServer(cfg)
-
-	// 启动服务器（在 goroutine 中）
-	go func() {
-		if err := srv.Start(); err != nil {
-			logger.Error("服务器启动失败：%v", err)
-			os.Exit(1)
+	stopped := make(chan error, 1)
+	go func() { stopped <- srv.Start() }()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	var ticks <-chan time.Time
+	if stopFile != "" {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		ticks = ticker.C
+	}
+	for {
+		select {
+		case startErr := <-stopped:
+			closeErr := srv.Stop()
+			if startErr != nil {
+				return startErr
+			}
+			return closeErr
+		case <-signals:
+			logger.Info("收到退出信号，正在关闭")
+			return srv.Stop()
+		case <-ticks:
+			if _, err := os.Stat(stopFile); err == nil {
+				_ = os.Remove(stopFile)
+				logger.Info("收到本地停止请求，正在关闭")
+				return srv.Stop()
+			}
 		}
-	}()
-
-	// 等待退出信号（阻塞）
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
-
-	logger.Info("收到退出信号，正在关闭...")
-	srv.Stop()
-	// 等待日志 flush
-	time.Sleep(200 * time.Millisecond)
-	logger.Info("程序退出")
+	}
 }

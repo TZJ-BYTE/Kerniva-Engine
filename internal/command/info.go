@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 )
 
 type InfoCommand struct{}
@@ -66,44 +66,12 @@ func (c *InfoCommand) Execute(db *database.Database, args [][]byte) *protocol.Re
 		writeKV(&b, "gc_last_pause_ns", fmt.Sprintf("%d", last))
 	}
 
-	if enabled, ok := stats["lsm_enabled"].(bool); ok && enabled {
-		writeSection(&b, "lsm")
-		lsm, _ := stats["lsm"].(map[string]interface{})
-		writeKV(&b, "value_threshold", fmt.Sprintf("%v", lsm["value_threshold"]))
-		writeKV(&b, "block_size", fmt.Sprintf("%v", lsm["block_size"]))
-		writeKV(&b, "memtable_size_limit", fmt.Sprintf("%v", lsm["memtable_size_limit"]))
-		writeKV(&b, "sync_wal", fmt.Sprintf("%v", lsm["sync_wal"]))
-		writeKV(&b, "write_ahead_log", fmt.Sprintf("%v", lsm["write_ahead_log"]))
-		writeKV(&b, "writes_per_sec", fmt.Sprintf("%v", lsm["writes_per_sec"]))
-		writeKV(&b, "cache_hit_permille", fmt.Sprintf("%v", lsm["cache_hit_permille"]))
-
-		if bc, ok := lsm["block_cache"].(map[string]interface{}); ok {
-			writeSection(&b, "block_cache")
-			keys := sortedKeys(bc)
-			for _, k := range keys {
-				writeKV(&b, k, fmt.Sprintf("%v", bc[k]))
-			}
-		}
-
-		if tc, ok := lsm["table_cache"].(map[string]interface{}); ok {
-			writeSection(&b, "table_cache")
-			keys := sortedKeys(tc)
-			for _, k := range keys {
-				writeKV(&b, k, fmt.Sprintf("%v", tc[k]))
-			}
-		}
-
-		if vs, ok := lsm["version_set"].(map[string]interface{}); ok {
-			writeSection(&b, "version_set")
-			writeKV(&b, "total_size_bytes", fmt.Sprintf("%v", vs["total_size"]))
-			writeKV(&b, "total_files", fmt.Sprintf("%v", vs["total_files"]))
-			if levels, ok := vs["levels"].([]map[string]interface{}); ok {
-				for _, lv := range levels {
-					level := fmt.Sprintf("%v", lv["level"])
-					writeKV(&b, "level_"+level+"_files", fmt.Sprintf("%v", lv["files"]))
-					writeKV(&b, "level_"+level+"_size_bytes", fmt.Sprintf("%v", lv["size"]))
-				}
-			}
+	if enabled, ok := stats["persistence_enabled"].(bool); ok && enabled {
+		writeSection(&b, "persistence")
+		persistence, _ := stats["persistence"].(map[string]interface{})
+		keys := sortedKeys(persistence)
+		for _, k := range keys {
+			writeKV(&b, k, fmt.Sprintf("%v", persistence[k]))
 		}
 	}
 

@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/TZJ-BYTE/RediGo/internal/database"
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 )
 
 func TestFastPath_SET_GET(t *testing.T) {

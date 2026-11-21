@@ -2,16 +2,21 @@ package database
 
 import (
 	"fmt"
+	"math/rand/v2"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
-func (db *Database) HSet(key, field, value string) (int64, error) {
+func (db *Database) hSetLocked(key, field, value string) (int64, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return 0, err
+	}
 	if !db.evictIfNeeded() {
 		return 0, fmt.Errorf("OOM command not allowed when used memory (%d) > 'maxmemory' (%d)", db.usedMemory, db.maxMemory)
 	}
@@ -89,19 +94,23 @@ func (db *Database) HSet(key, field, value string) (int64, error) {
 		db.updateMemoryUsage(memDelta)
 	}
 	if lsmBytes != nil {
-		if err := db.lsmPut(stableKey, lsmBytes); err != nil {
+		if err := db.persistencePut(stableKey, lsmBytes); err != nil {
 			return 0, err
 		}
 	}
+	db.BumpKeyVersions(stableKey)
 	return created, nil
 }
 
-func (db *Database) HMSet(key string, fields []string, values []string) error {
+func (db *Database) hMSetLocked(key string, fields []string, values []string) error {
 	if len(fields) != len(values) {
 		return fmt.Errorf("ERR wrong number of arguments for 'hmset' command")
 	}
 	if len(fields) == 0 {
 		return nil
+	}
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return err
 	}
 	if !db.evictIfNeeded() {
 		return fmt.Errorf("OOM command not allowed when used memory (%d) > 'maxmemory' (%d)", db.usedMemory, db.maxMemory)
@@ -177,14 +186,18 @@ func (db *Database) HMSet(key string, fields []string, values []string) error {
 		db.updateMemoryUsage(memDelta)
 	}
 	if lsmBytes != nil {
-		if err := db.lsmPut(stableKey, lsmBytes); err != nil {
+		if err := db.persistencePut(stableKey, lsmBytes); err != nil {
 			return err
 		}
 	}
+	db.BumpKeyVersions(stableKey)
 	return nil
 }
 
-func (db *Database) HGet(key, field string) (string, bool, error) {
+func (db *Database) hGetLocked(key, field string) (string, bool, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return "", false, err
+	}
 	sh := db.getShard(key)
 	now := time.Now().UnixMilli()
 
@@ -208,8 +221,11 @@ func (db *Database) HGet(key, field string) (string, bool, error) {
 	return v, ok, nil
 }
 
-func (db *Database) HMGet(key string, fields []string) ([]string, error) {
+func (db *Database) hMGetLocked(key string, fields []string) ([]string, error) {
 	out := make([]string, len(fields))
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return nil, err
+	}
 	sh := db.getShard(key)
 	now := time.Now().UnixMilli()
 
@@ -235,9 +251,12 @@ func (db *Database) HMGet(key string, fields []string) ([]string, error) {
 	return out, nil
 }
 
-func (db *Database) HMGetWithExists(key string, fields []string) ([]string, []bool, error) {
+func (db *Database) hMGetWithExistsLocked(key string, fields []string) ([]string, []bool, error) {
 	out := make([]string, len(fields))
 	ok := make([]bool, len(fields))
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return nil, nil, err
+	}
 	sh := db.getShard(key)
 	now := time.Now().UnixMilli()
 
@@ -266,9 +285,12 @@ func (db *Database) HMGetWithExists(key string, fields []string) ([]string, []bo
 	return out, ok, nil
 }
 
-func (db *Database) HDel(key string, fields []string) (int64, error) {
+func (db *Database) hDelLocked(key string, fields []string) (int64, error) {
 	if len(fields) == 0 {
 		return 0, nil
+	}
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return 0, err
 	}
 
 	sh := db.getShard(key)
@@ -334,18 +356,24 @@ func (db *Database) HDel(key string, fields []string) (int64, error) {
 		db.updateMemoryUsage(memDelta)
 	}
 	if deleteKey {
-		if err := db.lsmDelete(key); err != nil {
+		if err := db.persistenceDelete(key); err != nil {
 			return 0, err
 		}
 	} else if lsmBytes != nil {
-		if err := db.lsmPut(key, lsmBytes); err != nil {
+		if err := db.persistencePut(key, lsmBytes); err != nil {
 			return 0, err
 		}
+	}
+	if deleted > 0 {
+		db.BumpKeyVersions(key)
 	}
 	return deleted, nil
 }
 
-func (db *Database) HLen(key string) (int64, error) {
+func (db *Database) hLenLocked(key string) (int64, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return 0, err
+	}
 	sh := db.getShard(key)
 	now := time.Now().UnixMilli()
 
@@ -365,12 +393,46 @@ func (db *Database) HLen(key string) (int64, error) {
 	return n, nil
 }
 
-func (db *Database) HExists(key, field string) (bool, error) {
-	_, ok, err := db.HGet(key, field)
+func (db *Database) hExistsLocked(key, field string) (bool, error) {
+	_, ok, err := db.hGetLocked(key, field)
 	return ok, err
 }
 
-func (db *Database) HKeys(key string) ([]string, error) {
+func (db *Database) hSetNXLocked(key, field, value string) (int64, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return 0, err
+	}
+
+	exists, err := db.hExistsLocked(key, field)
+	if err != nil {
+		return 0, err
+	}
+	if exists {
+		return 0, nil
+	}
+	return db.hSetLocked(key, field, value)
+}
+
+func (db *Database) hStrLenLocked(key, field string) (int64, error) {
+	value, ok, err := db.hGetLocked(key, field)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, nil
+	}
+	return int64(len(value)), nil
+}
+
+type hashEntry struct {
+	field string
+	value string
+}
+
+func (db *Database) sortedHashEntries(key string) ([]hashEntry, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return nil, err
+	}
 	sh := db.getShard(key)
 	now := time.Now().UnixMilli()
 
@@ -378,74 +440,155 @@ func (db *Database) HKeys(key string) ([]string, error) {
 	dv, exists := sh.data[key]
 	if !exists || dv == nil || (dv.ExpireTime > 0 && now > dv.ExpireTime) {
 		sh.lock.RUnlock()
-		return []string{}, nil
+		return []hashEntry{}, nil
 	}
 	h, ok := dv.Value.(*datastruct.Hash)
 	if !ok {
 		sh.lock.RUnlock()
 		return nil, fmt.Errorf("WRONGTYPE Operation against a key holding the wrong kind of value")
 	}
-	out := make([]string, 0, len(h.Data))
-	for k := range h.Data {
-		out = append(out, k)
+	out := make([]hashEntry, 0, len(h.Data))
+	for field, value := range h.Data {
+		out = append(out, hashEntry{field: field, value: value})
 	}
-	sort.Strings(out)
 	sh.lock.RUnlock()
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].field < out[j].field
+	})
 	return out, nil
 }
 
-func (db *Database) HVals(key string) ([]string, error) {
-	sh := db.getShard(key)
-	now := time.Now().UnixMilli()
+func flattenHashEntries(entries []hashEntry, withValues bool) []string {
+	if withValues {
+		out := make([]string, 0, len(entries)*2)
+		for _, entry := range entries {
+			out = append(out, entry.field, entry.value)
+		}
+		return out
+	}
 
-	sh.lock.RLock()
-	dv, exists := sh.data[key]
-	if !exists || dv == nil || (dv.ExpireTime > 0 && now > dv.ExpireTime) {
-		sh.lock.RUnlock()
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, entry.field)
+	}
+	return out
+}
+
+func (db *Database) hKeysLocked(key string) ([]string, error) {
+	entries, err := db.sortedHashEntries(key)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, entry.field)
+	}
+	return out, nil
+}
+
+func (db *Database) hValsLocked(key string) ([]string, error) {
+	entries, err := db.sortedHashEntries(key)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, entry.value)
+	}
+	return out, nil
+}
+
+func (db *Database) hGetAllLocked(key string) ([]string, error) {
+	entries, err := db.sortedHashEntries(key)
+	if err != nil {
+		return nil, err
+	}
+	return flattenHashEntries(entries, true), nil
+}
+
+func (db *Database) hScanLocked(key string, cursor int, pattern string, count int) (int, []string, error) {
+	if count <= 0 {
+		count = 10
+	}
+
+	entries, err := db.sortedHashEntries(key)
+	if err != nil {
+		return 0, nil, err
+	}
+	if cursor < 0 || cursor >= len(entries) {
+		return 0, []string{}, nil
+	}
+
+	out := make([]string, 0, count*2)
+	idx := cursor
+	matched := 0
+	for idx < len(entries) && matched < count {
+		entry := entries[idx]
+		ok := true
+		if pattern != "*" {
+			ok, err = path.Match(pattern, entry.field)
+			if err != nil {
+				return 0, nil, fmt.Errorf("ERR invalid pattern")
+			}
+		}
+		if ok {
+			out = append(out, entry.field, entry.value)
+			matched++
+		}
+		idx++
+	}
+
+	if idx >= len(entries) {
+		return 0, out, nil
+	}
+	return idx, out, nil
+}
+
+func (db *Database) hRandFieldLocked(key string) (string, bool, error) {
+	entries, err := db.sortedHashEntries(key)
+	if err != nil {
+		return "", false, err
+	}
+	if len(entries) == 0 {
+		return "", false, nil
+	}
+	return entries[rand.IntN(len(entries))].field, true, nil
+}
+
+func (db *Database) hRandFieldsLocked(key string, count int, withValues bool) ([]string, error) {
+	entries, err := db.sortedHashEntries(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 || count == 0 {
 		return []string{}, nil
 	}
-	h, ok := dv.Value.(*datastruct.Hash)
-	if !ok {
-		sh.lock.RUnlock()
-		return nil, fmt.Errorf("WRONGTYPE Operation against a key holding the wrong kind of value")
+
+	if count > 0 {
+		limit := count
+		if limit > len(entries) {
+			limit = len(entries)
+		}
+		selected := make([]hashEntry, 0, limit)
+		for _, idx := range rand.Perm(len(entries))[:limit] {
+			selected = append(selected, entries[idx])
+		}
+		return flattenHashEntries(selected, withValues), nil
 	}
-	out := make([]string, 0, len(h.Data))
-	for _, v := range h.Data {
-		out = append(out, v)
+
+	limit := -count
+	selected := make([]hashEntry, 0, limit)
+	for i := 0; i < limit; i++ {
+		selected = append(selected, entries[rand.IntN(len(entries))])
 	}
-	sh.lock.RUnlock()
-	return out, nil
+	return flattenHashEntries(selected, withValues), nil
 }
 
-func (db *Database) HGetAll(key string) ([]string, error) {
-	sh := db.getShard(key)
-	now := time.Now().UnixMilli()
-
-	sh.lock.RLock()
-	dv, exists := sh.data[key]
-	if !exists || dv == nil || (dv.ExpireTime > 0 && now > dv.ExpireTime) {
-		sh.lock.RUnlock()
-		return []string{}, nil
+func (db *Database) hIncrByLocked(key, field string, delta int64) (int64, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return 0, err
 	}
-	h, ok := dv.Value.(*datastruct.Hash)
-	if !ok {
-		sh.lock.RUnlock()
-		return nil, fmt.Errorf("WRONGTYPE Operation against a key holding the wrong kind of value")
-	}
-	keys := make([]string, 0, len(h.Data))
-	for k := range h.Data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	out := make([]string, 0, 2*len(keys))
-	for _, k := range keys {
-		out = append(out, k, h.Data[k])
-	}
-	sh.lock.RUnlock()
-	return out, nil
-}
-
-func (db *Database) HIncrBy(key, field string, delta int64) (int64, error) {
 	if !db.evictIfNeeded() {
 		return 0, fmt.Errorf("OOM command not allowed when used memory (%d) > 'maxmemory' (%d)", db.usedMemory, db.maxMemory)
 	}
@@ -530,14 +673,18 @@ func (db *Database) HIncrBy(key, field string, delta int64) (int64, error) {
 		db.updateMemoryUsage(memDelta)
 	}
 	if lsmBytes != nil {
-		if err := db.lsmPut(stableKey, lsmBytes); err != nil {
+		if err := db.persistencePut(stableKey, lsmBytes); err != nil {
 			return 0, err
 		}
 	}
+	db.BumpKeyVersions(stableKey)
 	return out, nil
 }
 
-func (db *Database) HIncrByFloat(key, field string, delta float64) (float64, error) {
+func (db *Database) hIncrByFloatLocked(key, field string, delta float64) (float64, error) {
+	if _, _, err := db.getLiveValue(key); err != nil {
+		return 0, err
+	}
 	if !db.evictIfNeeded() {
 		return 0, fmt.Errorf("OOM command not allowed when used memory (%d) > 'maxmemory' (%d)", db.usedMemory, db.maxMemory)
 	}
@@ -622,9 +769,226 @@ func (db *Database) HIncrByFloat(key, field string, delta float64) (float64, err
 		db.updateMemoryUsage(memDelta)
 	}
 	if lsmBytes != nil {
-		if err := db.lsmPut(stableKey, lsmBytes); err != nil {
+		if err := db.persistencePut(stableKey, lsmBytes); err != nil {
 			return 0, err
 		}
 	}
+	db.BumpKeyVersions(stableKey)
 	return out, nil
+}
+
+func (db *Database) HSet(key, field, value string) (result0 int64, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.hSetLocked(key, field, value)
+}
+
+func (db *Database) HMSet(key string, fields []string, values []string) (err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.hMSetLocked(key, fields, values)
+}
+
+func (db *Database) HGet(key, field string) (result0 string, result1 bool, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hGetLocked(key, field)
+}
+
+func (db *Database) HMGet(key string, fields []string) (result0 []string, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hMGetLocked(key, fields)
+}
+
+func (db *Database) HMGetWithExists(key string, fields []string) (result0 []string, result1 []bool, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hMGetWithExistsLocked(key, fields)
+}
+
+func (db *Database) HDel(key string, fields []string) (result0 int64, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.hDelLocked(key, fields)
+}
+
+func (db *Database) HLen(key string) (result0 int64, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hLenLocked(key)
+}
+
+func (db *Database) HExists(key, field string) (result0 bool, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hExistsLocked(key, field)
+}
+
+func (db *Database) HSetNX(key, field, value string) (result0 int64, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.hSetNXLocked(key, field, value)
+}
+
+func (db *Database) HStrLen(key, field string) (result0 int64, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hStrLenLocked(key, field)
+}
+
+func (db *Database) HKeys(key string) (result0 []string, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hKeysLocked(key)
+}
+
+func (db *Database) HVals(key string) (result0 []string, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hValsLocked(key)
+}
+
+func (db *Database) HGetAll(key string) (result0 []string, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hGetAllLocked(key)
+}
+
+func (db *Database) HScan(key string, cursor int, pattern string, count int) (result0 int, result1 []string, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hScanLocked(key, cursor, pattern, count)
+}
+
+func (db *Database) HRandField(key string) (result0 string, result1 bool, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hRandFieldLocked(key)
+}
+
+func (db *Database) HRandFields(key string, count int, withValues bool) (result0 []string, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.hRandFieldsLocked(key, count, withValues)
+}
+
+func (db *Database) HIncrBy(key, field string, delta int64) (result0 int64, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.hIncrByLocked(key, field, delta)
+}
+
+func (db *Database) HIncrByFloat(key, field string, delta float64) (result0 float64, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.hIncrByFloatLocked(key, field, delta)
 }

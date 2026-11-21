@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 )
 
 func TestGetSetBytes(t *testing.T) {
@@ -45,4 +45,3 @@ func TestSetOverwriteMemoryAccounting(t *testing.T) {
 		t.Fatalf("expected usedMemory increase when value grows: %d vs %d", m3, m2)
 	}
 }
-

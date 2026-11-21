@@ -3,7 +3,7 @@ package database
 import (
 	"testing"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 )
 
 func BenchmarkDatabase_GetBytes_Hit(b *testing.B) {
@@ -27,4 +27,3 @@ func BenchmarkDatabase_SetBytes_Overwrite(b *testing.B) {
 		_ = db.SetBytes(k, &datastruct.DataValue{Value: &datastruct.String{Data: "value"}})
 	}
 }
-

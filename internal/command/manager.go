@@ -3,7 +3,7 @@ package command
 import (
 	"sync/atomic"
 
-	"github.com/TZJ-BYTE/RediGo/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/database"
 )
 
 var globalDBManager atomic.Pointer[database.DBManager]

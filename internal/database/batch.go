@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
 type shardKV struct {
@@ -21,7 +21,7 @@ type lsmPut struct {
 	bytes []byte
 }
 
-func (db *Database) MSetStringBytes(args [][]byte) error {
+func (db *Database) mSetStringBytesLocked(args [][]byte) error {
 	if len(args) < 2 || len(args)%2 != 0 {
 		return fmt.Errorf("ERR wrong number of arguments for 'mset' command")
 	}
@@ -33,11 +33,13 @@ func (db *Database) MSetStringBytes(args [][]byte) error {
 	groups := make([][]shardKV, ShardCount)
 	for i := 0; i < len(args); i += 2 {
 		k := bytesToString(args[i])
+		db.getShard(k)
 		si := getShardIndex(k)
 		groups[si] = append(groups[si], shardKV{key: k, val: args[i+1]})
 	}
 
 	var memDeltaTotal int64
+	touchedKeys := make([]string, 0, len(args)/2)
 	nowMs := time.Now().UnixMilli()
 
 	for si := 0; si < ShardCount; si++ {
@@ -80,10 +82,7 @@ func (db *Database) MSetStringBytes(args [][]byte) error {
 				dv.LastAccessedAt = nowMs
 				memDelta = dv.ApproximateSize() - oldSize
 			} else {
-				stableKey := k
-				if !exists {
-					stableKey = strings.Clone(k)
-				}
+				stableKey := strings.Clone(k)
 				b := make([]byte, len(value))
 				copy(b, value)
 				dv = &datastruct.DataValue{
@@ -97,6 +96,7 @@ func (db *Database) MSetStringBytes(args [][]byte) error {
 			}
 
 			memDeltaTotal += memDelta
+			touchedKeys = append(touchedKeys, k)
 
 			if db.hasPersistence() {
 				dataBytes, err := dv.Serialize()
@@ -117,7 +117,7 @@ func (db *Database) MSetStringBytes(args [][]byte) error {
 
 		if db.hasPersistence() && len(puts) > 0 {
 			for _, p := range puts {
-				if err := db.lsmPut(p.key, p.bytes); err != nil {
+				if err := db.persistencePut(p.key, p.bytes); err != nil {
 					return err
 				}
 			}
@@ -127,15 +127,22 @@ func (db *Database) MSetStringBytes(args [][]byte) error {
 	if memDeltaTotal != 0 {
 		db.updateMemoryUsage(memDeltaTotal)
 	}
+	if len(touchedKeys) > 0 {
+		db.BumpKeyVersions(touchedKeys...)
+	}
 
 	return nil
 }
 
-func (db *Database) MGetStrings(keys [][]byte) []string {
+func (db *Database) mGetStringsLocked(keys [][]byte) []string {
 	out := make([]string, len(keys))
 	groups := make([][]shardKV, ShardCount)
 	for i, kb := range keys {
 		k := bytesToString(kb)
+		if _, _, err := db.getLiveValue(k); err != nil {
+			db.recordLSMError(err)
+			continue
+		}
 		si := getShardIndex(k)
 		groups[si] = append(groups[si], shardKV{idx: i, key: k})
 	}
@@ -176,54 +183,105 @@ func (db *Database) MGetStrings(keys [][]byte) []string {
 	return out
 }
 
-func (db *Database) MGetStringCopies(keys [][]byte) ([]string, []bool, error) {
+func (db *Database) mGetStringCopiesLocked(keys [][]byte) ([]string, []bool, error) {
 	out := make([]string, len(keys))
 	ok := make([]bool, len(keys))
 
-	groups := make([][]shardKV, ShardCount)
 	for i, kb := range keys {
 		k := bytesToString(kb)
-		si := getShardIndex(k)
-		groups[si] = append(groups[si], shardKV{idx: i, key: k})
-	}
-
-	now := time.Now().UnixMilli()
-	for si := 0; si < ShardCount; si++ {
-		items := groups[si]
-		if len(items) == 0 {
+		dv, exists, err := db.getLiveValue(k)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !exists || dv == nil {
 			continue
 		}
-		shard := &db.shards[si]
-		shard.lock.RLock()
-		for _, it := range items {
-			dv := shard.data[it.key]
-			if dv == nil {
-				continue
-			}
-			if dv.ExpireTime > 0 && now > dv.ExpireTime {
-				continue
-			}
-			switch v := dv.Value.(type) {
-			case *datastruct.String:
-				out[it.idx] = v.Data
-				ok[it.idx] = true
-			case *datastruct.BytesString:
-				b := make([]byte, len(v.Data))
-				copy(b, v.Data)
-				out[it.idx] = protocol.BytesToString(b)
-				ok[it.idx] = true
-			case nil:
-			default:
-				shard.lock.RUnlock()
-				return nil, nil, fmt.Errorf("WRONGTYPE Operation against a key holding the wrong kind of value")
-			}
 
-			if ok[it.idx] && db.keyHeat != nil {
-				db.keyHeat.Add(it.key)
-			}
+		switch v := dv.Value.(type) {
+		case *datastruct.String:
+			out[i] = v.Data
+			ok[i] = true
+		case *datastruct.BytesString:
+			b := make([]byte, len(v.Data))
+			copy(b, v.Data)
+			out[i] = protocol.BytesToString(b)
+			ok[i] = true
+		case nil:
+		default:
+			return nil, nil, fmt.Errorf("WRONGTYPE Operation against a key holding the wrong kind of value")
 		}
-		shard.lock.RUnlock()
+
+		if ok[i] && db.keyHeat != nil {
+			db.keyHeat.Add(k)
+		}
 	}
 
 	return out, ok, nil
+}
+
+func (db *Database) mSetNXStringBytesLocked(args [][]byte) (bool, error) {
+	if len(args) < 2 || len(args)%2 != 0 {
+		return false, fmt.Errorf("ERR wrong number of arguments for 'msetnx' command")
+	}
+
+	for i := 0; i < len(args); i += 2 {
+		if db.existsLocked(bytesToString(args[i])) {
+			return false, nil
+		}
+	}
+	if err := db.mSetStringBytesLocked(args); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (db *Database) MSetStringBytes(args [][]byte) (err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.mSetStringBytesLocked(args)
+}
+
+func (db *Database) MGetStrings(keys [][]byte) (result0 []string) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		return
+	}
+	return db.mGetStringsLocked(keys)
+}
+
+func (db *Database) MGetStringCopies(keys [][]byte) (result0 []string, result1 []bool, err error) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+	return db.mGetStringCopiesLocked(keys)
+}
+
+func (db *Database) MSetNXStringBytes(args [][]byte) (result0 bool, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.mSetNXStringBytesLocked(args)
 }

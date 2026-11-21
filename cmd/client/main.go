@@ -2,166 +2,150 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"time"
+	"unicode"
+
+	"github.com/TZJ-BYTE/Kerniva/internal/respclient"
 )
 
 func main() {
-	host := "127.0.0.1"
-	port := 16379 // 修改为与服务器一致的端口
-
+	host, port := "127.0.0.1", "16379"
 	if len(os.Args) > 1 {
 		host = os.Args[1]
 	}
 	if len(os.Args) > 2 {
-		fmt.Sscanf(os.Args[2], "%d", &port)
+		port = os.Args[2]
 	}
-
-	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-
-	conn, err := net.Dial("tcp", addr)
+	if len(os.Args) > 3 {
+		fmt.Fprintln(os.Stderr, "用法 kerniva-client [host] [port]")
+		os.Exit(1)
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		fmt.Fprintln(os.Stderr, "端口必须在 1 到 65535 之间")
+		os.Exit(1)
+	}
+	address := net.JoinHostPort(host, port)
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 	if err != nil {
-		fmt.Printf("连接失败：%v\n", err)
+		fmt.Fprintf(os.Stderr, "连接失败 %v\n", err)
 		os.Exit(1)
 	}
 	defer conn.Close()
+	fmt.Printf("Kerniva 客户端，已连接 %s\n", address)
+	fmt.Println(`输入 exit 退出。空格参数可用引号，空字符串写为 ""，支持 \n、\r、\t、\\ 和 \xHH。`)
+	if err := interact(conn, os.Stdin, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
 
-	fmt.Println("RediGo 客户端")
-	fmt.Printf("已连接到 %s\n", addr)
-	fmt.Println("输入命令开始交互，输入 'exit' 退出")
-	fmt.Println()
-
-	reader := bufio.NewReader(os.Stdin)
-
+func interact(conn net.Conn, input io.Reader, output io.Writer) error {
+	commands := bufio.NewReader(input)
+	replies := bufio.NewReader(conn)
 	for {
-		fmt.Print("redigo> ")
-
-		input, err := reader.ReadString('\n')
+		fmt.Fprint(output, "kerniva> ")
+		line, inputErr := commands.ReadString('\n')
+		if inputErr != nil && !errors.Is(inputErr, io.EOF) {
+			return fmt.Errorf("读取输入失败 %w", inputErr)
+		}
+		arguments, err := splitCommand(line)
 		if err != nil {
-			fmt.Printf("读取输入失败：%v\n", err)
-			break
-		}
-
-		input = strings.TrimSpace(input)
-		if input == "" {
-			continue
-		}
-
-		if strings.ToLower(input) == "exit" || strings.ToLower(input) == "quit" {
-			break
-		}
-
-		// 解析命令
-		parts := strings.Fields(input)
-		if len(parts) == 0 {
-			continue
-		}
-
-		// 构建请求
-		cmd := parts[0]
-		args := parts[1:]
-
-		// 发送请求
-		request := buildRequest(cmd, args)
-		conn.Write(request)
-
-		// 接收响应
-		resp, err := readResponse(conn)
-		if err != nil {
-			fmt.Printf("接收响应失败：%v\n", err)
-			continue
-		}
-
-		fmt.Printf("%s\n", resp)
-	}
-}
-
-// readResponse 读取服务器响应
-func readResponse(conn net.Conn) (string, error) {
-	reader := bufio.NewReader(conn)
-
-	line, err := reader.ReadBytes('\n')
-	if err != nil {
-		return "", err
-	}
-
-	if len(line) < 2 {
-		return "", fmt.Errorf("invalid response")
-	}
-
-	respType := line[0]
-	content := string(line[1 : len(line)-2]) // 移除 \r\n
-
-	switch respType {
-	case '+': // 简单字符串
-		return content, nil
-	case '-': // 错误
-		return "ERR: " + content, nil
-	case ':': // 整数
-		return "(integer) " + content, nil
-	case '$': // 批量字符串
-		length := content
-		if length == "-1" {
-			return "(nil)", nil
-		}
-		// 读取实际内容
-		size := 0
-		fmt.Sscanf(length, "%d", &size)
-		buf := make([]byte, size+2)
-		_, err = reader.Read(buf)
-		if err != nil {
-			return "", err
-		}
-		return string(buf[:size]), nil
-	case '*': // 数组
-		count := 0
-		fmt.Sscanf(content, "%d", &count)
-		if count == -1 {
-			return "(nil)", nil
-		}
-
-		result := make([]string, 0, count)
-		for i := 0; i < count; i++ {
-			// 读取每个元素
-			elemLine, err := reader.ReadBytes('\n')
+			fmt.Fprintf(output, "命令格式错误 %v\n", err)
+		} else if len(arguments) > 0 {
+			if len(arguments) == 1 && (strings.EqualFold(arguments[0], "exit") || strings.EqualFold(arguments[0], "quit")) {
+				return nil
+			}
+			if err := respclient.WriteRequest(conn, arguments...); err != nil {
+				return fmt.Errorf("发送命令失败 %w", err)
+			}
+			reply, err := respclient.ReadReply(replies)
 			if err != nil {
-				return "", err
+				return fmt.Errorf("接收响应失败 %w", err)
 			}
-			if len(elemLine) >= 2 {
-				// 跳过类型标识符，解析内容
-				elemContent := string(elemLine[2 : len(elemLine)-2])
-				result = append(result, elemContent)
-			}
+			fmt.Fprintln(output, reply.String())
 		}
-		return fmt.Sprintf("%v", result), nil
-	default:
-		return string(line), nil
+		if errors.Is(inputErr, io.EOF) {
+			return nil
+		}
 	}
 }
 
-// buildRequest 构建 RESP 协议请求
-func buildRequest(cmd string, args []string) []byte {
-	var builder strings.Builder
-
-	builder.WriteString("*")
-	builder.WriteString(fmt.Sprintf("%d", len(args)+1))
-	builder.WriteString("\r\n")
-
-	builder.WriteString("$")
-	builder.WriteString(fmt.Sprintf("%d", len(cmd)))
-	builder.WriteString("\r\n")
-	builder.WriteString(cmd)
-	builder.WriteString("\r\n")
-
-	for _, arg := range args {
-		builder.WriteString("$")
-		builder.WriteString(fmt.Sprintf("%d", len(arg)))
-		builder.WriteString("\r\n")
-		builder.WriteString(arg)
-		builder.WriteString("\r\n")
+func splitCommand(input string) ([]string, error) {
+	var arguments []string
+	var argument strings.Builder
+	var quote rune
+	active := false
+	characters := []rune(input)
+	for index := 0; index < len(characters); index++ {
+		character := characters[index]
+		if character == '\\' {
+			index++
+			if index == len(characters) {
+				return nil, fmt.Errorf("行尾反斜杠缺少转义字符")
+			}
+			active = true
+			switch characters[index] {
+			case 'n':
+				argument.WriteByte('\n')
+			case 'r':
+				argument.WriteByte('\r')
+			case 't':
+				argument.WriteByte('\t')
+			case 'b':
+				argument.WriteByte('\b')
+			case 'a':
+				argument.WriteByte('\a')
+			case 'x':
+				if index+2 >= len(characters) {
+					return nil, fmt.Errorf("\\x 后需要两位十六进制数字")
+				}
+				value, err := strconv.ParseUint(string(characters[index+1:index+3]), 16, 8)
+				if err != nil {
+					return nil, fmt.Errorf("无效的十六进制转义")
+				}
+				argument.WriteByte(byte(value))
+				index += 2
+			default:
+				argument.WriteRune(characters[index])
+			}
+			continue
+		}
+		if quote != 0 {
+			if character == quote {
+				quote = 0
+			} else {
+				argument.WriteRune(character)
+			}
+			continue
+		}
+		switch {
+		case character == '\'' || character == '"':
+			quote = character
+			active = true
+		case unicode.IsSpace(character):
+			if active {
+				arguments = append(arguments, argument.String())
+				argument.Reset()
+				active = false
+			}
+		default:
+			argument.WriteRune(character)
+			active = true
+		}
 	}
-
-	return []byte(builder.String())
+	if quote != 0 {
+		return nil, fmt.Errorf("引号未闭合")
+	}
+	if active {
+		arguments = append(arguments, argument.String())
+	}
+	return arguments, nil
 }

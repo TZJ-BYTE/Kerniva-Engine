@@ -3,20 +3,15 @@ package database
 import (
 	"testing"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
-	"github.com/TZJ-BYTE/RediGo/internal/persistence"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 )
 
 func TestColdStartStrategy_LoadAllVersusNoLoad(t *testing.T) {
 	dir := t.TempDir()
-	opts := persistence.DefaultOptions()
-	opts.EnableOffloading = false
-	opts.UseCache = false
-	opts.SyncWAL = false
-	opts.ValueThreshold = -1
+	opts := DefaultEngineOptions()
 
 	db1, err := NewDatabaseWithConfig(0, &DatabaseConfig{
-		Type:              LSMPersistent,
+		Type:              Persistent,
 		DataDir:           dir,
 		Options:           opts,
 		ColdStartStrategy: "no_load",
@@ -33,7 +28,7 @@ func TestColdStartStrategy_LoadAllVersusNoLoad(t *testing.T) {
 	}
 
 	db2, err := NewDatabaseWithConfig(0, &DatabaseConfig{
-		Type:              LSMPersistent,
+		Type:              Persistent,
 		DataDir:           dir,
 		Options:           opts,
 		ColdStartStrategy: "load_all",
@@ -49,7 +44,7 @@ func TestColdStartStrategy_LoadAllVersusNoLoad(t *testing.T) {
 	_ = db2.Close()
 
 	db3, err := NewDatabaseWithConfig(0, &DatabaseConfig{
-		Type:              LSMPersistent,
+		Type:              Persistent,
 		DataDir:           dir,
 		Options:           opts,
 		ColdStartStrategy: "no_load",

@@ -10,11 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
-	"github.com/TZJ-BYTE/RediGo/internal/persistence"
-	"github.com/TZJ-BYTE/RediGo/internal/rustengine"
-	"github.com/TZJ-BYTE/RediGo/pkg/logger"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
 func init() {
@@ -27,8 +26,8 @@ type DatabaseType int
 const (
 	// MemoryOnly 纯内存模式（默认）
 	MemoryOnly DatabaseType = iota
-	// LSMPersistent LSM 持久化模式
-	LSMPersistent
+	// Persistent 使用 Kerniva Engine 的持久化模式
+	Persistent
 )
 
 const (
@@ -38,12 +37,26 @@ const (
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Type              DatabaseType         // 数据库类型
-	DataDir           string               // 数据目录（仅 LSM 模式需要）
-	Options           *persistence.Options // LSM 选项（仅 LSM 模式需要）
+	Type              DatabaseType
+	DataDir           string
+	Options           *EngineOptions
 	ColdStartStrategy string
 	WriteMode         string
 	Durability        string
+	MaxMemory         int64
+	MaxMemoryPolicy   string
+}
+
+type EngineOptions struct {
+	SegmentSizeBytes   uint64
+	CheckpointAfterOps uint64
+}
+
+func DefaultEngineOptions() *EngineOptions {
+	return &EngineOptions{
+		SegmentSizeBytes:   4 << 20,
+		CheckpointAfterOps: 1024,
+	}
 }
 
 // shard 分段结构
@@ -54,30 +67,38 @@ type shard struct {
 
 // Database 数据库结构
 type Database struct {
-	id     int
-	shards [ShardCount]shard
+	operationMu sync.RWMutex
+	hotLocks    [ShardCount]sync.RWMutex
+	// Each hot lock protects its pending entries. Only durable string writes
+	// allocate entries, and same-key callers wait for publication or failure.
+	pendingStringWrites [ShardCount]map[string]chan struct{}
+	mutation            *mutationState
+	closed              bool
+	changeMu            sync.Mutex
+	changeCh            chan struct{}
+	id                  int
+	shards              [ShardCount]shard
+	versions            [ShardCount]keyVersionShard
+	modEpoch            atomic.Uint64
 
-	// LSM 引擎（可选）
-	lsmEngine       *persistence.LSMEnergy
-	rustEngine      *rustengine.Engine
-	config          *DatabaseConfig
-	keyHeat         *KeyTopK
-	lsmPutErrors    atomic.Uint64
-	lsmDeleteErrors atomic.Uint64
-	lsmLastError    atomic.Value
-	lsmDeleteStop   atomic.Value
-	lsmDeleteWG     sync.WaitGroup
-	lsmDeleteCh     chan string
-	lsmDeleteEnq    atomic.Uint64
-	lsmDeleteDrop   atomic.Uint64
+	// Kerniva Engine（可选）
+	rustEngine    *rustengine.Engine
+	writeBatch    func([]rustengine.WriteOp) error
+	config        *DatabaseConfig
+	keyHeat       *KeyTopK
+	lsmLastError  atomic.Value
+	lsmDeleteStop atomic.Value
 
 	// 内存管理
-	usedMemory     int64  // 当前使用内存（字节），原子操作
+	usedMemory     int64 // 当前使用内存（字节），原子操作
+	pendingMemory  atomic.Int64
 	maxMemory      int64  // 最大内存限制（字节）
 	evictionPolicy string // 淘汰策略
 
-	expireStop atomic.Value
-	expireWG   sync.WaitGroup
+	expireMu     sync.Mutex
+	expireStop   chan struct{}
+	expireWG     sync.WaitGroup
+	expireClosed bool
 
 	expireRuns          atomic.Uint64
 	expireScanned       atomic.Uint64
@@ -103,8 +124,6 @@ func NewDatabase(id int) *Database {
 		maxMemory:      cfg.MaxMemory,
 		evictionPolicy: cfg.MaxMemoryPolicy,
 	}
-	db.expireStop.Store((chan struct{})(nil))
-	db.lsmDeleteStop.Store((chan struct{})(nil))
 	if strings.Contains(db.evictionPolicy, "lru") {
 		db.keyHeat = NewKeyTopK(1024)
 	}
@@ -113,6 +132,9 @@ func NewDatabase(id int) *Database {
 
 // NewDatabaseWithConfig 使用配置创建数据库
 func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) {
+	if dbConfig == nil {
+		dbConfig = DefaultDatabaseConfig()
+	}
 	// 获取全局配置
 	globalConfig := config.DefaultConfig()
 
@@ -122,49 +144,52 @@ func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) 
 		maxMemory:      globalConfig.MaxMemory,
 		evictionPolicy: globalConfig.MaxMemoryPolicy,
 	}
-	db.expireStop.Store((chan struct{})(nil))
-	db.lsmDeleteStop.Store((chan struct{})(nil))
+	if dbConfig.MaxMemory > 0 {
+		db.maxMemory = dbConfig.MaxMemory
+	}
+	if dbConfig.MaxMemoryPolicy != "" {
+		db.evictionPolicy = dbConfig.MaxMemoryPolicy
+	}
 	if strings.Contains(db.evictionPolicy, "lru") {
 		db.keyHeat = NewKeyTopK(1024)
 	}
 
-	// 如果是 LSM 持久化模式，初始化 LSM 引擎
-	if dbConfig.Type == LSMPersistent {
+	// 如果启用持久化，则初始化 Kerniva Engine
+	if dbConfig.Type == Persistent {
 		if dbConfig.DataDir == "" {
-			return nil, fmt.Errorf("data directory is required for LSM mode")
+			return nil, fmt.Errorf("data directory is required for persistence mode")
 		}
 
 		options := dbConfig.Options
 		if options == nil {
-			options = persistence.DefaultOptions()
+			options = DefaultEngineOptions()
 		}
 
 		var err error
 		db.rustEngine, err = rustengine.Open(rustengine.Options{
 			DataDir:            dbConfig.DataDir,
-			SegmentSizeBytes:   uint64(options.MemTableSize),
-			CheckpointAfterOps: 1024,
+			SegmentSizeBytes:   options.SegmentSizeBytes,
+			CheckpointAfterOps: options.CheckpointAfterOps,
 			SyncPolicy:         rustSyncPolicy(dbConfig.Durability),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to open Rust engine: %v", err)
 		}
-		db.lsmDeleteCh = make(chan string, 4096)
-		db.StartLSMDeleteWorker()
+		db.writeBatch = db.rustEngine.WriteBatch
 
 		strategy := strings.ToLower(strings.TrimSpace(dbConfig.ColdStartStrategy))
 		switch strategy {
 		case "load_all":
 			// 全量加载到内存
 			if err := db.loadAllFromPersistence(); err != nil {
-				logger.Warn("Failed to load all data from LSM: %v", err)
+				_ = db.rustEngine.Close()
+				return nil, fmt.Errorf("load persisted data: %w", err)
 			}
 		case "lazy_load":
-			logger.Info("LSM lazy load enabled, will fallback on read")
+			logger.Info("Persistence lazy load enabled, will fallback on read")
 		case "no_load", "":
 		default:
-			// 不加载（默认）
-			logger.Info("LSM cold start: no data loading")
+			logger.Info("Persistence cold start: no data loading")
 		}
 	}
 
@@ -172,13 +197,14 @@ func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) 
 }
 
 func (db *Database) StartExpireCleaner() {
-	ch := make(chan struct{})
-	if !db.expireStop.CompareAndSwap((chan struct{})(nil), ch) {
-		close(ch)
+	db.expireMu.Lock()
+	defer db.expireMu.Unlock()
+	if db.expireClosed || db.expireStop != nil {
 		return
 	}
-
+	ch := make(chan struct{})
 	db.expireWG.Add(1)
+	db.expireStop = ch
 	go func() {
 		defer db.expireWG.Done()
 		ticker := time.NewTicker(200 * time.Millisecond)
@@ -192,6 +218,9 @@ func (db *Database) StartExpireCleaner() {
 				db.expireScanned.Add(uint64(scanned))
 				db.expireExpired.Add(uint64(expired))
 				db.expireDurationNanos.Add(uint64(time.Since(start).Nanoseconds()))
+				if db.expireRuns.Load()%50 == 0 {
+					db.runMaintenance()
+				}
 			case <-ch:
 				return
 			}
@@ -200,63 +229,40 @@ func (db *Database) StartExpireCleaner() {
 }
 
 func (db *Database) StopExpireCleaner() {
-	cur, _ := db.expireStop.Load().(chan struct{})
-	if cur == nil {
-		return
-	}
-	if db.expireStop.CompareAndSwap(cur, (chan struct{})(nil)) {
-		close(cur)
-		db.expireWG.Wait()
-	}
+	db.expireMu.Lock()
+	defer db.expireMu.Unlock()
+	db.stopExpireCleanerLocked()
 }
 
-func (db *Database) StartLSMDeleteWorker() {
-	if db == nil || !db.hasPersistence() || db.lsmDeleteCh == nil {
+func (db *Database) stopExpireCleanerLocked() {
+	if db.expireStop == nil {
 		return
 	}
-	ch := make(chan struct{})
-	if !db.lsmDeleteStop.CompareAndSwap((chan struct{})(nil), ch) {
-		close(ch)
-		return
-	}
-	db.lsmDeleteWG.Add(1)
-	go func() {
-		defer db.lsmDeleteWG.Done()
-		for {
-			select {
-			case <-ch:
-				return
-			case k := <-db.lsmDeleteCh:
-				_ = db.lsmDelete(k)
-			}
-		}
-	}()
-}
-
-func (db *Database) StopLSMDeleteWorker() {
-	cur, _ := db.lsmDeleteStop.Load().(chan struct{})
-	if cur == nil {
-		return
-	}
-	if db.lsmDeleteStop.CompareAndSwap(cur, (chan struct{})(nil)) {
-		close(cur)
-		db.lsmDeleteWG.Wait()
-	}
-}
-
-func (db *Database) enqueueExpiredLSMDelete(key string) {
-	if db == nil || !db.hasPersistence() || db.lsmDeleteCh == nil {
-		return
-	}
-	db.lsmDeleteEnq.Add(1)
-	select {
-	case db.lsmDeleteCh <- key:
-	default:
-		db.lsmDeleteDrop.Add(1)
-	}
+	close(db.expireStop)
+	db.expireStop = nil
+	db.expireWG.Wait()
 }
 
 func (db *Database) expireSample(nowMs int64, samples int) (scanned int, expired int) {
+	if !executionGate.TryRLock() {
+		return
+	}
+	defer UnlockSharedExecution()
+	// Expiration is best effort. A queued RWMutex writer would stop new hot
+	// readers while an unrelated durable write holds the lifecycle read lock.
+	if !db.operationMu.TryLock() {
+		return
+	}
+	defer db.operationMu.Unlock()
+	if db.closed {
+		return
+	}
+	db.beginMutation()
+	defer func() {
+		if db.finishMutation(nil) != nil {
+			expired = 0
+		}
+	}()
 	for i := 0; i < samples; i++ {
 		shard := &db.shards[rand.Intn(ShardCount)]
 		shard.lock.RLock()
@@ -268,12 +274,12 @@ func (db *Database) expireSample(nowMs int64, samples int) (scanned int, expired
 			break
 		}
 		shard.lock.RUnlock()
-		if k == "" || v == nil {
+		if v == nil {
 			continue
 		}
 		scanned++
 		if v.ExpireTime > 0 && nowMs > v.ExpireTime {
-			if db.Delete(k) {
+			if db.deleteLocked(k) {
 				expired++
 			}
 		}
@@ -290,62 +296,13 @@ func getShardIndex(key string) int {
 
 // getShard 获取 key 对应的 shard
 func (db *Database) getShard(key string) *shard {
-	return &db.shards[getShardIndex(key)]
+	sh := &db.shards[getShardIndex(key)]
+	if db.mutation != nil {
+		db.captureMemoryValue(key, sh)
+	}
+	return sh
 }
 
-// loadAllFromLSM 从 LSM 全量加载所有数据到内存
-func (db *Database) loadAllFromLSM() error {
-	if db.lsmEngine == nil {
-		return fmt.Errorf("LSM engine not initialized")
-	}
-
-	logger.Info("Loading all data from LSM into memory...")
-	logger.Info("Loading all keys from LSM... SSTable count: %d", db.lsmEngine.GetSSTableCount())
-
-	// 使用 LSM Engine 提供的公开方法加载所有键值对
-	allData, err := db.lsmEngine.LoadAllKeys()
-	if err != nil {
-		return fmt.Errorf("failed to load keys from LSM: %v", err)
-	}
-
-	logger.Info("LoadAllKeys returned %d keys", len(allData))
-
-	keysLoaded := 0
-	deserializeErrors := 0
-
-	for key, valueBytes := range allData {
-		// 反序列化 DataValue
-		dataValue, err := datastruct.DeserializeDataValue(valueBytes)
-		if err != nil {
-			logger.Warn("Failed to deserialize key %s: %v", key, err)
-			deserializeErrors++
-			continue
-		}
-
-		// 检查过期
-		if dataValue.IsExpired() {
-			continue
-		}
-
-		// 分段锁
-		shard := db.getShard(key)
-		shard.lock.Lock()
-		if shard.data == nil {
-			shard.data = make(map[string]*datastruct.DataValue)
-		}
-		shard.data[key] = dataValue
-		shard.lock.Unlock()
-
-		// 更新内存统计
-		db.updateMemoryUsage(int64(len(key)) + dataValue.ApproximateSize())
-		keysLoaded++
-	}
-
-	logger.Info("Successfully loaded %d keys into memory map. Used memory: %d bytes", keysLoaded, db.usedMemory)
-	return nil
-}
-
-// deserializeDataValue 反序列化 DataValue
 func deserializeDataValue(data []byte) (*datastruct.DataValue, error) {
 	return datastruct.DeserializeDataValue(data)
 }
@@ -364,7 +321,7 @@ func (db *Database) persistenceWriteMode() string {
 
 func (db *Database) persistenceDurability() string {
 	if db == nil || db.config == nil || db.config.Durability == "" {
-		return "wal_fsync"
+		return "sync"
 	}
 	return strings.ToLower(db.config.Durability)
 }
@@ -376,54 +333,11 @@ func (db *Database) recordLSMError(err error) {
 	db.lsmLastError.Store(err.Error())
 }
 
-func (db *Database) lsmPut(key string, value []byte) error {
-	if db == nil || !db.hasPersistence() {
-		return nil
-	}
-	var err error
-	switch {
-	case db.rustEngine != nil:
-		err = db.rustEngine.Put(stringToBytesRO(key), value)
-	case db.lsmEngine != nil:
-		err = db.lsmEngine.Put(stringToBytesRO(key), value)
-	}
-	if err != nil {
-		db.lsmPutErrors.Add(1)
-		db.recordLSMError(err)
-		if db.persistenceWriteMode() == "weak" {
-			logger.Error("Failed to write to LSM: %v", err)
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
-func (db *Database) lsmDelete(key string) error {
-	if db == nil || !db.hasPersistence() {
-		return nil
-	}
-	var err error
-	switch {
-	case db.rustEngine != nil:
-		err = db.rustEngine.Delete(stringToBytesRO(key))
-	case db.lsmEngine != nil:
-		err = db.lsmEngine.Delete(stringToBytesRO(key))
-	}
-	if err != nil {
-		db.lsmDeleteErrors.Add(1)
-		db.recordLSMError(err)
-		if db.persistenceWriteMode() == "weak" {
-			logger.Error("Failed to delete from LSM: %v", err)
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
 // evictIfNeeded 检查内存是否超限并尝试淘汰
 func (db *Database) evictIfNeeded() bool {
+	if db.hasPersistence() {
+		return true
+	}
 	if db.evictionPolicy == "noeviction" {
 		// 如果策略是不淘汰，检查是否超限
 		return atomic.LoadInt64(&db.usedMemory) <= db.maxMemory
@@ -442,9 +356,9 @@ func (db *Database) evictIfNeeded() bool {
 // evictOneKey 尝试淘汰一个 key
 func (db *Database) evictOneKey() bool {
 	// 尝试多次随机选择 shard，以应对数据稀疏的情况
-	maxAttempts := 1000
-	for i := 0; i < maxAttempts; i++ {
-		shardIdx := rand.Intn(ShardCount)
+	startShard := rand.Intn(ShardCount)
+	for i := 0; i < ShardCount; i++ {
+		shardIdx := (startShard + i) % ShardCount
 		shard := &db.shards[shardIdx]
 
 		shard.lock.RLock()
@@ -457,12 +371,21 @@ func (db *Database) evictOneKey() bool {
 
 		// 采样
 		var bestKey string
+		found := false
 		bestScore := int64(math.MinInt64)
 
 		samples := 5
 		count := 0
 
 		for key, val := range shard.data {
+			if db.mutation != nil {
+				if _, changed := db.mutation.versions[key]; changed {
+					continue
+				}
+			}
+			if val == nil {
+				continue
+			}
 			score := int64(math.MinInt64)
 
 			switch db.evictionPolicy {
@@ -488,6 +411,7 @@ func (db *Database) evictOneKey() bool {
 
 			if score > bestScore {
 				bestKey = key
+				found = true
 				bestScore = score
 			}
 
@@ -498,9 +422,9 @@ func (db *Database) evictOneKey() bool {
 		}
 		shard.lock.RUnlock()
 
-		if bestKey != "" {
+		if found {
 			// 执行删除
-			db.Delete(bestKey)
+			db.deleteLocked(bestKey)
 			return true
 		}
 	}
@@ -509,161 +433,47 @@ func (db *Database) evictOneKey() bool {
 }
 
 // Get 获取键值
-func (db *Database) Get(key string) (*datastruct.DataValue, bool) {
-	shard := db.getShard(key)
-	// 先尝试从内存读取
-	shard.lock.RLock()
-	value, exists := shard.data[key]
-	shard.lock.RUnlock()
-
-	if exists && value != nil {
-		// 检查过期
-		if value.IsExpired() {
-			shard.lock.Lock()
-			cur := shard.data[key]
-			if cur != nil && cur.IsExpired() {
-				delete(shard.data, key)
-				memDelta := int64(len(key)) + cur.ApproximateSize()
-				db.updateMemoryUsage(-memDelta)
-			}
-			shard.lock.Unlock()
-			db.enqueueExpiredLSMDelete(strings.Clone(key))
-			return nil, false
-		}
-		if db.keyHeat != nil {
-			db.keyHeat.Add(key)
-		}
-		return value, true
+func (db *Database) getLocked(key string) (*datastruct.DataValue, bool) {
+	value, exists, err := db.getLiveValue(key)
+	if err != nil {
+		db.recordLSMError(err)
+		logger.Warn("Failed to read key %s from persistence: %v", key, err)
+		return nil, false
 	}
-
-	// 内存中没有，尝试从 LSM 读取（懒加载）
-	if db.hasPersistence() {
-		valBytes, found, err := db.persistenceGet(key)
-		if err != nil {
-			db.recordLSMError(err)
-			logger.Warn("Failed to read key %s from persistence: %v", key, err)
-			return nil, false
-		}
-		if found {
-			// 反序列化
-			dataValue, err := datastruct.DeserializeDataValue(valBytes)
-			if err != nil {
-				logger.Warn("Failed to deserialize key %s from LSM: %v", key, err)
-				// 反序列化失败，视为不存在
-				return nil, false
-			}
-
-			// 检查过期
-			if dataValue.IsExpired() {
-				db.enqueueExpiredLSMDelete(strings.Clone(key))
-				return nil, false
-			}
-
-			stableKey := strings.Clone(key)
-
-			// 加载到内存（热点数据）
-			shard.lock.Lock()
-			if shard.data == nil {
-				shard.data = make(map[string]*datastruct.DataValue)
-			}
-			// 双重检查
-			if existingValue, ok := shard.data[stableKey]; ok {
-				shard.lock.Unlock()
-				if existingValue.IsExpired() {
-					return nil, false
-				}
-				if db.keyHeat != nil {
-					db.keyHeat.Add(stableKey)
-				}
-				return existingValue, true
-			}
-
-			shard.data[stableKey] = dataValue
-			shard.lock.Unlock()
-
-			if db.keyHeat != nil {
-				db.keyHeat.Add(stableKey)
-			}
-			return dataValue, true
-		}
+	if exists && db.keyHeat != nil {
+		db.keyHeat.Add(key)
 	}
-
-	return nil, false
+	return value, exists
 }
 
-func (db *Database) GetBytes(key []byte) (*datastruct.DataValue, bool) {
-	return db.Get(bytesToString(key))
+func (db *Database) getBytesLocked(key []byte) (*datastruct.DataValue, bool) {
+	return db.getLocked(bytesToString(key))
 }
 
 // Set 设置键值
-func (db *Database) Set(key string, value *datastruct.DataValue) error {
+func (db *Database) setLocked(key string, value *datastruct.DataValue) error {
+	if value == nil || value.Value == nil {
+		return fmt.Errorf("value is required")
+	}
+	value = db.cloneValue(value)
+	if value == nil {
+		return fmt.Errorf("unable to copy value")
+	}
 	// 检查内存并尝试淘汰
 	if !db.evictIfNeeded() {
 		return fmt.Errorf("OOM command not allowed when used memory (%d) > 'maxmemory' (%d)", db.usedMemory, db.maxMemory)
 	}
 
 	newKey := false
-	if value != nil {
-		switch v := value.Value.(type) {
-		case *datastruct.String:
-			if v != nil {
-				v.Data = strings.Clone(v.Data)
-			}
-		case *datastruct.List:
-			if v != nil && len(v.Data) > 0 {
-				dst := make([]string, len(v.Data))
-				for i := range v.Data {
-					dst[i] = strings.Clone(v.Data[i])
-				}
-				v.Data = dst
-			}
-		case *datastruct.Hash:
-			if v != nil && len(v.Data) > 0 {
-				dst := make(map[string]string, len(v.Data))
-				for k, vv := range v.Data {
-					dst[strings.Clone(k)] = strings.Clone(vv)
-				}
-				v.Data = dst
-			}
-		case *datastruct.Set:
-			if v != nil && len(v.Data) > 0 {
-				dst := make(map[string]struct{}, len(v.Data))
-				for m := range v.Data {
-					dst[strings.Clone(m)] = struct{}{}
-				}
-				v.Data = dst
-			}
-		case *datastruct.ZSet:
-			if v != nil && len(v.Data) > 0 {
-				dst := make(map[string]float64, len(v.Data))
-				for m, score := range v.Data {
-					dst[strings.Clone(m)] = score
-				}
-				v.Data = dst
-				if len(v.Scores) > 0 {
-					sdst := make([]datastruct.ZSetMember, len(v.Scores))
-					for i := range v.Scores {
-						sdst[i] = datastruct.ZSetMember{Member: strings.Clone(v.Scores[i].Member), Score: v.Scores[i].Score}
-					}
-					v.Scores = sdst
-				}
-			}
-		}
-	}
-
 	shard := db.getShard(key)
 	shard.lock.Lock()
 	if shard.data == nil {
 		shard.data = make(map[string]*datastruct.DataValue)
 	}
 	old, exists := shard.data[key]
-	if exists {
-		shard.data[key] = value
-	} else {
-		key = strings.Clone(key)
-		newKey = true
-		shard.data[key] = value
-	}
+	newKey = !exists
+	key = strings.Clone(key)
+	shard.data[key] = value
 	shard.lock.Unlock()
 
 	if db.hasPersistence() {
@@ -676,7 +486,7 @@ func (db *Database) Set(key string, value *datastruct.DataValue) error {
 				return err
 			}
 		} else {
-			if err := db.lsmPut(key, dataBytes); err != nil {
+			if err := db.persistencePut(key, dataBytes); err != nil {
 				return err
 			}
 		}
@@ -696,84 +506,63 @@ func (db *Database) Set(key string, value *datastruct.DataValue) error {
 		memDelta += int64(len(key))
 	}
 	db.updateMemoryUsage(memDelta)
+	db.BumpKeyVersions(key)
 	return nil
 }
 
-func (db *Database) SetBytes(key []byte, value *datastruct.DataValue) error {
-	return db.Set(bytesToString(key), value)
+func (db *Database) setBytesLocked(key []byte, value *datastruct.DataValue) error {
+	return db.setLocked(bytesToString(key), value)
 }
 
-func (db *Database) DeleteWithError(key string) (bool, error) {
+func (db *Database) deleteWithErrorLocked(key string) (bool, error) {
+	_, exists, err := db.getLiveValue(key)
+	if err != nil {
+		db.recordLSMError(err)
+		return false, err
+	}
+
 	shard := db.getShard(key)
 	shard.lock.Lock()
-	_, exists := shard.data[key]
-
-	if exists {
-		val := shard.data[key]
+	if val := shard.data[key]; val != nil {
 		delete(shard.data, key)
 		memDelta := int64(len(key)) + val.ApproximateSize()
 		db.updateMemoryUsage(-memDelta)
 	}
 	shard.lock.Unlock()
 
-	if err := db.lsmDelete(key); err != nil {
+	if err := db.persistenceDelete(key); err != nil {
 		return exists, err
+	}
+	if exists {
+		db.BumpKeyVersions(key)
 	}
 	return exists, nil
 }
 
-func (db *Database) Delete(key string) bool {
-	ok, _ := db.DeleteWithError(key)
+func (db *Database) deleteLocked(key string) bool {
+	ok, _ := db.deleteWithErrorLocked(key)
 	return ok
 }
 
-func (db *Database) DeleteBytes(key []byte) bool {
-	return db.Delete(bytesToString(key))
+func (db *Database) deleteBytesLocked(key []byte) bool {
+	return db.deleteLocked(bytesToString(key))
 }
 
 // Exists 检查键是否存在
-func (db *Database) Exists(key string) bool {
-	shard := db.getShard(key)
-	shard.lock.RLock()
-	value, exists := shard.data[key]
-	shard.lock.RUnlock()
-	if !exists || value == nil {
+func (db *Database) existsLocked(key string) bool {
+	_, exists, err := db.getLiveValue(key)
+	if err != nil {
+		db.recordLSMError(err)
+		logger.Warn("Failed to read key %s from persistence: %v", key, err)
 		return false
 	}
-	if value.IsExpired() {
-		shard.lock.Lock()
-		cur := shard.data[key]
-		if cur != nil && cur.IsExpired() {
-			delete(shard.data, key)
-			memDelta := int64(len(key)) + cur.ApproximateSize()
-			db.updateMemoryUsage(-memDelta)
-		}
-		shard.lock.Unlock()
-		db.enqueueExpiredLSMDelete(strings.Clone(key))
-		return false
-	}
-	return true
-}
-
-// Expire 设置过期时间
-func (db *Database) Expire(key string, milliseconds int64) bool {
-	shard := db.getShard(key)
-	shard.lock.Lock()
-	defer shard.lock.Unlock()
-
-	value, exists := shard.data[key]
-	if !exists {
-		return false
-	}
-
-	// 设置为绝对时间戳（当前时间 + TTL 毫秒）
-	value.ExpireTime = time.Now().UnixMilli() + milliseconds
-	return true
+	return exists
 }
 
 // Keys 返回所有键
-func (db *Database) Keys() []string {
+func (db *Database) keysLocked() []string {
 	keys := make([]string, 0)
+	seen := make(map[string]struct{})
 
 	for i := 0; i < ShardCount; i++ {
 		shard := &db.shards[i]
@@ -781,31 +570,72 @@ func (db *Database) Keys() []string {
 		for key, value := range shard.data {
 			if value != nil && !value.IsExpired() {
 				keys = append(keys, key)
+				seen[key] = struct{}{}
 			}
 		}
 		shard.lock.RUnlock()
+	}
+
+	if db.hasPersistence() {
+		persisted, err := db.scanPersistedValues()
+		if err != nil {
+			db.recordLSMError(err)
+			logger.Warn("Failed to list keys from persistence: %v", err)
+			return keys
+		}
+		for key := range persisted {
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			keys = append(keys, key)
+		}
 	}
 	return keys
 }
 
 // Size 返回数据库大小
-func (db *Database) Size() int {
+func (db *Database) sizeLocked() int {
 	count := 0
+	seen := make(map[string]struct{})
 	for i := 0; i < ShardCount; i++ {
 		shard := &db.shards[i]
 		shard.lock.RLock()
-		for _, value := range shard.data {
+		for key, value := range shard.data {
 			if value != nil && !value.IsExpired() {
 				count++
+				seen[key] = struct{}{}
 			}
 		}
 		shard.lock.RUnlock()
+	}
+
+	if db.hasPersistence() {
+		persisted, err := db.scanPersistedValues()
+		if err != nil {
+			db.recordLSMError(err)
+			logger.Warn("Failed to count keys from persistence: %v", err)
+			return count
+		}
+		for key := range persisted {
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			count++
+		}
 	}
 	return count
 }
 
 // Clear 清空数据库
 func (db *Database) Clear() error {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		return errDatabaseClosed
+	}
+	if err := db.persistenceReset(); err != nil {
+		return err
+	}
 	for i := 0; i < ShardCount; i++ {
 		shard := &db.shards[i]
 		shard.lock.Lock()
@@ -816,24 +646,24 @@ func (db *Database) Clear() error {
 	if db.keyHeat != nil {
 		db.keyHeat.Clear()
 	}
+	db.ResetVersionState()
 
-	if db.hasPersistence() {
-		return db.persistenceReset()
-	}
 	return nil
 }
 
 // Close 关闭数据库
 func (db *Database) Close() error {
-	db.StopExpireCleaner()
-	db.StopLSMDeleteWorker()
-	// 这里不需要对所有 shards 加锁，因为 Close 意味着系统正在关闭
-	// 但为了安全起见，我们还是可以加锁，或者直接关闭 LSM
-	for i := 0; i < ShardCount; i++ {
-		shard := &db.shards[i]
-		shard.lock.Lock()
-		shard.lock.Unlock()
+	db.expireMu.Lock()
+	db.expireClosed = true
+	db.stopExpireCleanerLocked()
+	db.expireMu.Unlock()
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		return nil
 	}
+	db.closed = true
+	db.notifyChange()
 
 	if db.hasPersistence() {
 		return db.persistenceClose()
@@ -843,6 +673,8 @@ func (db *Database) Close() error {
 
 // GetStats 获取数据库统计信息
 func (db *Database) GetStats() map[string]interface{} {
+	db.operationMu.RLock()
+	defer db.operationMu.RUnlock()
 	stats := make(map[string]interface{})
 
 	stats["db_id"] = db.id
@@ -855,6 +687,7 @@ func (db *Database) GetStats() map[string]interface{} {
 	}
 	stats["memory_keys"] = keyCount
 	stats["used_memory_bytes"] = atomic.LoadInt64(&db.usedMemory)
+	stats["pending_memory_bytes"] = db.pendingMemory.Load()
 	stats["max_memory_bytes"] = db.maxMemory
 	stats["max_memory_policy"] = db.evictionPolicy
 	stats["expire_runs"] = db.expireRuns.Load()
@@ -863,25 +696,159 @@ func (db *Database) GetStats() map[string]interface{} {
 	stats["expire_duration_ms"] = float64(db.expireDurationNanos.Load()) / 1e6
 	stats["persistence_write_mode"] = db.persistenceWriteMode()
 	stats["persistence_durability"] = db.persistenceDurability()
-	stats["lsm_put_errors"] = db.lsmPutErrors.Load()
-	stats["lsm_delete_errors"] = db.lsmDeleteErrors.Load()
-	stats["lsm_delete_queue_len"] = len(db.lsmDeleteCh)
-	stats["lsm_delete_queue_enqueued"] = db.lsmDeleteEnq.Load()
-	stats["lsm_delete_queue_dropped"] = db.lsmDeleteDrop.Load()
 	if v := db.lsmLastError.Load(); v != nil {
-		stats["lsm_last_error"] = v.(string)
+		stats["persistence_last_error"] = v.(string)
 	} else {
-		stats["lsm_last_error"] = ""
+		stats["persistence_last_error"] = ""
 	}
 
 	if db.hasPersistence() {
 		stats["mode"] = db.persistenceMode()
-		stats["lsm_enabled"] = true
-		stats["lsm"] = db.persistenceStats()
+		stats["persistence_enabled"] = true
+		stats["persistence"] = db.persistenceStats()
 	} else {
 		stats["mode"] = "Memory"
-		stats["lsm_enabled"] = false
+		stats["persistence_enabled"] = false
 	}
 
 	return stats
+}
+
+func (db *Database) Get(key string) (result0 *datastruct.DataValue, result1 bool) {
+	parallel := db.beginKeyOperation(key, false)
+	defer db.endKeyOperation(key, false, parallel)
+	if db.closed {
+		return
+	}
+	result0, result1 = db.getLocked(key)
+	if result1 {
+		result0 = db.cloneValue(result0)
+		result1 = result0 != nil
+	}
+	return
+}
+
+func (db *Database) GetBytes(key []byte) (result0 *datastruct.DataValue, result1 bool) {
+	parallel := db.beginKeyOperation(bytesToString(key), false)
+	defer db.endKeyOperation(bytesToString(key), false, parallel)
+	if db.closed {
+		return
+	}
+	result0, result1 = db.getBytesLocked(key)
+	if result1 {
+		result0 = db.cloneValue(result0)
+		result1 = result0 != nil
+	}
+	return
+}
+
+func (db *Database) Set(key string, value *datastruct.DataValue) (err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.setLocked(key, value)
+}
+
+func (db *Database) SetBytes(key []byte, value *datastruct.DataValue) (err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.setBytesLocked(key, value)
+}
+
+func (db *Database) DeleteWithError(key string) (result0 bool, err error) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		err = errDatabaseClosed
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		err = db.finishMutation(err)
+	}()
+
+	return db.deleteWithErrorLocked(key)
+}
+
+func (db *Database) Delete(key string) (result0 bool) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		if commitErr := db.finishMutation(nil); commitErr != nil {
+			var zero0 bool
+			result0 = zero0
+		}
+	}()
+
+	return db.deleteLocked(key)
+}
+
+func (db *Database) DeleteBytes(key []byte) (result0 bool) {
+	db.operationMu.Lock()
+	defer db.operationMu.Unlock()
+	if db.closed {
+		return
+	}
+
+	db.beginMutation()
+	defer func() {
+		if commitErr := db.finishMutation(nil); commitErr != nil {
+			var zero0 bool
+			result0 = zero0
+		}
+	}()
+
+	return db.deleteBytesLocked(key)
+}
+
+func (db *Database) Exists(key string) (result0 bool) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		return
+	}
+	return db.existsLocked(key)
+}
+
+func (db *Database) Keys() (result0 []string) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		return
+	}
+	return db.keysLocked()
+}
+
+func (db *Database) Size() (result0 int) {
+	db.operationMu.Lock()
+	defer db.endReadOperation()
+	if db.closed {
+		return
+	}
+	return db.sizeLocked()
 }

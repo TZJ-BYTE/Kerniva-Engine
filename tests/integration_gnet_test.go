@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TZJ-BYTE/RediGo/config"
-	"github.com/TZJ-BYTE/RediGo/internal/protocol"
-	"github.com/TZJ-BYTE/RediGo/internal/server"
+	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/server"
 )
 
 func TestGnetServer(t *testing.T) {
@@ -108,6 +108,427 @@ func TestGnetServer(t *testing.T) {
 	v = readResp(t, conn, &rbuf)
 	if v != nil {
 		t.Fatalf("GET after flushall resp=%#v", v)
+	}
+}
+
+func TestGnetServerTransactions(t *testing.T) {
+	port := 16381
+	cfg := &config.Config{
+		Host:        "127.0.0.1",
+		Port:        port,
+		NetworkType: "gnet",
+		DBCount:     16,
+	}
+
+	srv := server.NewServer(cfg)
+	go func() {
+		if err := srv.Start(); err != nil {
+			t.Logf("Server start error: %v", err)
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+	defer srv.Stop()
+
+	conn1, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect conn1: %v", err)
+	}
+	defer conn1.Close()
+
+	conn2, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect conn2: %v", err)
+	}
+	defer conn2.Close()
+
+	var rbuf1 bytes.Buffer
+	var rbuf2 bytes.Buffer
+
+	writeAll(t, conn1, []byte("*1\r\n$5\r\nMULTI\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "OK" {
+		t.Fatalf("MULTI resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*3\r\n$3\r\nSET\r\n$2\r\ntx\r\n$1\r\n1\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "QUEUED" {
+		t.Fatalf("SET queued resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*2\r\n$4\r\nINCR\r\n$2\r\ntx\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "QUEUED" {
+		t.Fatalf("INCR queued resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*1\r\n$4\r\nEXEC\r\n"))
+	v := readResp(t, conn1, &rbuf1)
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) != 2 || arr[0] != "OK" || arr[1] != int64(2) {
+		t.Fatalf("EXEC resp=%#v", v)
+	}
+
+	writeAll(t, conn1, []byte("*2\r\n$3\r\nGET\r\n$2\r\ntx\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "2" {
+		t.Fatalf("GET tx resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*2\r\n$5\r\nWATCH\r\n$7\r\nwatched\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "OK" {
+		t.Fatalf("WATCH resp=%#v", s)
+	}
+
+	writeAll(t, conn2, []byte("*3\r\n$3\r\nSET\r\n$7\r\nwatched\r\n$1\r\nx\r\n"))
+	if s := readResp(t, conn2, &rbuf2); s != "OK" {
+		t.Fatalf("SET watched resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*1\r\n$5\r\nMULTI\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "OK" {
+		t.Fatalf("MULTI after watch resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*2\r\n$3\r\nGET\r\n$7\r\nwatched\r\n"))
+	if s := readResp(t, conn1, &rbuf1); s != "QUEUED" {
+		t.Fatalf("GET queued resp=%#v", s)
+	}
+
+	writeAll(t, conn1, []byte("*1\r\n$4\r\nEXEC\r\n"))
+	if v := readResp(t, conn1, &rbuf1); v != nil {
+		t.Fatalf("EXEC with dirty watch resp=%#v", v)
+	}
+
+	writeAll(t, conn1, []byte("*1\r\n$7\r\nDISCARD\r\n"))
+	if errResp, ok := readResp(t, conn1, &rbuf1).(error); !ok || errResp.Error() != "ERR DISCARD without MULTI" {
+		t.Fatalf("DISCARD without MULTI resp=%#v", errResp)
+	}
+}
+
+func TestGnetServerBlockingListCommands(t *testing.T) {
+	port := 16382
+	cfg := &config.Config{
+		Host:        "127.0.0.1",
+		Port:        port,
+		NetworkType: "gnet",
+		DBCount:     16,
+	}
+
+	srv := server.NewServer(cfg)
+	go func() {
+		if err := srv.Start(); err != nil {
+			t.Logf("Server start error: %v", err)
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+	defer srv.Stop()
+
+	conn1, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect conn1: %v", err)
+	}
+	defer conn1.Close()
+
+	conn2, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect conn2: %v", err)
+	}
+	defer conn2.Close()
+
+	var rbuf1 bytes.Buffer
+	var rbuf2 bytes.Buffer
+	producerDone := make(chan struct{})
+
+	go func() {
+		defer close(producerDone)
+		time.Sleep(150 * time.Millisecond)
+		writeAll(t, conn2, []byte("*3\r\n$5\r\nRPUSH\r\n$5\r\njobs1\r\n$2\r\nj1\r\n"))
+		_ = readResp(t, conn2, &rbuf2)
+	}()
+
+	writeAll(t, conn1, []byte("*3\r\n$5\r\nBLPOP\r\n$5\r\njobs1\r\n$1\r\n1\r\n"))
+	v := readResp(t, conn1, &rbuf1)
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) != 2 || arr[0] != "jobs1" || arr[1] != "j1" {
+		t.Fatalf("BLPOP resp=%#v", v)
+	}
+	<-producerDone
+	producerDone = make(chan struct{})
+
+	go func() {
+		defer close(producerDone)
+		time.Sleep(150 * time.Millisecond)
+		writeAll(t, conn2, []byte("*3\r\n$5\r\nLPUSH\r\n$5\r\njobs2\r\n$2\r\nj2\r\n"))
+		_ = readResp(t, conn2, &rbuf2)
+	}()
+
+	writeAll(t, conn1, []byte("*3\r\n$5\r\nBRPOP\r\n$5\r\njobs2\r\n$1\r\n1\r\n"))
+	v = readResp(t, conn1, &rbuf1)
+	arr, ok = v.([]interface{})
+	if !ok || len(arr) != 2 || arr[0] != "jobs2" || arr[1] != "j2" {
+		t.Fatalf("BRPOP resp=%#v", v)
+	}
+	<-producerDone
+	producerDone = make(chan struct{})
+
+	go func() {
+		defer close(producerDone)
+		time.Sleep(150 * time.Millisecond)
+		writeAll(t, conn2, []byte("*3\r\n$5\r\nRPUSH\r\n$3\r\nsrc\r\n$2\r\nj3\r\n"))
+		_ = readResp(t, conn2, &rbuf2)
+	}()
+
+	writeAll(t, conn1, []byte("*4\r\n$10\r\nBRPOPLPUSH\r\n$3\r\nsrc\r\n$4\r\ndest\r\n$1\r\n1\r\n"))
+	v = readResp(t, conn1, &rbuf1)
+	if s, ok := v.(string); !ok || s != "j3" {
+		t.Fatalf("BRPOPLPUSH resp=%#v", v)
+	}
+	<-producerDone
+	producerDone = make(chan struct{})
+
+	go func() {
+		defer close(producerDone)
+		time.Sleep(150 * time.Millisecond)
+		writeAll(t, conn2, []byte("*3\r\n$5\r\nRPUSH\r\n$4\r\nsrc2\r\n$2\r\nj4\r\n"))
+		_ = readResp(t, conn2, &rbuf2)
+	}()
+
+	writeAll(t, conn1, []byte("*6\r\n$6\r\nBLMOVE\r\n$4\r\nsrc2\r\n$11\r\nprocessing2\r\n$5\r\nRIGHT\r\n$4\r\nLEFT\r\n$1\r\n1\r\n"))
+	v = readResp(t, conn1, &rbuf1)
+	if s, ok := v.(string); !ok || s != "j4" {
+		t.Fatalf("BLMOVE resp=%#v", v)
+	}
+	<-producerDone
+
+	writeAll(t, conn1, []byte("*4\r\n$6\r\nLRANGE\r\n$11\r\nprocessing2\r\n$1\r\n0\r\n$2\r\n-1\r\n"))
+	if v := readResp(t, conn1, &rbuf1); !equalRESPArray(v, "j4") {
+		t.Fatalf("BLMOVE destination resp=%#v", v)
+	}
+
+	producerDone = make(chan struct{})
+	go func() {
+		defer close(producerDone)
+		time.Sleep(150 * time.Millisecond)
+		writeAll(t, conn2, []byte("*5\r\n$5\r\nRPUSH\r\n$2\r\nq1\r\n$2\r\nm1\r\n$2\r\nm2\r\n$2\r\nm3\r\n"))
+		_ = readResp(t, conn2, &rbuf2)
+	}()
+
+	writeAll(t, conn1, []byte("*8\r\n$6\r\nBLMPOP\r\n$1\r\n1\r\n$1\r\n2\r\n$2\r\nq0\r\n$2\r\nq1\r\n$4\r\nLEFT\r\n$5\r\nCOUNT\r\n$1\r\n2\r\n"))
+	v = readResp(t, conn1, &rbuf1)
+	arr, ok = v.([]interface{})
+	if !ok || len(arr) != 2 || arr[0] != "q1" {
+		t.Fatalf("BLMPOP resp=%#v", v)
+	}
+	popped, ok := arr[1].([]interface{})
+	if !ok || len(popped) != 2 || popped[0] != "m1" || popped[1] != "m2" {
+		t.Fatalf("BLMPOP popped=%#v", arr[1])
+	}
+	<-producerDone
+
+	writeAll(t, conn1, []byte("*2\r\n$3\r\nGET\r\n$4\r\ndest\r\n"))
+	if errResp, ok := readResp(t, conn1, &rbuf1).(error); !ok || errResp == nil {
+		t.Fatalf("expected WRONGTYPE for dest GET, got %#v", errResp)
+	}
+
+	writeAll(t, conn1, []byte("*3\r\n$5\r\nBLPOP\r\n$7\r\nmissing\r\n$3\r\n0.1\r\n"))
+	if v := readResp(t, conn1, &rbuf1); v != nil {
+		t.Fatalf("BLPOP timeout resp=%#v", v)
+	}
+}
+
+func TestGnetServerPubSub(t *testing.T) {
+	port := 16383
+	cfg := &config.Config{
+		Host:        "127.0.0.1",
+		Port:        port,
+		NetworkType: "gnet",
+		DBCount:     16,
+	}
+
+	srv := server.NewServer(cfg)
+	go func() {
+		if err := srv.Start(); err != nil {
+			t.Logf("Server start error: %v", err)
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+	defer srv.Stop()
+
+	subscriber, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect subscriber: %v", err)
+	}
+	defer subscriber.Close()
+
+	publisher, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect publisher: %v", err)
+	}
+	defer publisher.Close()
+
+	var subBuf bytes.Buffer
+	var pubBuf bytes.Buffer
+
+	writeAll(t, subscriber, []byte("*2\r\n$9\r\nSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, subscriber, &subBuf); !equalRESPArray(v, "subscribe", "news", int64(1)) {
+		t.Fatalf("SUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*3\r\n$7\r\nPUBLISH\r\n$4\r\nnews\r\n$5\r\nhello\r\n"))
+	if v := readResp(t, publisher, &pubBuf); v != int64(1) {
+		t.Fatalf("PUBLISH resp=%#v", v)
+	}
+	if v := readResp(t, subscriber, &subBuf); !equalRESPArray(v, "message", "news", "hello") {
+		t.Fatalf("message resp=%#v", v)
+	}
+
+	writeAll(t, subscriber, []byte("*2\r\n$11\r\nUNSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, subscriber, &subBuf); !equalRESPArray(v, "unsubscribe", "news", int64(0)) {
+		t.Fatalf("UNSUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*3\r\n$7\r\nPUBLISH\r\n$4\r\nnews\r\n$5\r\nlater\r\n"))
+	if v := readResp(t, publisher, &pubBuf); v != int64(0) {
+		t.Fatalf("PUBLISH after unsubscribe resp=%#v", v)
+	}
+
+	writeAll(t, subscriber, []byte("*2\r\n$9\r\nSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, subscriber, &subBuf); !equalRESPArray(v, "subscribe", "news", int64(1)) {
+		t.Fatalf("SUBSCRIBE again resp=%#v", v)
+	}
+
+	_ = subscriber.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		writeAll(t, publisher, []byte("*3\r\n$7\r\nPUBLISH\r\n$4\r\nnews\r\n$5\r\nfinal\r\n"))
+		if v := readResp(t, publisher, &pubBuf); v == int64(0) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("expected closed subscriber to be cleaned up")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestGnetServerPubSubPatternsAndIntrospection(t *testing.T) {
+	port := 16384
+	cfg := &config.Config{
+		Host:        "127.0.0.1",
+		Port:        port,
+		NetworkType: "gnet",
+		DBCount:     16,
+	}
+
+	srv := server.NewServer(cfg)
+	go func() {
+		if err := srv.Start(); err != nil {
+			t.Logf("Server start error: %v", err)
+		}
+	}()
+
+	time.Sleep(1 * time.Second)
+	defer srv.Stop()
+
+	sub1, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect sub1: %v", err)
+	}
+	defer sub1.Close()
+
+	sub2, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect sub2: %v", err)
+	}
+	defer sub2.Close()
+
+	publisher, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("Failed to connect publisher: %v", err)
+	}
+	defer publisher.Close()
+
+	var subBuf1 bytes.Buffer
+	var subBuf2 bytes.Buffer
+	var pubBuf bytes.Buffer
+
+	writeAll(t, sub1, []byte("*2\r\n$9\r\nSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, sub1, &subBuf1); !equalRESPArray(v, "subscribe", "news", int64(1)) {
+		t.Fatalf("sub1 SUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, sub1, []byte("*2\r\n$10\r\nPSUBSCRIBE\r\n$2\r\nn*\r\n"))
+	if v := readResp(t, sub1, &subBuf1); !equalRESPArray(v, "psubscribe", "n*", int64(2)) {
+		t.Fatalf("sub1 PSUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, sub2, []byte("*2\r\n$9\r\nSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, sub2, &subBuf2); !equalRESPArray(v, "subscribe", "news", int64(1)) {
+		t.Fatalf("sub2 SUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*2\r\n$6\r\nPUBSUB\r\n$8\r\nCHANNELS\r\n"))
+	if v := readResp(t, publisher, &pubBuf); !equalRESPArray(v, "news") {
+		t.Fatalf("PUBSUB CHANNELS resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*3\r\n$6\r\nPUBSUB\r\n$8\r\nCHANNELS\r\n$2\r\nn*\r\n"))
+	if v := readResp(t, publisher, &pubBuf); !equalRESPArray(v, "news") {
+		t.Fatalf("PUBSUB CHANNELS n* resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*4\r\n$6\r\nPUBSUB\r\n$6\r\nNUMSUB\r\n$4\r\nnews\r\n$7\r\nmissing\r\n"))
+	if v := readResp(t, publisher, &pubBuf); !equalRESPArray(v, "news", int64(2), "missing", int64(0)) {
+		t.Fatalf("PUBSUB NUMSUB resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*3\r\n$7\r\nPUBLISH\r\n$4\r\nnews\r\n$5\r\nhello\r\n"))
+	if v := readResp(t, publisher, &pubBuf); v != int64(2) {
+		t.Fatalf("PUBLISH resp=%#v", v)
+	}
+
+	v1 := readResp(t, sub1, &subBuf1)
+	v2 := readResp(t, sub1, &subBuf1)
+	if !matchesPubSubSet(v1, v2,
+		[]interface{}{"message", "news", "hello"},
+		[]interface{}{"pmessage", "n*", "news", "hello"},
+	) {
+		t.Fatalf("sub1 publish messages resp1=%#v resp2=%#v", v1, v2)
+	}
+
+	if v := readResp(t, sub2, &subBuf2); !equalRESPArray(v, "message", "news", "hello") {
+		t.Fatalf("sub2 message resp=%#v", v)
+	}
+
+	writeAll(t, sub1, []byte("*2\r\n$12\r\nPUNSUBSCRIBE\r\n$2\r\nn*\r\n"))
+	if v := readResp(t, sub1, &subBuf1); !equalRESPArray(v, "punsubscribe", "n*", int64(1)) {
+		t.Fatalf("sub1 PUNSUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*4\r\n$6\r\nPUBSUB\r\n$6\r\nNUMSUB\r\n$4\r\nnews\r\n$7\r\nmissing\r\n"))
+	if v := readResp(t, publisher, &pubBuf); !equalRESPArray(v, "news", int64(2), "missing", int64(0)) {
+		t.Fatalf("PUBSUB NUMSUB after punsubscribe resp=%#v", v)
+	}
+
+	writeAll(t, sub2, []byte("*2\r\n$11\r\nUNSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, sub2, &subBuf2); !equalRESPArray(v, "unsubscribe", "news", int64(0)) {
+		t.Fatalf("sub2 UNSUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*3\r\n$6\r\nPUBSUB\r\n$6\r\nNUMSUB\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, publisher, &pubBuf); !equalRESPArray(v, "news", int64(1)) {
+		t.Fatalf("PUBSUB NUMSUB single resp=%#v", v)
+	}
+
+	writeAll(t, sub1, []byte("*2\r\n$11\r\nUNSUBSCRIBE\r\n$4\r\nnews\r\n"))
+	if v := readResp(t, sub1, &subBuf1); !equalRESPArray(v, "unsubscribe", "news", int64(0)) {
+		t.Fatalf("sub1 UNSUBSCRIBE resp=%#v", v)
+	}
+
+	writeAll(t, publisher, []byte("*2\r\n$6\r\nPUBSUB\r\n$8\r\nCHANNELS\r\n"))
+	if v := readResp(t, publisher, &pubBuf); !equalRESPArray(v) {
+		t.Fatalf("PUBSUB CHANNELS empty resp=%#v", v)
 	}
 }
 
@@ -260,4 +681,22 @@ func parseResp(b []byte) (interface{}, int, bool, error) {
 	default:
 		return nil, 0, false, nil
 	}
+}
+
+func equalRESPArray(v interface{}, expected ...interface{}) bool {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) != len(expected) {
+		return false
+	}
+	for i := range expected {
+		if arr[i] != expected[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func matchesPubSubSet(v1 interface{}, v2 interface{}, expected1 []interface{}, expected2 []interface{}) bool {
+	return (equalRESPArray(v1, expected1...) && equalRESPArray(v2, expected2...)) ||
+		(equalRESPArray(v1, expected2...) && equalRESPArray(v2, expected1...))
 }

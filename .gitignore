@@ -39,10 +39,10 @@ temp/
 build/
 dist/
 
-# Compiled binaries (RediGo specific)
+# Compiled binaries (Kerniva specific)
 bin/
-redigo-server
-redigo-client
+kerniva-server
+kerniva-client
 
 # Environment variables
 .env
@@ -66,4 +66,4 @@ docs/performance_benchmark_report.md
 
 # Rust build output
 target/
-engine_v2/target/
+kerniva_engine/target/

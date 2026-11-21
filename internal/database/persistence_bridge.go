@@ -3,8 +3,8 @@ package database
 import (
 	"fmt"
 
-	"github.com/TZJ-BYTE/RediGo/internal/datastruct"
-	"github.com/TZJ-BYTE/RediGo/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
 )
 
 func rustSyncPolicy(durability string) rustengine.SyncPolicy {
@@ -13,13 +13,15 @@ func rustSyncPolicy(durability string) rustengine.SyncPolicy {
 		return rustengine.SyncFlush
 	case "wal_fsync", "lsm", "sync":
 		return rustengine.SyncData
-	default:
+	case "none":
 		return rustengine.SyncNone
+	default:
+		return rustengine.SyncData
 	}
 }
 
 func (db *Database) hasPersistence() bool {
-	return db != nil && (db.rustEngine != nil || db.lsmEngine != nil)
+	return db != nil && db.rustEngine != nil
 }
 
 func (db *Database) persistenceMode() string {
@@ -27,23 +29,23 @@ func (db *Database) persistenceMode() string {
 	case db == nil:
 		return "Memory"
 	case db.rustEngine != nil:
-		return "Rust"
-	case db.lsmEngine != nil:
-		return "LSM"
+		return "Kerniva"
 	default:
 		return "Memory"
 	}
 }
 
 func (db *Database) persistenceGet(key string) ([]byte, bool, error) {
+	if db != nil && db.mutation != nil {
+		if operation, ok := db.mutation.writes[key]; ok {
+			return operation.Value, !operation.Delete, nil
+		}
+	}
 	switch {
 	case db == nil:
 		return nil, false, nil
 	case db.rustEngine != nil:
 		return db.rustEngine.Get(stringToBytesRO(key))
-	case db.lsmEngine != nil:
-		value, found := db.lsmEngine.Get(stringToBytesRO(key))
-		return value, found, nil
 	default:
 		return nil, false, nil
 	}
@@ -55,8 +57,6 @@ func (db *Database) persistenceReset() error {
 		return nil
 	case db.rustEngine != nil:
 		return db.rustEngine.Reset()
-	case db.lsmEngine != nil:
-		return db.lsmEngine.Reset()
 	default:
 		return nil
 	}
@@ -68,8 +68,6 @@ func (db *Database) persistenceClose() error {
 		return nil
 	case db.rustEngine != nil:
 		return db.rustEngine.Close()
-	case db.lsmEngine != nil:
-		return db.lsmEngine.Close()
 	default:
 		return nil
 	}
@@ -94,8 +92,6 @@ func (db *Database) persistenceStats() map[string]interface{} {
 			"pinned_segments":   stats.PinnedSegments,
 			"pending_reclaims":  stats.PendingReclaims,
 		}
-	case db.lsmEngine != nil:
-		return db.lsmEngine.GetStats()
 	default:
 		return map[string]interface{}{}
 	}
@@ -112,7 +108,13 @@ func (db *Database) loadAllFromPersistence() error {
 		}
 		for key, valueBytes := range allData {
 			dataValue, err := deserializeDataValue(valueBytes)
-			if err != nil || dataValue.IsExpired() {
+			if err != nil {
+				return fmt.Errorf("decode persisted key %q: %w", key, err)
+			}
+			if dataValue.IsExpired() {
+				if err := db.persistenceDelete(key); err != nil {
+					return err
+				}
 				continue
 			}
 			shard := db.getShard(key)
@@ -123,11 +125,46 @@ func (db *Database) loadAllFromPersistence() error {
 			shard.data[key] = dataValue
 			shard.lock.Unlock()
 			db.updateMemoryUsage(int64(len(key)) + dataValue.ApproximateSize())
+			db.trimReadCache()
 		}
 		return nil
-	case db.lsmEngine != nil:
-		return db.loadAllFromLSM()
 	default:
 		return fmt.Errorf("persistence engine not initialized")
 	}
+}
+
+func (db *Database) persistencePut(key string, value []byte) error {
+	if db == nil || db.rustEngine == nil {
+		return nil
+	}
+	if db.mutation != nil {
+		db.mutation.writes[key] = rustengine.WriteOp{Key: []byte(key), Value: value}
+		return nil
+	}
+	return db.rustEngine.Put(stringToBytesRO(key), value)
+}
+
+func (db *Database) persistenceDelete(key string) error {
+	if db == nil || db.rustEngine == nil {
+		return nil
+	}
+	if db.mutation != nil {
+		db.mutation.writes[key] = rustengine.WriteOp{Key: []byte(key), Delete: true}
+		return nil
+	}
+	return db.rustEngine.Delete(stringToBytesRO(key))
+}
+
+func (db *Database) persistenceCompact(maxRounds int) (uint64, error) {
+	if db == nil || db.rustEngine == nil {
+		return 0, nil
+	}
+	return db.rustEngine.CompactUntilStable(maxRounds)
+}
+
+func (db *Database) persistenceCheckpoint() error {
+	if db == nil || db.rustEngine == nil {
+		return nil
+	}
+	return db.rustEngine.MaybeCheckpoint()
 }
