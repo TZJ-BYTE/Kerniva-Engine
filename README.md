@@ -1,469 +1,148 @@
-# RediGo - 高性能 Redis 兼容服务器
+# Kerniva
 
-## 📖 项目简介
+Kerniva 是 Go 实现的 Redis 协议兼容服务，支持标准库 net 与 gnet 两种网络入口。持久化使用项目自研的 Rust kerniva_engine，通过 C ABI 和运行时动态库加载接入 Go。
 
-RediGo 是一个使用 Go 语言实现的高性能、Redis 协议兼容的键值存储服务器。当前项目主线已经转向**自主研发存储引擎**：上层服务仍由 Go 实现，底层持久化内核由 Rust 编写并通过桥接层接回 Go，而不是继续沿用旧版 LSM 路线或直接封装现成存储库。
-
-### ✨ 核心特性
-
-- ✅ **Redis 协议兼容** - 支持 33+ 个常用 Redis 命令
-- ✅ **高性能网络层** - 支持标准库 net 和 **gnet (Reactor 模式)** 双引擎切换
-- ✅ **双模式运行** - 内存模式 / 自研持久化引擎模式
-- ✅ **极致并发** - **分段锁 (Sharded Locks)** 设计，显著减少锁竞争
-- ✅ **低分配协议链路** - RESP 解析 `args` 走 `[][]byte`，控制拷贝时机
-- ✅ **热点快路径** - GET/SET/INCR 绕过通用分发与通用编码，降低延迟与分配
-- ✅ **自主研发引擎** - 面向 RediGo 负载重新设计的数据链路与恢复机制
-- ✅ **并发安全** - 完整的读写锁机制
-- ✅ **数据过期** - 支持 TTL/PTTL 精确过期控制
-- ✅ **多数据库** - 16 个独立数据库（db\_0 \~ db\_15）
-- ✅ **批量操作** - MSET/MGET 原子批量操作
-- ✅ **原子增减** - INCR/DECR 原子计数器
-
-***
-
-## 🚀 快速开始
-
-### 安装依赖
-
-```bash
-go mod download
-```
-
-### 编译项目
-
-```bash
-make build
-# 或者
-go build -o bin/redigo-server cmd/server/main.go
-```
-
-### 运行与控制（推荐）
-
-推荐优先使用 `redigo` 脚本进行启动/停止/查看状态/查看日志。
-
-**Linux/macOS**
-
-```bash
-chmod +x ./redigo
-./redigo start
-./redigo status
-./redigo logs --follow --tail 200
-./redigo client 127.0.0.1 16379
-./redigo stop
-```
-
-**Windows (PowerShell)**
-
-```powershell
-.\redigo start
-.\redigo status
-.\redigo logs --follow --tail 200
-.\redigo client 127.0.0.1 16379
-.\redigo stop
-```
-
-### 手动启动（可选）
-
-```bash
-./bin/redigo-server
-```
-
-### 使用客户端连接
-
-```bash
-redis-cli -h 127.0.0.1 -p 16379
-```
-
-### 测试连接
-
-```bash
-PING
-# Output: PONG
-
-SET mykey "Hello RediGo"
-GET mykey
-# Output: "Hello RediGo"
-```
-
-***
-
-## 📦 项目结构
-
-```
-RediGo/
-├── README.md                 # 主说明文档（本文件）
-├── Makefile                  # 构建脚本
-├── go.mod                    # Go 模块定义
-│
-├── cmd/                      # 命令行入口
-│   ├── server/              # 服务器入口
-│   └── client/              # 客户端入口
-│
-├── config/                   # 配置管理
-│   └── config.go            # 配置定义和加载
-│
-├── internal/                 # 内部核心包
-│   ├── command/             # Redis 命令实现
-│   │   └── basic.go         # 基础命令实现
-│   │   └── registry.go      # 命令注册表
-│   │
-│   ├── database/            # 数据库核心
-│   │   └── database.go      # 数据库实现
-│   │   └── db_manager.go    # 数据库管理器
-│   │
-│   ├── datastruct/          # 数据结构
-│   │   └── data.go          # DataValue 定义
-│   │
-│   ├── persistence/         # 旧版 LSM 持久化实现（已禁用，仅保留作迁移参考）
-│   │   └── ...              # 迁移参考代码
-│   │
-│   ├── rustengine/          # Go <-> Rust 引擎桥接层
-│   │   └── engine.go        # DLL 加载与调用封装
-│   │
-│   ├── ..\..\engine_v2\     # Rust 新存储引擎
-│   │   ├── src/engine.rs    # 引擎主逻辑
-│   │   ├── src/segment.rs   # segment log 读写
-│   │   ├── src/snapshot.rs  # snapshot / 延迟回收
-│   │   └── src/ffi.rs       # C ABI / DLL 导出
-│   │
-│   ├── protocol/            # Redis 协议解析
-│   │   └── parser.go        # RESP 协议解析器
-│   │
-│   └── server/              # 服务器实现
-│       ├── server_std.go    # 标准库 net 服务器
-│       └── server_gnet.go   # gnet 服务器
-│
-├── pkg/                      # 公共工具包
-│   ├── logger/              # 日志包
-│
-│
-├── scripts/                  # 辅助脚本
-│   ├── build.ps1            # Windows 构建脚本
-│   ├── clean.ps1            # Windows 清理脚本
-│   ├── test.ps1             # Windows 测试脚本
-│   └── clean.sh             # Linux/macOS 清理脚本
-│
-├── redigo                   # Linux/macOS 命令行入口
-├── redigo.ps1               # Windows 命令行入口
-├── redigo.cmd               # Windows 包装器（转发到 redigo.ps1）
-│
-├── bin/                      # 编译输出（gitignore）
-│   └── redigo-server
-│
-├── data/                     # 数据目录（gitignore）
-│   └── db_*/                # 各数据库的新引擎数据文件
-│
-└── logs/                     # 日志目录（gitignore）
-    ├── redigo.pid            # 后台服务 PID（脚本生成）
-    ├── redigo.log            # 服务端日志（默认）
-    ├── server.out.log        # stdout（脚本重定向）
-    └── server.err.log        # stderr（脚本重定向）
-```
-
-***
-
-## 🔧 配置说明
-
-服务端默认从项目根目录的 `config.yaml` 加载配置；也可以在启动时通过 `-config` 指定路径。
-
-```bash
-go run ./cmd/server -config ./config.yaml
-```
-
-如配置文件不存在或解析失败，会回退到内置默认值；环境变量 `REDIGO_*` 会覆盖配置文件中的同名字段。
-
-***
-
-## 📋 支持的 Redis 命令
-
-### 连接测试
-
-- `PING [message]` - 测试服务器连接
-
-### 字符串操作
-
-- `SET key value` - 设置键值
-- `GET key` - 获取键值
-- `DEL key [key ...]` - 删除键
-- `EXISTS key` - 检查键是否存在
-- `EXPIRE key seconds` - 设置过期时间
-- `TTL key` - 查看剩余时间（秒）
-- `PTTL key` - 查看剩余时间（毫秒）
-- `INCR key` - 原子递增 1
-- `DECR key` - 原子递减 1
-- `MSET key value [key value ...]` - 批量设置
-- `MGET key [key ...]` - 批量获取
-- `RENAME old_key new_key` - 重命名键
-- `RENAMENX old_key new_key` - 条件重命名
-- `KEYS pattern` - 查询键列表
-- `DBSIZE` - 数据库大小
-- `FLUSHDB` - 清空数据库
-
-### 列表操作
-
-- `LPUSH key value [value ...]` - 左侧压入
-- `RPUSH key value [value ...]` - 右侧压入
-- `LPOP key` - 左侧弹出
-- `RPOP key` - 右侧弹出
-- `LLEN key` - 列表长度
-- `LRANGE key start stop` - 范围查询
-
-### 哈希操作
-
-- `HSET key field value` - 设置字段
-- `HGET key field` - 获取字段
-- `HMSET key field value [field value ...]` - 批量设置字段
-- `HMGET key field [field ...]` - 批量获取字段
-- `HDEL key field [field ...]` - 删除字段
-- `HLEN key` - 字段数量
-- `HEXISTS key field` - 检查字段
-- `HKEYS key` - 获取所有字段名
-- `HVALS key` - 获取所有字段值
-- `HGETALL key` - 获取所有字段和值
-- `HINCRBY key field increment` - 字段原子递增
-- `HINCRBYFLOAT key field increment` - 字段浮点递增
-
-### 数据库管理
-
-- `SELECT index` - 切换数据库
-- `FLUSHDB` - 清空当前库
-- `DBSIZE` - 查询大小
-
-**命令完成率**: \~85% （核心命令全覆盖）
-
-***
-
-## 🏗️ 架构设计
-
-### 当前持久化路线
-
-当前默认持久化主线已经切换为 `engine_v2`，而且这条路线的目标不是“换一个现成库”，而是**自主研发 RediGo 自己的存储引擎**。
-
-这条路线的边界很明确：
-
-- 允许借鉴成熟思想，但**不直接依赖现成存储引擎库**
-- 不再把旧版 `internal/persistence` LSM 实现作为未来主线
-- 不机械复刻 `LSM-Tree / B+Tree` 的标准教材结构
-- 以 RediGo 的真实负载、键模式、恢复要求和演进目标为第一约束
-
-当前实现状态：
-
-- 核心实现使用 Rust 编写
-- Go 侧通过 `internal/rustengine` 在运行时加载 Rust DLL
-- 数据库层已经接入 `put/get/delete/load_all/reset/close/stats`
-- 旧 `internal/persistence` LSM 实现已默认禁用，仅保留作迁移参考
-
-当前引擎已经具备：
-
-- 崩溃恢复
-- 批量写入
-- snapshot
-- reader cache
-- 单轮与多轮压实
-- 冷启动 `load_all / lazy_load`
-
-### 自研引擎设计原则
-
-RediGo 的新引擎路线不是“找一个现成方案照抄”，而是按下面的原则自己定义链路：
-
-- **从业务场景出发**：先看 Redis-like 负载、键前缀模式、TTL、冷热数据分布，再定内核结构
-- **先做最小但完整的闭环**：写入、读取、恢复、回收都必须先成立，再谈复杂优化
-- **持久化链路自己掌控**：数据格式、恢复语义、checkpoint、cleaner 都由项目自己定义
-- **允许吸收成熟思想**：可以借鉴 ART、checkpoint、COW、snapshot、segment cleaner，但不直接嵌入现成数据库
-- **面向后续演进**：后面可以继续升级索引结构、blob 管理、TTL 清理和分布式场景支持
-
-### 当前架构抽象
+当前处于原型工程化阶段。命令覆盖、故障恢复、跨语言生命周期和构建验证已经形成闭环，兼容性和负载规模仍需持续验证。
 
-目前已经落地的主链路可以概括成：
-
-`Go 数据库层 -> Rust 引擎桥接层 -> engine_v2 -> segment log / checkpoint / snapshot / cleaner`
+## 主要能力
 
-也就是说，RediGo 现在走的是“**上层 Redis 兼容服务 + 自研底层存储引擎**”这条路线。
+- String、Hash、List、Set、ZSet、Stream，以及 TTL、多逻辑数据库和批量操作。
+- MULTI / EXEC / WATCH、发布订阅、阻塞列表和 Stream 消费组。
+- Lua 库白名单、超时、指令与采样分配预算。
+- 内存模式和 Rust 持久化模式，支持 lazy_load 与 load_all。
+- segment log、原子写批次、checkpoint 校验、快照引用保护和条件空间回收。
+- 同步持久化时的异分片热读并行、提交后缓存发布，以及独立的 Rust 已提交索引读取。
+- 配置校验、轮转日志、优雅停止，以及覆盖 Rust 和 Go 的测试脚本。
 
-***
+COMMAND 返回命令及子命令信息。具体参数边界以命令实现和回归测试为准。
 
-## 📊 性能指标
+## 构建与运行
 
-### 写入性能（当前目标）
+需要 Go 1.25.8 或兼容版本、Rust 1.89 或更新版本，以及对应平台的 Rust 链接工具链。本机验证使用 Rust 1.95。Windows 可以使用 MSVC Build Tools，或完整的 MinGW GNU 工具链。Go 的 -race 检测另需 C 编译器。
 
-| 指标    | 目标值          | 实测值          |
-| ----- | ------------ | ------------ |
-| 吞吐量   | > 200K ops/s | \~150K ops/s |
-| 持久化延迟 | < 1ms        | 持续优化中        |
-| 恢复闭环  | 可恢复          | 已具备基础能力      |
+### Windows
 
-### 读取性能
+~~~powershell
+./scripts/build.ps1
+./kerniva.ps1 start
+./kerniva.ps1 status
+./kerniva.ps1 client 127.0.0.1 16379
+./kerniva.ps1 logs --follow --tail 200
+./kerniva.ps1 stop
+~~~
 
-| 场景              | 目标延迟    | 实测延迟    |
-| --------------- | ------- | ------- |
-| 缓存命中            | < 0.5ms | < 0.3ms |
-| 缓存未命中           | < 10ms  | < 5ms   |
-| Bloom Filter 过滤 | O(1)    | O(1)    |
+### WSL / Linux / macOS
 
-### 内存效率
+WSL 2 是主要开发和性能测试环境。将仓库克隆到 Linux 家目录下，在 ext4 上构建并运行。
 
-- 当前 reader cache 已可用，后续会继续补更细粒度缓存
-- 大 value 分离、索引结构升级、空间回收策略仍在持续演进
+~~~bash
+bash scripts/build.sh
+bash kerniva start
+bash kerniva status
+bash kerniva client 127.0.0.1 16379
+bash kerniva stop
+~~~
 
-对象存储 offload 属于默认关闭的可选实验能力，不是 RediGo 的核心依赖；当前主线仍然是把**自研本地存储引擎**先做扎实，日常开发、测试和大多数单机场景都不需要引入 MinIO。
+构建脚本将服务端、客户端和 Rust 动态库放在 bin/。启动脚本在服务端文件缺失时构建，修改源码后使用 kerniva build 更新产物。
 
-***
+从项目根目录前台运行并连接。
 
-## 🧪 测试
+~~~bash
+./bin/kerniva-server -config ./config.yaml
+redis-cli -h 127.0.0.1 -p 16379 PING
+~~~
 
-### 运行单元测试
+Windows 服务端文件名为 kerniva-server.exe。部署时将平台对应的 kerniva_engine.dll、libkerniva_engine.so 或 libkerniva_engine.dylib 放在服务端旁边，也可通过 KERNIVA_ENGINE_LIBRARY 指定绝对库路径。库在运行阶段加载，构建由构建脚本负责。
 
-```bash
-go test ./cmd/... ./config ./internal/... ./pkg/... ./tests/...
-```
+## 配置
 
-### 运行竞态检测（推荐）
+-config 默认指向 config.yaml。文件缺失时使用内置默认值并记录警告。YAML 字段拼写错误、格式错误和非法值会使启动失败。KERNIVA_* 环境变量覆盖文件，例如 KERNIVA_PORT、KERNIVA_NETWORK_TYPE、KERNIVA_MAX_MEMORY、KERNIVA_PERSISTENCE_ENABLED 和 KERNIVA_PERSISTENCE_DURABILITY。
 
-```bash
-go test -race ./cmd/... ./config ./internal/... ./pkg/... ./tests/...
-```
+| 项目 | 仓库配置 | 语义 |
+| --- | --- | --- |
+| 监听 | 127.0.0.1:16379 | network_type 为 std 或 gnet |
+| 数据库数量 | 16 | 每库独立缓存和持久化目录 |
+| max_memory | 268435456 | 每库近似 payload 缓存预算，0 表示无限制 |
+| 持久化 | true / kerniva | 每库位于 data/db_N |
+| 冷启动 | lazy_load | 恢复 Rust 索引，按需解码 Go 缓存 |
+| durability | sync | 每个 record 或 batch 提交时执行 sync_all |
+| segment 大小 | 4194304 | 达到阈值后轮转 |
+| checkpoint 阈值 | 1024 | 维护调用检查累计操作数 |
+| 日志 | info / ./logs/kerniva.log | 同时写 stderr，默认 100MB、3 份备份、保留 7 天 |
 
-在 Windows 上 `-race` 需要启用 CGO 并确保 `gcc` 可用（例如 MSYS2 UCRT64 的 `C:\msys64\ucrt64\bin` 在 PATH 中）。
+none 在 append 完成后返回，flush 调用文件 flush，两者成功回复均允许掉电丢失。sync 在文件同步成功后回复。旧别名 wal 对应 flush，wal_fsync 和 lsm 对应 sync。persistence_write_mode 保留兼容入口，实际确认边界由 durability 决定。
 
-### 运行特定包测试
+内存预算按 key 和 DataValue 的近似大小统计。used_memory_bytes 包含并发 SET 的在途预留，Database.GetStats 中的 pending_memory_bytes 是其中的暂存分项，当前 INFO 尚未输出该分项。Go/Rust 索引、map 开销、连接缓冲和运行时堆需要额外预算。持久化模式超限时卸载 Go 解码缓存，Rust 中的逻辑 key 继续保留。
 
-```bash
-go test ./internal/rustengine -v
-go test ./internal/database -v
-go test ./internal/command -v
-```
+TTL 由 Go 管理。后台抽样清理缓存中的过期 key，冷数据在读取和键枚举时判断过期并触发持久化删除。长期无人访问的过期冷数据会继续占据磁盘空间，直到访问删除和后续 cleaner 回收。
 
-### 性能基准测试
+并行热读适用于缓存命中且无 TTL 的值。noeviction 策略下，已缓存的无 TTL 普通字符串 SET 在暂存预算允许时与异分片读取并行，提交成功后发布缓存。冷键、TTL、同分片争用及复杂命令的等待边界见 [毕设设计说明](docs/thesis_read_isolation_design.md)。
 
-当前性能基准以新引擎链路为主，基准脚本与指标会随 `engine_v2` 的演进持续调整。
+## 整体框架
 
-***
+~~~mermaid
+flowchart TD
+    A[TCP std / gnet] --> B[RESP 解析与有界连接队列]
+    B --> C[连接 worker 与执行协调]
+    C --> D[命令 / 事务 / Lua / PubSub]
+    D --> E[DBManager 与分片缓存]
+    E --> F[变更暂存 / 失败回滚 / 写批次]
+    F --> G[运行时 C ABI 桥接]
+    G --> H[Rust BTreeMap 与 segment log]
+    H --> I[checkpoint / snapshot / cleaner]
+~~~
 
-## 🛠️ 开发指南
+审计过的单 key 请求共享执行门。复合命令及 EXEC 使用排他执行门。数据库以操作锁、分片锁和变更日志协调缓存、WATCH 版本和持久化提交。Rust 批次是单引擎的恢复原子单位。
 
-### 添加新的 Redis 命令
+每库具有独立日志。EXEC 和 Lua 中多次命令调用按各自命令提交，崩溃后可能保留已提交的前缀。跨库 MOVE 先写目标再删源，中途崩溃可能留下双副本。
 
-1. 在 [`internal/command/basic.go`](internal/command/basic.go) 中实现命令：
+### 目录
 
-```go
-type MyCommand struct{}
-
-func (c *MyCommand) Execute(db *database.Database, args [][]byte) *protocol.Response {
-    // 实现逻辑
-    return protocol.MakeSimpleString("OK")
-}
-```
-
-1. 在 [`internal/command/registry.go`](internal/command/registry.go) 中注册：
-
-```go
-DefaultRegistry.Register("MYCMD", &MyCommand{})
-```
-
-### 修改配置
-
-编辑 [`config/config.go`](config/config.go) 添加新的配置项。
-
-### 调试技巧
-
-```bash
-# 查看详细日志
-./bin/redigo-server --log-level debug
-
-# 查看内存使用
-ps aux | grep redigo-server
-
-# 监控连接数
-netstat -an | grep 16379
-```
-
-***
-
-## 📚 学习资源
-
-### 核心文档
-
-- **主文档**: [`README.md`](README.md)（本文件）
-- **存储引擎评估**: [`docs/storage_engine_rewrite_assessment.md`](docs/storage_engine_rewrite_assessment.md) - 对当前存储引擎的主要问题、是否值得重写、语言选型与落地路径的整理。
-- **引擎架构说明**: [`docs/engine_v2_architecture.md`](docs/engine_v2_architecture.md) - 当前自研引擎的模块、恢复、cleaner 与 snapshot 设计说明。
-- **问题修复记录**: [`docs/system_issues_fix.md`](docs/system_issues_fix.md) - 现有系统问题、修复思路与迁移过程记录。
-
-### 外部参考
-
-- [Redis Protocol Specification](https://redis.io/topics/protocol)
-- [The Adaptive Radix Tree: ARTful Indexing for Main-Memory Databases](https://db.in.tum.de/~leis/papers/ART.pdf)
-- [Architecture of a Database System](https://dsf.berkeley.edu/papers/fntdb07-architecture.pdf)
-
-***
-
-## 🤝 贡献指南
-
-### 提交代码
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add some amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
-
-### 代码规范
-
-- 遵循 Go 语言规范
-- 添加必要的注释
-- 编写单元测试
-- 保持代码整洁
-
-***
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-***
-
-## 🎯 路线图
-
-### 已完成
-
-- ✅ 基础 Redis 命令支持
-- ✅ gnet 高性能网络层
-- ✅ 分段锁并发优化
-- ✅ 多数据库支持
-- ✅ 过期键管理
-- ✅ Rust 自研存储引擎主线接回 Go
-
-### 当前主线
-
-- ✅ `engine_v2` 基础读写链路
-- ✅ 崩溃恢复 / checkpoint / snapshot / cleaner
-- ✅ `load_all` / `lazy_load`
-- ✅ Go <-> Rust 桥接层
-- 进行中：继续完善自研引擎的数据结构、空间管理、批量语义和缓存体系
-
-### 后续路线
-
-- [ ] 继续深化自研索引结构与内存布局
-- [ ] 完善 blob 管理与空间回收
-- [ ] 增强批量写入与恢复语义
-- [ ] 构建更稳定的后台调度与清理机制
-- [ ] 分布式事务
-- [ ] 监控 Dashboard
-
-***
-
-## 👥 作者
-
-TZJ-BYTE
-
-***
-
-## 📞 联系方式
-
-- **项目地址**: <https://github.com/TZJ-BYTE/RediGo>
-- **问题反馈**: <https://github.com/TZJ-BYTE/RediGo/issues>
-
-***
-
-**RediGo** - 让 Redis 协议实现更简单！ 🚀
-
-*最后更新时间：2026-07-15*
+~~~text
+cmd/server, cmd/client      进程入口与客户端
+config/                     YAML、环境覆盖与校验
+internal/protocol/          RESP 解析与编码
+internal/server/            std/gnet、连接、事务、PubSub
+internal/command/           命令、元数据与 Lua
+internal/database/          缓存、TTL、预算、变更日志与持久化
+internal/datastruct/        数据类型、序列化与 ZSet 有序索引
+internal/rustengine/        跨平台动态库加载与 C ABI
+kerniva_engine/             Rust 内核、C header 与示例
+pkg/logger/                 分级与轮转日志
+scripts/                    构建、清理、测试和 TCP benchmark
+.github/workflows/          Windows / Linux / macOS CI
+~~~
+
+## 验证与性能
+
+~~~powershell
+./scripts/test.ps1 -Race
+~~~
+
+~~~bash
+bash scripts/test.sh -race
+~~~
+
+脚本依次运行 Rust 测试、构建 release 动态库和 Go 二进制，再运行 Go 测试。原生库缺失或任一步失败会使脚本失败。原生持久化回归使用临时目录。
+
+TCP benchmark 应对隔离实例执行，写入前缀为 kerniva:bench:。
+
+~~~bash
+go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -network std -durability memory
+~~~
+
+-network 和 -durability 记录标签，服务端模式由服务端配置决定。基准包含 32B GET/SET、逐回复校验和 p50/p95/p99。每条连接按请求与回复顺序执行。
+
+## 文档
+
+- [后续开发路线与 WSL 主环境决策](docs/architecture/adr-0001-wsl-rust-memory-core.md)
+- [整体架构与数据流](docs/kerniva_engine_architecture.md)
+- [存储格式、恢复与 C ABI](docs/kerniva_engine_design.md)
+- [五阶段改进和后续计划](docs/project_review_and_plan.md)
+- [性能验证与复现方法](docs/performance_validation.md)
+- [毕设读隔离设计与三虚拟机后续计划](docs/thesis_read_isolation_design.md)
+- [第二轮 WSL 与 Redis 对照实验](docs/thesis_second_overnight_report.md)
+- [首轮实验、反向复测与验收报告](docs/thesis_experiment_report.md)
+- [Rust 独立引擎说明](kerniva_engine/README.md)
+
+项目由 TZJ-BYTE 维护。问题可提交至 [项目 issue 页面](https://github.com/TZJ-BYTE/Kerniva-Engine/issues)。
