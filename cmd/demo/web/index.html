@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>
+      Kerniva 实时演示
+    </title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">
+          KERNIVA ENGINE
+        </p>
+        <h1>
+          内存数据库演示
+        </h1>
+      </div>
+      <div class="connection">
+        <span class="dot"></span>
+        <span id="database">
+          读取配置中
+        </span>
+        <small>
+          连接状态由实际请求验证
+        </small>
+      </div>
+    </header>
+    <main>
+      <div class="workspace">
+        <aside>
+          <section class="panel">
+            <h2>
+              读写数据
+            </h2>
+            <form id="command-form">
+              <label for="key">
+                键
+              </label>
+              <input id="key" name="key" value="kerniva:demo:你好" autocomplete="off">
+              <label for="value">
+                值
+                <span class="muted">
+                  允许空字符串
+                </span>
+              </label>
+              <textarea id="value" name="value" rows="3">你好，Kerniva</textarea>
+              <div class="button-row">
+                <button name="operation" value="SET" type="submit">
+                  写入 SET
+                </button>
+                <button class="secondary" name="operation" value="GET" type="submit">
+                  读取 GET
+                </button>
+              </div>
+            </form>
+            <output id="command-reply" class="reply" aria-live="polite">等待手动请求</output>
+            <p id="command-time" class="caption">
+              耗时包含建连和完整响应读取。
+            </p>
+          </section>
+          <section class="panel">
+            <h2>
+              混合负载
+            </h2>
+            <form id="load-form">
+              <div class="field-pair">
+                <div>
+                  <label for="rate">
+                    目标速率 / ops·s⁻¹
+                  </label>
+                  <input id="rate" type="number" min="1" max="20000" value="1000" required>
+                </div>
+                <div>
+                  <label for="clients">
+                    连接数
+                  </label>
+                  <input id="clients" type="number" min="1" max="64" value="4" required>
+                </div>
+              </div>
+              <div class="field-pair">
+                <div>
+                  <label for="duration">
+                    测量时长 / 秒
+                  </label>
+                  <input id="duration" type="number" min="3" max="120" value="15" required>
+                </div>
+                <div>
+                  <label for="read-percent">
+                    GET 比例 / %
+                  </label>
+                  <input id="read-percent" type="number" min="0" max="100" value="95" required>
+                </div>
+              </div>
+              <p class="caption">
+                1000 个键，32 字节值。首次预填充
+                <code>
+                  kerniva:thesis:*
+                </code>
+                ，每个 3 秒窗口完成后更新。演示会写入这些键。
+              </p>
+              <div class="button-row">
+                <button id="start-load" type="submit">
+                  开始负载
+                </button>
+                <button id="stop-load" class="secondary" type="button" disabled>
+                  停止
+                </button>
+              </div>
+            </form>
+            <div class="run-status" aria-live="polite">
+              <span id="phase-dot" class="dot idle"></span>
+              <span id="load-status">
+                空闲，等待手动开始
+              </span>
+            </div>
+            <p id="load-error" class="error" role="alert"></p>
+          </section>
+        </aside>
+        <div class="results">
+          <nav class="tabs" aria-label="结果来源">
+            <button id="live-tab" class="tab active" type="button">
+              实时演示
+            </button>
+            <button id="history-tab" class="tab" type="button">
+              历史结果
+            </button>
+          </nav>
+          <section id="history-controls" class="panel history-controls" hidden>
+            <div class="history-row">
+              <select id="history-files" aria-label="历史 JSON 文件">
+                <option value="">
+                  请选择历史文件
+                </option>
+              </select>
+              <button id="refresh-history" type="button" class="secondary">
+                刷新
+              </button>
+              <button id="open-history" type="button">
+                查看
+              </button>
+            </div>
+            <p id="history-root" class="caption"></p>
+            <p id="history-error" class="error" role="alert"></p>
+          </section>
+          <section class="panel evidence">
+            <div class="evidence-heading">
+              <div>
+                <h2 id="result-title">
+                  等待完成首个测量窗口
+                </h2>
+                <p id="result-source" class="caption">
+                  数据由 scripts/bench 实际请求产生。
+                </p>
+              </div>
+              <span id="result-duration" class="duration"></span>
+            </div>
+            <div class="metrics">
+              <div>
+                <span class="metric-label">
+                  成功吞吐 / ops·s⁻¹
+                </span>
+                <strong id="metric-rate">
+                  —
+                </strong>
+                <small>
+                  包含窗口结束后的排空时间
+                </small>
+              </div>
+              <div>
+                <span class="metric-label">
+                  GET p99 / μs
+                </span>
+                <strong id="metric-get">
+                  —
+                </strong>
+                <small id="metric-get-count">
+                  成功请求延迟
+                </small>
+              </div>
+              <div>
+                <span class="metric-label">
+                  SET p99 / μs
+                </span>
+                <strong id="metric-set">
+                  —
+                </strong>
+                <small id="metric-set-count">
+                  成功请求延迟
+                </small>
+              </div>
+              <div>
+                <span class="metric-label">
+                  失败请求
+                </span>
+                <strong id="metric-failures">
+                  —
+                </strong>
+                <small id="metric-failure-rate">失败率待采集</small>
+                <small id="metric-offered">
+                  保留全部计划请求分母
+                </small>
+              </div>
+            </div>
+            <div class="method">
+              延迟从计划发送时刻计至完整响应，包含客户端排队。p99 使用 bench 原始直方图，误差上界约 0.39%。各窗口独立统计。
+            </div>
+          </section>
+          <section class="panel server-info">
+            <div class="server-heading">
+              <h2>服务器信息</h2>
+              <button id="refresh-info" class="secondary" type="button">手动刷新 INFO</button>
+            </div>
+            <p id="info-source" class="caption">尚未请求 INFO，点击按钮后读取服务器原始数据。</p>
+            <dl class="server-fields">
+              <div>
+                <dt id="info-keys-label">键数</dt>
+                <dd id="info-keys">未提供</dd>
+                <small id="info-keys-source">等待手动刷新</small>
+              </div>
+              <div>
+                <dt>内存记账 / B</dt>
+                <dd id="info-memory">未提供</dd>
+                <small id="info-memory-source">等待手动刷新</small>
+              </div>
+              <div>
+                <dt>存储 / 持久化模式</dt>
+                <dd id="info-mode">未提供</dd>
+                <small id="info-mode-source">等待手动刷新</small>
+              </div>
+            </dl>
+            <p id="info-durability" class="caption">写入模式未提供，耐久性未提供。</p>
+            <p id="info-error" class="error" role="alert"></p>
+            <details class="info-raw">
+              <summary>查看原始 INFO</summary>
+              <pre id="raw-info">尚未请求 INFO。</pre>
+            </details>
+          </section>
+          <section class="panel chart-panel">
+            <div class="chart-heading">
+              <h2>
+                成功请求数 / 计划秒
+              </h2>
+              <div class="legend">
+                <span class="get-line">
+                  GET
+                </span>
+                <span class="set-line">
+                  SET
+                </span>
+              </div>
+            </div>
+            <canvas id="throughput-chart" height="175" aria-label="每个计划发送秒分组的 GET 和 SET 成功请求数"></canvas>
+          </section>
+          <div class="chart-pair">
+            <section class="panel chart-panel">
+              <div class="chart-heading">
+                <h2>
+                  p99 / μs
+                </h2>
+                <div class="legend">
+                  <span class="get-line">
+                    GET
+                  </span>
+                  <span class="set-line">
+                    SET
+                  </span>
+                </div>
+              </div>
+              <canvas id="latency-chart" height="160" aria-label="每个计划发送秒分组的成功请求 p99"></canvas>
+            </section>
+            <section class="panel chart-panel">
+              <div class="chart-heading">
+                <h2>
+                  失败请求 / 计划秒
+                </h2>
+              </div>
+              <canvas id="failures-chart" height="160" aria-label="每个计划发送秒分组的失败请求数"></canvas>
+            </section>
+          </div>
+          <details class="panel raw">
+            <summary>
+              查看来源 JSON
+            </summary>
+            <pre id="raw-json">尚无已完成的测量。</pre>
+          </details>
+        </div>
+      </div>
+    </main>
+    <footer>
+      页面启动时仅读取本地演示状态。正式实验请保持负载空闲。历史文件来自指定结果目录。
+    </footer>
+  </body>
+</html>
