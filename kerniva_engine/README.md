@@ -44,7 +44,11 @@ fn main() -> Result<(), MemoryError> {
 
 分片数取正的 2 的幂，`None` 表示不限常驻字节。超限的写入返回 `PayloadLimitExceeded`，保留已有值。GET 返回不可变的 `Arc<[u8]>`，覆盖或删除后旧读者仍可使用自己持有的值。字节限额统计当前键和值，RSS 还包括哈希表容量、分配器和旧读者持有的值。统计会取得所有分片的读锁，适合低频查询。
 
-当前原型通过 Rust API 使用。TTL、条件写、跨分片批次及 Go 服务接入见[开发计划](../docs/rust_memory_unattended_plan.md)。
+Rust API 还支持绝对毫秒过期时间、按存在状态或版本条件写入，以及跨分片原子批次。`get_many_at` 一次读取同一个状态下的多个键。`put_with_at` 条件失败时返回 `None`，`apply_batch_at` 条件失败时返回 `false`，旧值和预算保持原状。重复键在批次中按输入顺序计算，预算按最终状态检查。
+
+过期键从截止时刻起对读取和条件判断不可见。它的常驻字节在覆盖、删除或显式调用 `purge_expired_at` 后返还。清理按单分片扫描，适合由调用方在低频维护路径调度。版本是绑定到实例和键的比较令牌。
+
+Go 服务接入见[开发计划](../docs/rust_memory_unattended_plan.md)。
 
 ## 同步策略
 
