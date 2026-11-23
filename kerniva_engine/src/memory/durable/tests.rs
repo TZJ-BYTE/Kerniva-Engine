@@ -355,3 +355,154 @@ fn read_committed_returns_old_batch_and_payload_through_sync() {
         before.payload_bytes + 14
     );
 }
+
+#[test]
+fn group_puts_commit_in_fifo_order_with_one_sync_and_replay() {
+    for read_mode in READ_MODES {
+        let mut test = TestEngine::with_read_mode("group_order", read_mode, Some(4));
+        let engine = test.engine();
+        engine.put(b"a", b"x").unwrap();
+        engine.put(b"b", b"y").unwrap();
+        let before_version = engine.get_entry_at(b"b", 0).unwrap().unwrap().version;
+        let before_wal = engine.wal_stats().unwrap();
+
+        assert!(
+            engine
+                .try_group_puts(&[(b"a", b"1"), (b"b", b"2"), (b"a", b"3")])
+                .unwrap()
+        );
+        let expected = engine.get_many_at(&[b"a", b"b"], 0).unwrap();
+        let a = expected[0].as_ref().unwrap();
+        let b = expected[1].as_ref().unwrap();
+        assert_eq!(a.value.as_ref(), b"3");
+        assert_eq!(a.version, before_version + 3);
+        assert_eq!(b.value.as_ref(), b"2");
+        assert_eq!(b.version, before_version + 2);
+        assert_eq!(engine.stats().unwrap().payload_bytes, 4);
+        let after_wal = engine.wal_stats().unwrap();
+        assert_eq!(after_wal.commits, before_wal.commits + 1);
+        assert_eq!(after_wal.sync_attempts, before_wal.sync_attempts + 1);
+
+        drop(test.engine.take());
+        let reopened = DurableMemoryEngine::open_at(&test.directory, 8, Some(4), 0).unwrap();
+        assert_eq!(reopened.get_many_at(&[b"a", b"b"], 0).unwrap(), expected);
+    }
+}
+
+#[test]
+fn group_puts_decline_when_an_intermediate_put_could_exceed_the_budget() {
+    let test = TestEngine::with_read_mode("group_decline", DurableReadMode::ReadCommitted, Some(4));
+    let engine = test.engine();
+    engine.put(b"a", b"x").unwrap();
+    engine.put(b"b", b"y").unwrap();
+    let before = engine.get_many_at(&[b"a", b"b"], 0).unwrap();
+    let before_payload = engine.stats().unwrap();
+    let before_wal = engine.wal_stats().unwrap();
+
+    // The final replacement fits. The first independent request must fail.
+    assert!(
+        !engine
+            .try_group_puts(&[(b"a", b"long"), (b"a", b"z")])
+            .unwrap()
+    );
+    assert!(
+        !engine
+            .try_group_puts(&[(b"a", b"w"), (b"new", b"z")])
+            .unwrap()
+    );
+    assert_eq!(engine.get_many_at(&[b"a", b"b"], 0).unwrap(), before);
+    assert_eq!(engine.stats().unwrap(), before_payload);
+    assert_eq!(engine.wal_stats().unwrap(), before_wal);
+    assert!(matches!(
+        engine.put(b"a", b"long"),
+        Err(DurableMemoryError::Memory(
+            MemoryError::PayloadLimitExceeded
+        ))
+    ));
+    engine.put(b"a", b"z").unwrap();
+    assert_eq!(engine.get(b"a").unwrap().as_deref(), Some(&b"z"[..]));
+}
+
+#[test]
+fn group_put_failures_leave_the_previous_view_or_require_reopen() {
+    for read_mode in READ_MODES {
+        let mut test = TestEngine::with_read_mode("group_failure", read_mode, Some(4));
+        let engine = test.engine();
+        engine.put(b"a", b"x").unwrap();
+        engine.put(b"b", b"y").unwrap();
+        let before = engine.get_many_at(&[b"a", b"b"], 0).unwrap();
+        let path = test.directory.join(WAL_NAME);
+        let previous_log = std::fs::read(&path).unwrap();
+        let puts: [(&[u8], &[u8]); 2] = [(b"a", b"1"), (b"b", b"2")];
+        for failure in [
+            InjectedFailure {
+                partial_write: Some(11),
+                ..InjectedFailure::default()
+            },
+            InjectedFailure {
+                sync: true,
+                ..InjectedFailure::default()
+            },
+        ] {
+            engine.wal.lock().unwrap().failure = Some(failure);
+            assert!(matches!(
+                engine.try_group_puts(&puts),
+                Err(DurableMemoryError::Storage(EngineError::Io(_)))
+            ));
+            assert_eq!(engine.get_many_at(&[b"a", b"b"], 0).unwrap(), before);
+            assert_eq!(engine.stats().unwrap().payload_bytes, 4);
+            assert_eq!(std::fs::read(&path).unwrap(), previous_log);
+        }
+
+        engine.wal.lock().unwrap().failure = Some(InjectedFailure {
+            sync: true,
+            rollback: true,
+            ..InjectedFailure::default()
+        });
+        assert!(matches!(
+            engine.try_group_puts(&puts),
+            Err(DurableMemoryError::UncertainCommit { .. })
+        ));
+        assert!(matches!(
+            engine.try_group_puts(&puts),
+            Err(DurableMemoryError::ReopenRequired)
+        ));
+        assert_eq!(engine.get_many_at(&[b"a", b"b"], 0).unwrap(), before);
+        assert_eq!(engine.stats().unwrap().payload_bytes, 4);
+        drop(test.engine.take());
+
+        // The injected rollback never ran, leaving the entire frame for replay.
+        let reopened = DurableMemoryEngine::open_at(&test.directory, 4, Some(4), 0).unwrap();
+        assert_eq!(reopened.get(b"a").unwrap().as_deref(), Some(&b"1"[..]));
+        assert_eq!(reopened.get(b"b").unwrap().as_deref(), Some(&b"2"[..]));
+    }
+}
+
+#[test]
+fn group_puts_decline_if_the_version_range_only_fits_one_put() {
+    let test = TestEngine::new("group_versions");
+    let engine = test.engine();
+    engine.put(b"a", b"x").unwrap();
+    engine.put(b"b", b"y").unwrap();
+    engine.wal.lock().unwrap().version = u64::MAX - 1;
+    let before = engine.get_many_at(&[b"a", b"b"], 0).unwrap();
+    let stats = engine.wal_stats().unwrap();
+
+    assert!(
+        !engine
+            .try_group_puts(&[(b"a", b"1"), (b"b", b"2")])
+            .unwrap()
+    );
+    assert_eq!(engine.get_many_at(&[b"a", b"b"], 0).unwrap(), before);
+    assert_eq!(engine.wal_stats().unwrap(), stats);
+    engine.put(b"a", b"1").unwrap();
+    assert_eq!(
+        engine.get_entry_at(b"a", 0).unwrap().unwrap().version,
+        u64::MAX
+    );
+    assert!(matches!(
+        engine.put(b"b", b"2"),
+        Err(DurableMemoryError::Memory(MemoryError::VersionExhausted))
+    ));
+    assert_eq!(engine.get(b"b").unwrap().as_deref(), Some(&b"y"[..]));
+}

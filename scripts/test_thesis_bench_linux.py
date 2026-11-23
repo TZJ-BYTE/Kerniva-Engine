@@ -54,6 +54,24 @@ class LinuxRunnerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             runner.read_resp(io.BytesIO(b"$4\r\nab\r\n"))
 
+    def test_wal_groups_count_each_acknowledged_request(self):
+        before = {"wal_commits": "3", "wal_sync_attempts": "3",
+                  "wal_group_batches": "1", "wal_group_requests": "4"}
+        after = {"storage_backend": "rust-memory-sync", "wal_commits": "6",
+                 "wal_sync_attempts": "6", "wal_group_max": "4",
+                 "wal_group_batches": "3", "wal_group_requests": "9"}
+        measurement = {"failures": 0, "set": {"succeeded": 6}}
+        runner.validate_wal_measurement(before, after, measurement)
+        with self.assertRaises(ValueError):
+            runner.validate_wal_measurement(before, dict(after, wal_group_requests="13"), measurement)
+        with self.assertRaises(ValueError):
+            incomplete = dict(after)
+            del incomplete["wal_group_requests"]
+            runner.validate_wal_measurement(before, incomplete, measurement)
+        with self.assertRaises(ValueError):
+            measurement["set"]["succeeded"] = 3
+            runner.validate_wal_measurement(before, after, measurement)
+
     @unittest.skipUnless(sys.platform == "linux", "Linux executable symlinks")
     def test_redis_launch_name_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -78,6 +96,8 @@ class LinuxRunnerTests(unittest.TestCase):
         row = {field: "group" for field in analysis.GROUP_FIELDS}
         row.update({metric: 1 for metric in analysis.SUMMARY_METRICS})
         row.update(variant="redis", round=1, seed=42, stable=True, superseded=False, failures=0)
+        row.update(result_path="redis/result.json", server_sha256="redis", library_sha256=None,
+                   client_sha256="client", offered=1)
         row["server_go_num_gc_delta"] = None
         row["server_go_pause_ns_delta"] = None
         summary = analysis.summarize([row])
@@ -109,6 +129,8 @@ class LinuxRunnerTests(unittest.TestCase):
         row.update({metric: 1 for metric in analysis.SUMMARY_METRICS})
         row.update(variant="start", round=1, seed=42, stable=False, superseded=False, failures=10,
                    get_success_latency_p99_us=None, get_success_latency_p99_9_us=None)
+        row.update(result_path="start/result.json", server_sha256="server", library_sha256="library",
+                   client_sha256="client", offered=10)
         candidate = dict(row, variant="candidate")
         summary = analysis.summarize([row, candidate])
         self.assertTrue(all(item["get_success_latency_p99_9_us_median"] is None for item in summary))

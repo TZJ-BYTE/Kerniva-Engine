@@ -145,6 +145,11 @@ func newMemoryDBManager(cfg *config.Config) (*DBManager, error) {
 			if err = os.MkdirAll(directory, 0o750); err == nil {
 				engine, err = rustengine.OpenDurableMemory(directory, cfg.RustMemoryShards, limit, cfg.RustMemoryReadDuringSync)
 			}
+			if err == nil && cfg.RustMemoryGroupMax > 1 {
+				if err = engine.EnableWriteGrouping(cfg.RustMemoryGroupMax); err != nil {
+					err = errors.Join(err, engine.Close())
+				}
+			}
 			if err != nil {
 				err = fmt.Errorf("%s: %w", directory, err)
 			}

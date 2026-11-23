@@ -381,6 +381,8 @@ def validate_memory_backend(variant, info):
     if sync:
         read_during_sync = environment.get("KERNIVA_RUST_MEMORY_READ_DURING_SYNC", "false").lower()
         expected["memory_read_during_sync"] = str(read_during_sync in ("1", "t", "true")).lower()
+        if "KERNIVA_RUST_MEMORY_GROUP_MAX" in environment:
+            expected["wal_group_max"] = str(max(1, int(environment["KERNIVA_RUST_MEMORY_GROUP_MAX"])))
         expected["wal_requires_reopen"] = "0"
         expected["wal_failed_commits"] = "0"
     for key, value in expected.items():
@@ -393,11 +395,21 @@ def validate_wal_measurement(before, after, measurement):
         return
     commits = numeric_delta(before, after, "wal_commits")
     sync_attempts = numeric_delta(before, after, "wal_sync_attempts")
-    if commits is None or commits != sync_attempts:
+    if commits is None or commits < 0 or commits != sync_attempts:
         raise ValueError("Rust memory WAL commit and sync counts disagree")
+    group_limit = int(after.get("wal_group_max", "1"))
+    grouped_batches = numeric_delta(before, after, "wal_group_batches")
+    grouped_requests = numeric_delta(before, after, "wal_group_requests")
+    if group_limit > 1 and (grouped_batches is None or grouped_requests is None):
+        raise ValueError("Enabled Rust memory WAL grouping counters are missing")
+    grouped_batches = grouped_batches or 0
+    grouped_requests = grouped_requests or 0
+    if not 0 <= grouped_batches <= commits or not 2 * grouped_batches <= grouped_requests <= group_limit * grouped_batches:
+        raise ValueError("Rust memory WAL group counters disagree")
     # Failed or timed-out requests can leave a write in flight or committed
     # without a reply. Preserve these windows for separate analysis.
-    if measurement["failures"] == 0 and commits != measurement["set"]["succeeded"]:
+    committed_requests = commits - grouped_batches + grouped_requests
+    if measurement["failures"] == 0 and committed_requests != measurement["set"]["succeeded"]:
         raise ValueError("Rust memory WAL commit count does not match acknowledged writes")
 
 

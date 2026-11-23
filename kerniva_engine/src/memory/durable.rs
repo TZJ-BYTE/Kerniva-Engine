@@ -121,6 +121,8 @@ pub struct DurableWalStats {
 }
 
 impl DurableMemoryEngine {
+    pub(crate) const MAX_GROUP_PUTS: usize = 8;
+
     /// Opens an existing dedicated directory. Expired values are discarded at
     /// one captured wall-clock timestamp. The budget applies to the final
     /// recovered view, so replay can temporarily use more memory. Reopening
@@ -264,6 +266,62 @@ impl DurableMemoryEngine {
     pub fn put(&self, key: &[u8], value: &[u8]) -> Result<(), DurableMemoryError> {
         self.put_with_at(key, value, MemoryWriteOptions::default(), 0)?;
         Ok(())
+    }
+
+    /// Attempts to synchronize several independent ordinary puts together.
+    /// False allows the caller to retry each put in the original order. An
+    /// error applies to the whole attempt, including uncertain durability.
+    pub(crate) fn try_group_puts(
+        &self,
+        puts: &[(&[u8], &[u8])],
+    ) -> Result<bool, DurableMemoryError> {
+        if !(2..=Self::MAX_GROUP_PUTS).contains(&puts.len()) {
+            return Ok(false);
+        }
+        // The experiment handles small groups and fits comfortably in one
+        // existing WAL frame even when all keys differ.
+        let request_bytes = puts.iter().try_fold(0usize, |total, (key, value)| {
+            total.checked_add(key.len())?.checked_add(value.len())
+        });
+        if request_bytes.is_none_or(|bytes| bytes > 64 * 1024) {
+            return Ok(false);
+        }
+
+        let mut wal = self.writer()?;
+        if wal.version.checked_add(puts.len() as u64).is_none() {
+            return Ok(false);
+        }
+        for &(key, value) in puts {
+            let shard = self
+                .memory
+                .shard(key)
+                .read()
+                .map_err(|_| MemoryError::LockPoisoned)?;
+            let eligible = shard.entries.get(key).is_some_and(|entry| {
+                entry.expires_at_ms.is_none() && entry.value.len() == value.len()
+            });
+            if !eligible {
+                return Ok(false);
+            }
+        }
+        // Every put (including repeated keys) preserves the resident payload
+        // at its own position. No other writer can alter that starting state.
+        let options = MemoryWriteOptions::default();
+        let mut operations = [MemoryBatchOp::Put {
+            key: &[],
+            value: &[],
+            options,
+        }; Self::MAX_GROUP_PUTS];
+        for (operation, &(key, value)) in operations.iter_mut().zip(puts) {
+            *operation = MemoryBatchOp::Put {
+                key,
+                value,
+                options,
+            };
+        }
+        Ok(self
+            .commit(&mut wal, &operations[..puts.len()], 0)?
+            .is_some())
     }
 
     /// Returns the stored version, or None when the condition fails.

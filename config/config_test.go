@@ -15,6 +15,8 @@ func TestConfigRejectsInvalidPersistenceAndLimits(t *testing.T) {
 		func(c *Config) { c.ColdStartStrategy = "lasy_load" },
 		func(c *Config) { c.EngineSegmentSize = 1024 },
 		func(c *Config) { c.MaxMemory = -1 },
+		func(c *Config) { c.RustMemoryGroupMax = 4 },
+		func(c *Config) { c.StorageBackend, c.RustMemoryGroupMax = StorageRustMemorySync, 9 },
 	} {
 		cfg := defaultConfigNoEnv()
 		modify(cfg)

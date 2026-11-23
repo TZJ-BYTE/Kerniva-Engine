@@ -112,6 +112,7 @@ type MemoryEngine struct {
 	handle   uintptr
 	api      *memoryDLLAPI
 	walStats *nativeProc
+	putQueue *memoryPutQueue
 }
 
 // OpenMemory creates a directory-free Rust memory store. A nil limit means
@@ -254,6 +255,14 @@ func (e *MemoryEngine) Put(key, value []byte) error {
 	if e.handle == 0 {
 		return errMemoryEngineClosed
 	}
+	if e.putQueue != nil {
+		return e.putQueue.put(key, value)
+	}
+	return e.putNativePrepared(key, value)
+}
+
+// The caller holds the handle read lock until direct or queued completion.
+func (e *MemoryEngine) putNativePrepared(key, value []byte) error {
 	frame := acquireMemoryCallFrame(e.handle, key, value)
 	result, _, _ := e.api.put.Call(frame.args[:5]...)
 	runtime.KeepAlive(key)
@@ -332,6 +341,10 @@ func (e *MemoryEngine) Close() error {
 	defer e.mu.Unlock()
 	if e.handle == 0 {
 		return nil
+	}
+	if e.putQueue != nil {
+		e.putQueue.close()
+		e.putQueue = nil
 	}
 	handle := e.handle
 	e.handle = 0

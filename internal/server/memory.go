@@ -207,8 +207,9 @@ func dispatchMemoryCommand(dst []byte, ctx *ConnectionContext, manager *database
 				return memoryCommandError(dst, err), false
 			}
 			backend, mode, persistent = config.StorageRustMemorySync, "memory-sync", true
-			persistenceInfo = fmt.Sprintf("memory_read_during_sync:%t\r\nwal_log_bytes:%d\r\nwal_commits:%d\r\nwal_failed_commits:%d\r\nwal_sync_attempts:%d\r\nwal_sync_elapsed_ns:%d\r\nwal_requires_reopen:%d\r\n",
-				manager.RustMemoryReadDuringSync(), wal.LogBytes, wal.Commits, wal.FailedCommits, wal.SyncAttempts, wal.SyncElapsedNS, wal.RequiresReopen)
+			group := db.WriteGroupStats()
+			persistenceInfo = fmt.Sprintf("memory_read_during_sync:%t\r\nwal_log_bytes:%d\r\nwal_commits:%d\r\nwal_failed_commits:%d\r\nwal_sync_attempts:%d\r\nwal_sync_elapsed_ns:%d\r\nwal_requires_reopen:%d\r\nwal_group_max:%d\r\nwal_group_batches:%d\r\nwal_group_requests:%d\r\n",
+				manager.RustMemoryReadDuringSync(), wal.LogBytes, wal.Commits, wal.FailedCommits, wal.SyncAttempts, wal.SyncElapsedNS, wal.RequiresReopen, group.MaxBatch, group.Batches, group.Requests)
 		}
 		info := fmt.Sprintf("# Database\r\nstorage_backend:%s\r\nmode:%s\r\npersistence_enabled:%t\r\n%smemory_abi_version:1\r\ndb_id:%d\r\ndb_count:%d\r\nmemory_keys:%d\r\nused_memory_bytes:%d\r\nmemory_shards:%d\r\n# Runtime\r\nheap_alloc_bytes:%d\r\nnum_gc:%d\r\ngc_pause_total_ns:%d\r\n",
 			backend, mode, persistent, persistenceInfo, ctx.memoryDBIndex, manager.DBCount(), stats.Keys, stats.PayloadBytes, stats.Shards, mem.HeapAlloc, mem.NumGC, mem.PauseTotalNs)

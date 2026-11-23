@@ -128,6 +128,17 @@ int32_t kerniva_memory_delete_many(KernivaMemoryEngine *handle,
                                    const KernivaMemorySlice *keys, size_t count,
                                    size_t *out);
 
+/*
+ * Optional experimental entry point on synchronous memory handles. Attempts
+ * two to eight independent unconditional puts in caller order with one
+ * durable commit. The current admission rule is existing nonexpiring
+ * keys, equal value lengths, and at most 65536 total key/value input bytes.
+ * MISSING means no write was made and ordinary puts may be attempted in
+ * order. Report any other error to the entire group without retrying.
+ */
+int32_t kerniva_memory_try_group_puts(KernivaMemoryEngine *handle,
+                                      const KernivaMemoryPair *pairs, size_t count);
+
 /* An entire write batch commits or fails together. Duplicate keys are applied in order. */
 int32_t kerniva_memory_mset(KernivaMemoryEngine *handle,
                             const KernivaMemoryPair *pairs, size_t count);

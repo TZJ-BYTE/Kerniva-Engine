@@ -22,6 +22,7 @@ func defaultConfigNoEnv() *Config {
 		MaxMemoryPolicy:  "noeviction",
 
 		RustMemoryReadDuringSync: false,
+		RustMemoryGroupMax:       1,
 
 		PersistenceEnabled:       true,
 		PersistenceType:          "kerniva",

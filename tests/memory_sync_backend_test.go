@@ -11,14 +11,23 @@ import (
 )
 
 func TestRustMemorySyncBackendAcknowledgedBatchesSurviveRestart(t *testing.T) {
-	for _, readDuringSync := range []bool{false, true} {
-		t.Run("read-during-sync="+strconv.FormatBool(readDuringSync), func(t *testing.T) {
+	for _, variant := range []struct {
+		name           string
+		readDuringSync bool
+		groupMax       int
+	}{
+		{"hold-shards", false, 1},
+		{"read-committed", true, 1},
+		{"read-committed-grouping", true, 8},
+	} {
+		t.Run(variant.name, func(t *testing.T) {
 			cfg := rustMemoryNetworkConfig("std", 1<<20)
 			cfg.StorageBackend = config.StorageRustMemorySync
 			cfg.PersistenceEnabled = true
 			cfg.PersistenceDurability = "sync"
 			cfg.PersistenceWriteMode = "strong"
-			cfg.RustMemoryReadDuringSync = readDuringSync
+			cfg.RustMemoryReadDuringSync = variant.readDuringSync
+			cfg.RustMemoryGroupMax = variant.groupMax
 			cfg.DataDir = t.TempDir()
 
 			// A previous legacy database must remain separate and untouched.
@@ -37,7 +46,8 @@ func TestRustMemorySyncBackendAcknowledgedBatchesSurviveRestart(t *testing.T) {
 				"storage_backend": "rust-memory-sync", "mode": "memory-sync",
 				"persistence_enabled": "true", "memory_abi_version": "1",
 				"db_id": "0", "db_count": "2",
-				"memory_read_during_sync": strconv.FormatBool(readDuringSync),
+				"memory_read_during_sync": strconv.FormatBool(variant.readDuringSync),
+				"wal_group_max":           strconv.Itoa(variant.groupMax),
 			} {
 				if got := memoryInfoField(info.Text, key); got != want {
 					t.Fatalf("INFO %s = %q, want %q", key, got, want)
@@ -119,8 +129,10 @@ func TestRustMemorySyncBackendAcknowledgedBatchesSurviveRestart(t *testing.T) {
 
 func TestRustMemorySyncBackendConfiguration(t *testing.T) {
 	t.Setenv("KERNIVA_RUST_MEMORY_READ_DURING_SYNC", "true")
-	if !config.DefaultConfig().RustMemoryReadDuringSync {
-		t.Fatal("read-during-sync environment override was ignored")
+	t.Setenv("KERNIVA_RUST_MEMORY_GROUP_MAX", "8")
+	defaults := config.DefaultConfig()
+	if !defaults.RustMemoryReadDuringSync || defaults.RustMemoryGroupMax != 8 {
+		t.Fatal("synchronous memory environment overrides were ignored")
 	}
 	cfg := rustMemoryNetworkConfig("std", 1<<20)
 	cfg.StorageBackend = config.StorageRustMemorySync

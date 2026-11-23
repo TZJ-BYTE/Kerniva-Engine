@@ -42,6 +42,7 @@ type Config struct {
 
 	// Applies only to the experimental synchronous Rust backend.
 	RustMemoryReadDuringSync bool `yaml:"rust_memory_read_during_sync" json:"rust_memory_read_during_sync"`
+	RustMemoryGroupMax       int  `yaml:"rust_memory_group_max" json:"rust_memory_group_max"`
 
 	// 内存配置
 	MaxMemory       int64  `yaml:"max_memory" json:"max_memory"`
@@ -95,8 +96,9 @@ func (c *Config) applyEnvOverrides() {
 	}
 	integersByName := map[string]*int{
 		"KERNIVA_PORT": &c.Port, "KERNIVA_DB_COUNT": &c.DBCount,
-		"KERNIVA_RUST_MEMORY_SHARDS": &c.RustMemoryShards,
-		"KERNIVA_RESP_MAX_BULK_LEN":  &c.RespMaxBulkLen, "KERNIVA_RESP_MAX_ARRAY_LEN": &c.RespMaxArrayLen,
+		"KERNIVA_RUST_MEMORY_SHARDS":    &c.RustMemoryShards,
+		"KERNIVA_RUST_MEMORY_GROUP_MAX": &c.RustMemoryGroupMax,
+		"KERNIVA_RESP_MAX_BULK_LEN":     &c.RespMaxBulkLen, "KERNIVA_RESP_MAX_ARRAY_LEN": &c.RespMaxArrayLen,
 		"KERNIVA_ENGINE_CHECKPOINT_AFTER_OPS": &c.EngineCheckpointAfterOps,
 		"KERNIVA_LOG_MAX_SIZE_MB":             &c.LogMaxSizeMB, "KERNIVA_LOG_MAX_BACKUPS": &c.LogMaxBackups, "KERNIVA_LOG_MAX_AGE_DAYS": &c.LogMaxAgeDays,
 	}
@@ -177,6 +179,12 @@ func (c *Config) Validate() error {
 	}
 	if err := validateChoice("storage_backend", c.StorageBackend, "", StorageLegacy, StorageRustMemory, StorageRustMemorySync); err != nil {
 		return err
+	}
+	if c.RustMemoryGroupMax < 0 || c.RustMemoryGroupMax > 8 {
+		return fmt.Errorf("rust_memory_group_max must be from 0 to 8")
+	}
+	if c.RustMemoryGroupMax > 1 && c.StorageBackend != StorageRustMemorySync {
+		return fmt.Errorf("rust_memory_group_max above 1 requires rust-memory-sync")
 	}
 	if c.StorageBackend == StorageRustMemory || c.StorageBackend == StorageRustMemorySync {
 		if c.StorageBackend == StorageRustMemory && c.PersistenceEnabled {

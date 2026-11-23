@@ -87,6 +87,8 @@ redis-cli -p 16381 INFO
 
 同步日志目前仅追加。INFO 输出 WAL 大小、提交数、同步次数及累计耗时。实验应使用独立数据目录并关注空间和重启回放时间。
 
+`KERNIVA_RUST_MEMORY_GROUP_MAX` 默认为 1，按条同步。设置为 2–8 可测试合并同步。仅已排队的小键值普通 SET 有机会合并，要求键已存在、无 TTL 且覆盖前后值长度相等。合并后统一完成磁盘同步，再向各请求回复。INFO 另外提供组数和组内确认请求数，压测在请求全部完成后读取计数。
+
 ### 复现同步时的读等待对照
 
 在 WSL 2 的 ext4 工作区运行。需要 Python 3.10 或更新版本，以及上文列出的 Go、Rust 工具链。
@@ -117,9 +119,9 @@ python3 scripts/thesis-reproduce-read-isolation.py
 
 none 在 append 完成后返回，flush 调用文件 flush，两者成功回复均允许掉电丢失。sync 在文件同步成功后回复。旧别名 wal 对应 flush，wal_fsync 和 lsm 对应 sync。persistence_write_mode 保留兼容入口，实际确认边界由 durability 决定。
 
-内存预算按 key 和 DataValue 的近似大小统计。used_memory_bytes 包含并发 SET 的在途预留，Database.GetStats 中的 pending_memory_bytes 是其中的暂存分项，当前 INFO 尚未输出该分项。Go/Rust 索引、map 开销、连接缓冲和运行时堆需要额外预算。持久化模式超限时卸载 Go 解码缓存，Rust 中的逻辑 key 继续保留。
+原有后端的内存预算按 key 和 DataValue 的近似大小统计。used_memory_bytes 包含并发 SET 的在途预留，Database.GetStats 中的 pending_memory_bytes 是其中的暂存分项，当前 INFO 尚未输出该分项。Go/Rust 索引、map 开销、连接缓冲和运行时堆需要额外预算。原有持久化模式超限时卸载 Go 解码缓存，Rust 中的逻辑 key 继续保留。
 
-TTL 由 Go 管理。后台抽样清理缓存中的过期 key，冷数据在读取和键枚举时判断过期并触发持久化删除。长期无人访问的过期冷数据会继续占据磁盘空间，直到访问删除和后续 cleaner 回收。
+原有后端的 TTL 由 Go 管理。后台抽样清理缓存中的过期 key，冷数据在读取和键枚举时判断过期并触发持久化删除。长期无人访问的过期冷数据会继续占据磁盘空间，直到访问删除和后续 cleaner 回收。
 
 并行热读适用于缓存命中且无 TTL 的值。noeviction 策略下，已缓存的无 TTL 普通字符串 SET 在暂存预算允许时与异分片读取并行，提交成功后发布缓存。冷键、TTL、同分片争用及复杂命令的等待边界见 [毕设设计说明](docs/thesis_read_isolation_design.md)。
 
@@ -128,16 +130,21 @@ TTL 由 Go 管理。后台抽样清理缓存中的过期 key，冷数据在读�
 ~~~mermaid
 flowchart TD
     A[TCP std / gnet] --> B[RESP 解析与有界连接队列]
-    B --> C[连接 worker 与执行协调]
-    C --> D[命令 / 事务 / Lua / PubSub]
+    B --> C[Go 连接 worker]
+    C -->|原有后端| D[命令 / 事务 / Lua / PubSub]
     D --> E[DBManager 与分片缓存]
     E --> F[变更暂存 / 失败回滚 / 写批次]
-    F --> G[运行时 C ABI 桥接]
+    F -->|持久化| G[运行时 C ABI 桥接]
     G --> H[Rust BTreeMap 与 segment log]
     H --> I[checkpoint / snapshot / cleaner]
+    C -->|Rust 内存实验后端| J[字符串命令与逻辑库选择]
+    J --> K[内存 C ABI]
+    K -->|纯内存操作与读取| L[Rust 分片键值表]
+    K -->|同步模式下的写入| M[WAL 同步]
+    M -->|同步成功后发布| L
 ~~~
 
-审计过的单 key 请求共享执行门。复合命令及 EXEC 使用排他执行门。数据库以操作锁、分片锁和变更日志协调缓存、WATCH 版本和持久化提交。Rust 批次是单引擎的恢复原子单位。
+原有后端的单 key 请求共享执行门，复合命令及 EXEC 使用排他执行门。数据库以操作锁、分片锁和变更日志协调缓存、WATCH 版本和持久化提交。两个持久化后端都以 Rust 批次作为单引擎的恢复原子单位。
 
 每库具有独立日志。EXEC 和 Lua 中多次命令调用按各自命令提交，崩溃后可能保留已提交的前缀。跨库 MOVE 先写目标再删源，中途崩溃可能留下双副本。
 

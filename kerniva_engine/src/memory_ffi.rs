@@ -431,6 +431,38 @@ pub unsafe extern "C" fn kerniva_memory_delete_many(
 
 /// # Safety
 ///
+/// The handle must remain open. The array and its key/value bytes must remain
+/// valid and immutable throughout the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_try_group_puts(
+    handle: *mut KernivaMemoryEngine,
+    pairs: *const KernivaMemoryPair,
+    count: usize,
+) -> i32 {
+    ffi_call(|| {
+        if !(2..=DurableMemoryEngine::MAX_GROUP_PUTS).contains(&count) {
+            return Err(INVALID_ARGUMENT);
+        }
+        let KernivaMemoryEngine::Durable(engine) = (unsafe { engine_ref(handle)? }) else {
+            return Err(UNSUPPORTED);
+        };
+        let pairs = unsafe { input(pairs, count)? };
+        let empty: &[u8] = &[];
+        let mut puts = [(empty, empty); DurableMemoryEngine::MAX_GROUP_PUTS];
+        for (put, pair) in puts.iter_mut().zip(pairs) {
+            *put = (unsafe { input(pair.key.data, pair.key.len)? }, unsafe {
+                input(pair.value.data, pair.value.len)?
+            });
+        }
+        let committed = engine
+            .try_group_puts(&puts[..count])
+            .map_err(durable_status)?;
+        Ok(if committed { OK } else { MISSING })
+    })
+}
+
+/// # Safety
+///
 /// The handle must remain open. The pair array and all referenced key and value
 /// bytes must be valid for their lengths.
 #[unsafe(no_mangle)]
@@ -702,6 +734,33 @@ mod tests {
             assert_eq!(
                 spans.map(|span| (span.offset, span.len, span.found)),
                 [(0, 2, 1), (2, 0, 0), (2, 0, 1)]
+            );
+            assert_eq!(kerniva_memory_close(handle), OK);
+        }
+    }
+
+    #[test]
+    fn group_puts_rejects_volatile_handles_and_invalid_counts() {
+        let mut handle = ptr::null_mut();
+        let pairs = [
+            KernivaMemoryPair {
+                key: bytes(b"a"),
+                value: bytes(b"x"),
+            },
+            KernivaMemoryPair {
+                key: bytes(b"b"),
+                value: bytes(b"y"),
+            },
+        ];
+        unsafe {
+            assert_eq!(kerniva_memory_open(4, 0, 0, &mut handle), OK);
+            assert_eq!(
+                kerniva_memory_try_group_puts(handle, ptr::null(), 1),
+                INVALID_ARGUMENT
+            );
+            assert_eq!(
+                kerniva_memory_try_group_puts(handle, pairs.as_ptr(), pairs.len()),
+                UNSUPPORTED
             );
             assert_eq!(kerniva_memory_close(handle), OK);
         }
