@@ -136,6 +136,7 @@ go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -n
 ## 文档
 
 - [后续开发路线与 WSL 主环境决策](docs/architecture/adr-0001-wsl-rust-memory-core.md)
+- [Rust 内存内核无人值守开发计划](docs/rust_memory_unattended_plan.md)
 - [整体架构与数据流](docs/kerniva_engine_architecture.md)
 - [存储格式、恢复与 C ABI](docs/kerniva_engine_design.md)
 - [五阶段改进和后续计划](docs/project_review_and_plan.md)

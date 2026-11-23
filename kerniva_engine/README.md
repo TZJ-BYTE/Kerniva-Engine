@@ -25,6 +25,27 @@ cargo clippy --manifest-path kerniva_engine/Cargo.toml --all-targets -- -D warni
 - snapshot pin、延迟回收、条件 cleaner 与强制 compact。
 - 显式 sync、checkpoint、阈值检查和统计。
 
+## Rust 主存 KV 原型
+
+`MemoryEngine` 是独立的 Rust 字节键值库。构造后可直接读写，配置项为分片数和常驻键值字节上限。
+
+~~~rust
+use kerniva_engine::{MemoryEngine, MemoryError};
+
+fn main() -> Result<(), MemoryError> {
+    let engine = MemoryEngine::new(16, Some(16 * 1024 * 1024))?;
+    engine.put(b"key", b"value")?;
+    assert_eq!(engine.get(b"key")?.as_deref(), Some(&b"value"[..]));
+    assert_eq!(engine.stats()?.payload_bytes, 8);
+    assert!(engine.delete(b"key")?);
+    Ok(())
+}
+~~~
+
+分片数取正的 2 的幂，`None` 表示不限常驻字节。超限的写入返回 `PayloadLimitExceeded`，保留已有值。GET 返回不可变的 `Arc<[u8]>`，覆盖或删除后旧读者仍可使用自己持有的值。字节限额统计当前键和值，RSS 还包括哈希表容量、分配器和旧读者持有的值。统计会取得所有分片的读锁，适合低频查询。
+
+当前原型通过 Rust API 使用。TTL、条件写、跨分片批次及 Go 服务接入见[开发计划](../docs/rust_memory_unattended_plan.md)。
+
 ## 同步策略
 
 | 策略 | 行为 |
