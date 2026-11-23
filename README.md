@@ -10,6 +10,7 @@ Kerniva 是 Go 实现的 Redis 协议兼容服务，支持标准库 net 与 gnet
 - MULTI / EXEC / WATCH、发布订阅、阻塞列表和 Stream 消费组。
 - Lua 库白名单、超时、指令与采样分配预算。
 - 内存模式和 Rust 持久化模式，支持 lazy_load 与 load_all。
+- 可选的 Rust 分片内存 KV 后端，通过同一 RESP 服务提供字符串命令。
 - segment log、原子写批次、checkpoint 校验、快照引用保护和条件空间回收。
 - 同步持久化时的异分片热读并行、提交后缓存发布，以及独立的 Rust 已提交索引读取。
 - 配置校验、轮转日志、优雅停止，以及覆盖 Rust 和 Go 的测试脚本。
@@ -53,6 +54,21 @@ redis-cli -h 127.0.0.1 -p 16379 PING
 ~~~
 
 Windows 服务端文件名为 kerniva-server.exe。部署时将平台对应的 kerniva_engine.dll、libkerniva_engine.so 或 libkerniva_engine.dylib 放在服务端旁边，也可通过 KERNIVA_ENGINE_LIBRARY 指定绝对库路径。库在运行阶段加载，构建由构建脚本负责。
+
+### Rust 内存后端实验
+
+在 WSL 单独启动一个实例，使用本次构建的服务端和动态库。
+
+~~~bash
+KERNIVA_STORAGE_BACKEND=rust-memory KERNIVA_PERSISTENCE_ENABLED=false \
+  KERNIVA_MAX_MEMORY_POLICY=noeviction KERNIVA_RUST_MEMORY_SHARDS=16 \
+  KERNIVA_PORT=16380 ./bin/kerniva-server -config ./config.yaml
+redis-cli -p 16380 INFO
+redis-cli -p 16380 SET sample value
+redis-cli -p 16380 GET sample
+~~~
+
+`INFO` 输出 `storage_backend:rust-memory`、分片数和常驻键值字节数。各逻辑库独立计量 `max_memory`，0 表示无限制。分片数为正的 2 次幂。实验入口支持 GET、普通 SET、单键 DEL、MGET、MSET、SELECT、PING、QUIT 和 INFO；复杂命令会返回错误。默认配置继续使用现有后端。
 
 ## 配置
 

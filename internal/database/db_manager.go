@@ -1,20 +1,23 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
 	"sync"
 
 	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
 	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
 // DBManager 数据库管理器
 type DBManager struct {
-	databases []*Database
-	lock      sync.RWMutex
-	config    *config.Config
+	databases       []*Database
+	memoryDatabases []*rustengine.MemoryEngine
+	lock            sync.RWMutex
+	config          *config.Config
 
 	persistenceEnabled bool
 	dataDir            string
@@ -33,6 +36,9 @@ func NewDBManager(cfg *config.Config) *DBManager {
 func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+	if cfg.StorageBackend == config.StorageRustMemory {
+		return newMemoryDBManager(cfg)
 	}
 	databases := make([]*Database, cfg.DBCount)
 
@@ -116,8 +122,40 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	}, nil
 }
 
+func newMemoryDBManager(cfg *config.Config) (*DBManager, error) {
+	manager := &DBManager{config: cfg, memoryDatabases: make([]*rustengine.MemoryEngine, 0, cfg.DBCount)}
+	var limit *uint64
+	if cfg.MaxMemory != 0 {
+		maxPayload := uint64(cfg.MaxMemory)
+		limit = &maxPayload
+	}
+	for i := 0; i < cfg.DBCount; i++ {
+		engine, err := rustengine.OpenMemory(cfg.RustMemoryShards, limit)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("initialize rust-memory database %d: %w", i, err), manager.closeMemoryDatabases())
+		}
+		manager.memoryDatabases = append(manager.memoryDatabases, engine)
+	}
+	logger.Info("初始化 %d 个 Rust 内存数据库，每库 %d 个分片", cfg.DBCount, cfg.RustMemoryShards)
+	return manager, nil
+}
+
+func (m *DBManager) UsesRustMemory() bool {
+	return m != nil && len(m.memoryDatabases) != 0
+}
+
+func (m *DBManager) GetMemoryDBByIndex(index int) (*rustengine.MemoryEngine, error) {
+	if index < 0 || index >= len(m.memoryDatabases) {
+		return nil, fmt.Errorf("DB index out of range")
+	}
+	return m.memoryDatabases[index], nil
+}
+
 // GetDefaultDB 获取默认数据库 (DB 0)
 func (m *DBManager) GetDefaultDB() *Database {
+	if m.UsesRustMemory() {
+		return nil
+	}
 	return m.databases[0]
 }
 
@@ -131,6 +169,9 @@ func (m *DBManager) GetDBByIndex(index int) (*Database, error) {
 
 // FlushAll 清空所有数据库
 func (m *DBManager) FlushAll() error {
+	if m.UsesRustMemory() {
+		return fmt.Errorf("FLUSHALL is unavailable in rust-memory mode")
+	}
 	for _, db := range m.databases {
 		if err := db.Clear(); err != nil {
 			return err
@@ -142,6 +183,9 @@ func (m *DBManager) FlushAll() error {
 
 // DBCount 返回数据库数量
 func (m *DBManager) DBCount() int {
+	if m.UsesRustMemory() {
+		return len(m.memoryDatabases)
+	}
 	return len(m.databases)
 }
 
@@ -149,6 +193,9 @@ func (m *DBManager) DBCount() int {
 func (m *DBManager) Close() error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	if m.UsesRustMemory() {
+		return m.closeMemoryDatabases()
+	}
 
 	var lastErr error
 	for i, db := range m.databases {
@@ -166,12 +213,38 @@ func (m *DBManager) Close() error {
 	return lastErr
 }
 
+func (m *DBManager) closeMemoryDatabases() error {
+	var result error
+	for _, engine := range m.memoryDatabases {
+		result = errors.Join(result, engine.Close())
+	}
+	return result
+}
+
 // GetStats 获取统计信息
 func (m *DBManager) GetStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	stats["db_count"] = len(m.databases)
+	stats["db_count"] = m.DBCount()
 	stats["persistence_enabled"] = m.persistenceEnabled
+	if m.UsesRustMemory() {
+		stats["storage_backend"] = config.StorageRustMemory
+		dbStats := make([]map[string]interface{}, len(m.memoryDatabases))
+		for i, db := range m.memoryDatabases {
+			item := map[string]interface{}{"db_id": i, "mode": "memory"}
+			fields, err := db.Stats()
+			if err != nil {
+				item["stats_error"] = err.Error()
+			} else {
+				item["memory_keys"] = fields.Keys
+				item["used_memory_bytes"] = fields.PayloadBytes
+				item["shards"] = fields.Shards
+			}
+			dbStats[i] = item
+		}
+		stats["databases"] = dbStats
+		return stats
+	}
 
 	if m.persistenceEnabled {
 		stats["data_dir"] = m.dataDir

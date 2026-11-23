@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	StorageLegacy     = "legacy"
+	StorageRustMemory = "rust-memory"
+)
+
 // ColdStartStrategy 冷启动数据加载策略
 type ColdStartStrategy int
 
@@ -30,7 +35,9 @@ type Config struct {
 	RespMaxArrayLen int `yaml:"resp_max_array_len" json:"resp_max_array_len"`
 
 	// 数据库配置
-	DBCount int `yaml:"db_count" json:"db_count"`
+	DBCount          int    `yaml:"db_count" json:"db_count"`
+	StorageBackend   string `yaml:"storage_backend" json:"storage_backend"`
+	RustMemoryShards int    `yaml:"rust_memory_shards" json:"rust_memory_shards"`
 
 	// 内存配置
 	MaxMemory       int64  `yaml:"max_memory" json:"max_memory"`
@@ -71,6 +78,7 @@ func DefaultConfig() *Config {
 func (c *Config) applyEnvOverrides() {
 	stringsByName := map[string]*string{
 		"KERNIVA_HOST": &c.Host, "KERNIVA_NETWORK_TYPE": &c.NetworkType,
+		"KERNIVA_STORAGE_BACKEND":  &c.StorageBackend,
 		"KERNIVA_PERSISTENCE_TYPE": &c.PersistenceType, "KERNIVA_DATA_DIR": &c.DataDir,
 		"KERNIVA_PERSISTENCE_WRITE_MODE": &c.PersistenceWriteMode, "KERNIVA_PERSISTENCE_DURABILITY": &c.PersistenceDurability,
 		"KERNIVA_COLD_START_STRATEGY": &c.ColdStartStrategy, "KERNIVA_MAX_MEMORY_POLICY": &c.MaxMemoryPolicy,
@@ -83,7 +91,8 @@ func (c *Config) applyEnvOverrides() {
 	}
 	integersByName := map[string]*int{
 		"KERNIVA_PORT": &c.Port, "KERNIVA_DB_COUNT": &c.DBCount,
-		"KERNIVA_RESP_MAX_BULK_LEN": &c.RespMaxBulkLen, "KERNIVA_RESP_MAX_ARRAY_LEN": &c.RespMaxArrayLen,
+		"KERNIVA_RUST_MEMORY_SHARDS": &c.RustMemoryShards,
+		"KERNIVA_RESP_MAX_BULK_LEN":  &c.RespMaxBulkLen, "KERNIVA_RESP_MAX_ARRAY_LEN": &c.RespMaxArrayLen,
 		"KERNIVA_ENGINE_CHECKPOINT_AFTER_OPS": &c.EngineCheckpointAfterOps,
 		"KERNIVA_LOG_MAX_SIZE_MB":             &c.LogMaxSizeMB, "KERNIVA_LOG_MAX_BACKUPS": &c.LogMaxBackups, "KERNIVA_LOG_MAX_AGE_DAYS": &c.LogMaxAgeDays,
 	}
@@ -158,6 +167,20 @@ func (c *Config) Validate() error {
 	}
 	if err := validateChoice("max_memory_policy", c.MaxMemoryPolicy, "", "noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"); err != nil {
 		return err
+	}
+	if err := validateChoice("storage_backend", c.StorageBackend, "", StorageLegacy, StorageRustMemory); err != nil {
+		return err
+	}
+	if c.StorageBackend == StorageRustMemory {
+		if c.PersistenceEnabled {
+			return fmt.Errorf("rust-memory requires persistence_enabled=false")
+		}
+		if c.MaxMemoryPolicy != "" && c.MaxMemoryPolicy != "noeviction" {
+			return fmt.Errorf("rust-memory requires the noeviction memory policy")
+		}
+		if c.RustMemoryShards <= 0 || c.RustMemoryShards&(c.RustMemoryShards-1) != 0 {
+			return fmt.Errorf("rust_memory_shards must be a positive power of two")
+		}
 	}
 	if err := validateChoice("cold_start_strategy", c.ColdStartStrategy, "", "no_load", "load_all", "lazy_load"); err != nil {
 		return err

@@ -10,14 +10,16 @@ import (
 
 func defaultConfigNoEnv() *Config {
 	return &Config{
-		Host:            "127.0.0.1",
-		Port:            16379,
-		NetworkType:     "std",
-		RespMaxBulkLen:  64 << 20,
-		RespMaxArrayLen: 1 << 20,
-		DBCount:         16,
-		MaxMemory:       256 * 1024 * 1024,
-		MaxMemoryPolicy: "noeviction",
+		Host:             "127.0.0.1",
+		Port:             16379,
+		NetworkType:      "std",
+		RespMaxBulkLen:   64 << 20,
+		RespMaxArrayLen:  1 << 20,
+		DBCount:          16,
+		StorageBackend:   StorageLegacy,
+		RustMemoryShards: 16,
+		MaxMemory:        256 * 1024 * 1024,
+		MaxMemoryPolicy:  "noeviction",
 
 		PersistenceEnabled:       true,
 		PersistenceType:          "kerniva",

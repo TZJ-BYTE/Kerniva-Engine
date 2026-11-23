@@ -26,6 +26,9 @@ type ConnectionContext struct {
 	// 当前选中的数据库
 	DB *database.Database
 
+	memoryDBIndex int
+	memoryReadBuf []byte
+
 	// 认证状态（未来支持）
 	Authenticated bool
 

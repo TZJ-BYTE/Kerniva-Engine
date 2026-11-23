@@ -6,6 +6,7 @@ mod error;
 mod ffi;
 mod iterator;
 mod memory;
+mod memory_ffi;
 mod options;
 mod reader_cache;
 mod record;
@@ -17,8 +18,8 @@ pub use crate::engine::{Engine, EngineStats};
 pub use crate::error::{EngineError, Result};
 pub use crate::iterator::EngineIterator;
 pub use crate::memory::{
-    MemoryBatchOp, MemoryCondition, MemoryEngine, MemoryError, MemoryStats, MemoryValue,
-    MemoryWriteOptions,
+    MemoryBatchOp, MemoryCondition, MemoryEngine, MemoryError, MemoryRead, MemoryStats,
+    MemoryValue, MemoryWriteOptions,
 };
 pub use crate::options::{Options, SyncPolicy};
 pub use crate::record::{RecordKind, ValueLocation};

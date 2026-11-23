@@ -37,7 +37,9 @@ func NewGnetServer(cfg *config.Config) network.Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	command.InitDefaultCommands()
 	manager, initErr := database.NewDBManagerChecked(cfg)
-	command.SetDBManager(manager)
+	if !manager.UsesRustMemory() {
+		command.SetDBManager(manager)
+	}
 	return &GnetServer{
 		ctx:       ctx,
 		cancel:    cancel,

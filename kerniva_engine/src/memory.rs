@@ -1,6 +1,7 @@
 use std::collections::{HashMap, hash_map::RandomState};
 use std::fmt::{self, Display};
 use std::hash::BuildHasher;
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -47,6 +48,19 @@ impl MemoryValue {
     fn visible_at(&self, now_ms: u64) -> bool {
         self.expires_at_ms.is_none_or(|deadline| now_ms < deadline)
     }
+
+    fn visible_now(&self) -> bool {
+        self.expires_at_ms
+            .is_none_or(|deadline| unix_time_ms() < deadline)
+    }
+}
+
+/// Result of copying into a caller-supplied buffer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MemoryRead {
+    Missing,
+    Copied(usize),
+    BufferTooSmall(usize),
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -142,12 +156,48 @@ impl MemoryEngine {
             .shard(key)
             .read()
             .map_err(|_| MemoryError::LockPoisoned)?;
-        let value = shard.entries.get(key).filter(|entry| {
-            entry
-                .expires_at_ms
-                .is_none_or(|deadline| unix_time_ms() < deadline)
-        });
+        let value = shard.entries.get(key).filter(|entry| entry.visible_now());
         Ok(value.map(|entry| Arc::clone(&entry.value)))
+    }
+
+    /// Copies a value with no intermediate allocation. A short buffer is untouched.
+    pub fn get_into(&self, key: &[u8], dst: &mut [u8]) -> Result<MemoryRead, MemoryError> {
+        self.copy_value(key, dst.len(), |bytes| {
+            dst[..bytes.len()].copy_from_slice(bytes);
+        })
+    }
+
+    pub(crate) fn get_into_uninit(
+        &self,
+        key: &[u8],
+        dst: &mut [MaybeUninit<u8>],
+    ) -> Result<MemoryRead, MemoryError> {
+        self.copy_value(key, dst.len(), |bytes| {
+            for (target, byte) in dst.iter_mut().zip(bytes) {
+                target.write(*byte);
+            }
+        })
+    }
+
+    fn copy_value(
+        &self,
+        key: &[u8],
+        dst_len: usize,
+        copy: impl FnOnce(&[u8]),
+    ) -> Result<MemoryRead, MemoryError> {
+        let shard = self
+            .shard(key)
+            .read()
+            .map_err(|_| MemoryError::LockPoisoned)?;
+        let Some(entry) = shard.entries.get(key).filter(|entry| entry.visible_now()) else {
+            return Ok(MemoryRead::Missing);
+        };
+        let len = entry.value.len();
+        if len > dst_len {
+            return Ok(MemoryRead::BufferTooSmall(len));
+        }
+        copy(&entry.value);
+        Ok(MemoryRead::Copied(len))
     }
 
     /// Reads value and version with the caller's operation timestamp.
@@ -165,6 +215,10 @@ impl MemoryEngine {
             .get(key)
             .filter(|entry| entry.visible_at(now_ms))
             .cloned())
+    }
+
+    pub fn get_many(&self, keys: &[&[u8]]) -> Result<Vec<Option<MemoryValue>>, MemoryError> {
+        self.get_many_at(keys, unix_time_ms())
     }
 
     /// Stores an unconditional, non-expiring value.

@@ -11,6 +11,12 @@ import (
 )
 
 func dispatchCommand(dst []byte, ctx *ConnectionContext, manager *database.DBManager, registry *command.CommandRegistry, cmd string, args [][]byte) ([]byte, bool) {
+	if manager.UsesRustMemory() {
+		if ctx.requestContext().Err() != nil {
+			return dst, true
+		}
+		return dispatchMemoryCommand(dst, ctx, manager, cmd, args)
+	}
 	if isBlockingListCommand(cmd) && (ctx.Tx == nil || !ctx.Tx.InMulti) {
 		ctx.pubsubMu.Lock()
 		subscribed := ctx.pubsubSubscriptionCountLocked() > 0

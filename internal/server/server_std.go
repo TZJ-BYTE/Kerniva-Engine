@@ -55,7 +55,9 @@ func NewStdServer(cfg *config.Config) network.Server {
 	// 初始化命令注册表
 	command.InitDefaultCommands()
 	manager, initErr := database.NewDBManagerChecked(cfg)
-	command.SetDBManager(manager)
+	if !manager.UsesRustMemory() {
+		command.SetDBManager(manager)
+	}
 
 	return &StdServer{
 		config:      cfg,
