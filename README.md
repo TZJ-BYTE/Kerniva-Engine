@@ -101,6 +101,16 @@ python3 scripts/thesis-reproduce-read-isolation.py
 
 已经测得的短窗、长测、重放、Redis 和 ABI 数据见 [WSL 实验记录](docs/rust_memory_wsl_report.md)。
 
+### 本地演示
+
+在 WSL 使用现有演示页连接已提交读模式。运行后访问 `http://127.0.0.1:18081`，可以查看 INFO、执行 SET 和 GET。按 Ctrl+C 结束本次实例。
+
+~~~bash
+KERNIVA_STORAGE_BACKEND=rust-memory-sync KERNIVA_RUST_MEMORY_READ_DURING_SYNC=true \
+  KERNIVA_RUST_MEMORY_GROUP_MAX=1 bash scripts/thesis-demo.sh \
+  --db-port 16381 --http-port 18081 --data-dir "$HOME/kerniva-thesis-demo-data"
+~~~
+
 ## 配置
 
 -config 默认指向 config.yaml。文件缺失时使用内置默认值并记录警告。YAML 字段拼写错误、格式错误和非法值会使启动失败。KERNIVA_* 环境变量覆盖文件，例如 KERNIVA_PORT、KERNIVA_NETWORK_TYPE、KERNIVA_MAX_MEMORY、KERNIVA_PERSISTENCE_ENABLED 和 KERNIVA_PERSISTENCE_DURABILITY。
