@@ -3,6 +3,7 @@ package rustengine
 import (
 	"bytes"
 	"encoding/binary"
+	"sync/atomic"
 	"testing"
 )
 
@@ -51,5 +52,25 @@ func BenchmarkMemoryABI(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
+	})
+	b.Run("ParallelGetInto32B", func(b *testing.B) {
+		var worker atomic.Int64
+		b.ReportAllocs()
+		b.SetBytes(int64(len(value)))
+		b.RunParallel(func(pb *testing.PB) {
+			var dst [32]byte
+			index := int(worker.Add(1)) % keyCount
+			for pb.Next() {
+				if n, found, err := e.GetInto(keys[index][:], dst[:]); err != nil || !found || n != len(value) {
+					b.Errorf("read returned size %d, found %v, error %v", n, found, err)
+					return
+				}
+				if !bytes.Equal(dst[:], value[:]) {
+					b.Errorf("read returned %x, wanted %x", dst, value)
+					return
+				}
+				index = (index + 79) % keyCount
+			}
+		})
 	})
 }

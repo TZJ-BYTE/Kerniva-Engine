@@ -3,6 +3,7 @@ package rustengine
 import (
 	"bytes"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -184,4 +185,76 @@ func TestMemoryEngineCloseConcurrentWithCalls(t *testing.T) {
 	if _, err := engine.Stats(); !errors.Is(err, errMemoryEngineClosed) {
 		t.Fatalf("stats after close: %v", err)
 	}
+}
+
+func TestMemoryEngineConcurrentGetPutWithGC(t *testing.T) {
+	const workers = 8
+	const valueSize = 32
+	const iterations = 96
+	limit := uint64(workers * (valueSize + 1))
+	engine, err := OpenMemory(8, &limit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	if err := engine.Put(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	overBudget := make([]byte, limit+1)
+	start := make(chan struct{})
+	gcDone := make(chan struct{})
+	go func() {
+		defer close(gcDone)
+		<-start
+		for range 4 {
+			runtime.GC()
+		}
+	}()
+	var wg sync.WaitGroup
+	for worker := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			key := [1]byte{byte(worker + 1)}
+			missing := [1]byte{255}
+			var value, dst [valueSize]byte
+			value[0] = byte(worker)
+			<-start
+			for attempt := range iterations {
+				value[len(value)-1] = byte(attempt)
+				if err := engine.Put(key[:], value[:]); err != nil {
+					t.Errorf("worker %d PUT: %v", worker, err)
+					return
+				}
+				if attempt%16 == 0 {
+					if err := engine.Put(key[:], overBudget); !errors.Is(err, ErrMemoryPayloadLimit) {
+						t.Errorf("worker %d over-budget PUT: %v", worker, err)
+						return
+					}
+				}
+				dst[0] = 0xee
+				if n, found, err := engine.GetInto(key[:], dst[:1]); n != len(value) || !found ||
+					!errors.Is(err, ErrMemoryBufferTooSmall) || dst[0] != 0xee {
+					t.Errorf("worker %d short GET: n=%d found=%v error=%v dst=%x", worker, n, found, err, dst[0])
+					return
+				}
+				if n, found, err := engine.GetInto(missing[:], nil); n != 0 || found || err != nil {
+					t.Errorf("worker %d missing GET: n=%d found=%v error=%v", worker, n, found, err)
+					return
+				}
+				if n, found, err := engine.GetInto(nil, nil); n != 0 || !found || err != nil {
+					t.Errorf("worker %d empty GET: n=%d found=%v error=%v", worker, n, found, err)
+					return
+				}
+				if n, found, err := engine.GetInto(key[:], dst[:]); n != len(value) || !found ||
+					err != nil || !bytes.Equal(dst[:], value[:]) {
+					t.Errorf("worker %d value GET: n=%d found=%v error=%v got=%x want=%x", worker, n, found, err, dst, value)
+					return
+				}
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	<-gcDone
 }

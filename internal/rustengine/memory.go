@@ -74,6 +74,36 @@ var (
 	memoryAPI   *memoryDLLAPI
 )
 
+// A frame belongs to one call. Storing the typed pointers in the pooled heap
+// object gives even caller stack arrays stable storage and keeps them live
+// while the native function uses their uintptr addresses.
+type memoryCallFrame struct {
+	args       [6]uintptr
+	resultSize uintptr
+	key, data  *byte
+}
+
+var memoryCallFrames = sync.Pool{
+	New: func() any { return new(memoryCallFrame) },
+}
+
+func acquireMemoryCallFrame(handle uintptr, key, data []byte) *memoryCallFrame {
+	frame := memoryCallFrames.Get().(*memoryCallFrame)
+	frame.key = unsafe.SliceData(key)
+	frame.data = unsafe.SliceData(data)
+	frame.args = [6]uintptr{
+		handle, uintptr(unsafe.Pointer(frame.key)), uintptr(len(key)),
+		uintptr(unsafe.Pointer(frame.data)), uintptr(len(data)),
+	}
+	return frame
+}
+
+func (frame *memoryCallFrame) release() {
+	frame.key = nil
+	frame.data = nil
+	memoryCallFrames.Put(frame)
+}
+
 // MemoryEngine owns a native memory handle. Calls may execute concurrently;
 // Close waits for all active calls and prevents subsequent calls from using it.
 // A MemoryEngine must not be copied.
@@ -136,14 +166,15 @@ func (e *MemoryEngine) GetInto(key, dst []byte) (needed int, found bool, err err
 	if e.handle == 0 {
 		return 0, false, errMemoryEngineClosed
 	}
-	var nativeNeeded uintptr
-	result, _, _ := e.api.getInto.Call(
-		e.handle, uintptr(memoryBytesPointer(key)), uintptr(len(key)),
-		uintptr(memoryBytesPointer(dst)), uintptr(len(dst)),
-		uintptr(unsafe.Pointer(&nativeNeeded)),
-	)
+	frame := acquireMemoryCallFrame(e.handle, key, dst)
+	frame.resultSize = 0
+	frame.args[5] = uintptr(unsafe.Pointer(&frame.resultSize))
+	result, _, _ := e.api.getInto.Call(frame.args[:]...)
+	nativeNeeded := frame.resultSize
 	runtime.KeepAlive(key)
 	runtime.KeepAlive(dst)
+	runtime.KeepAlive(frame)
+	frame.release()
 	status := int32(result)
 	if status == 1 {
 		return 0, false, nil
@@ -223,12 +254,12 @@ func (e *MemoryEngine) Put(key, value []byte) error {
 	if e.handle == 0 {
 		return errMemoryEngineClosed
 	}
-	result, _, _ := e.api.put.Call(
-		e.handle, uintptr(memoryBytesPointer(key)), uintptr(len(key)),
-		uintptr(memoryBytesPointer(value)), uintptr(len(value)),
-	)
+	frame := acquireMemoryCallFrame(e.handle, key, value)
+	result, _, _ := e.api.put.Call(frame.args[:5]...)
 	runtime.KeepAlive(key)
 	runtime.KeepAlive(value)
+	runtime.KeepAlive(frame)
+	frame.release()
 	return memoryStatusError("put", int32(result))
 }
 
