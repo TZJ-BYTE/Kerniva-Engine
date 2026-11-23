@@ -65,6 +65,8 @@ cargo run --release --manifest-path kerniva_engine/Cargo.toml --example memory_b
 
 日志回滚失败时，实例保留已发布读视图并停止接受新写入。重新打开时，完整帧可恢复，截断尾会回退到最后一帧结束。完整帧损坏会报告错误。失去成功回复的请求可能已经同步，处理重试时应考虑这种结果。当前日志会随提交增长，恢复须扫描日志，启动预算按最终常驻数据检查。
 
+`DurableMemoryEngine::open_with_read_mode` 可选择同步时的读策略。`HoldAffectedShards` 在同步期间持有受影响分片的写锁。`ReadCommitted` 在同步期间允许读到上一版已提交值，同步结束后重新锁定所有受影响分片并一次发布。发布前一直持有 WAL 写入互斥锁，其他写入按提交顺序等待。原生示例使用 `--durable-read-mode hold` 或 `committed` 进行对照。
+
 ## 同步策略
 
 | 策略 | 行为 |

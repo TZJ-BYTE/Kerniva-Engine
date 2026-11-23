@@ -6,9 +6,10 @@
 //! incomplete final frame is discarded. A complete frame with a bad checksum
 //! fails recovery.
 //!
-//! Writers hold the WAL mutex and affected shard locks through synchronization
-//! and publication. Readers on other shards can continue during synchronization.
-//! The log grows with every commit. This format has no compaction or checkpoint.
+//! The default write mode holds affected shard locks through synchronization.
+//! With read-committed mode, affected readers can see the previous commit
+//! while a new frame synchronizes. The log grows with every commit. This
+//! format has no compaction or checkpoint.
 
 use std::fmt;
 use std::io;
@@ -22,7 +23,7 @@ use crate::directory_lock::{self, DirectoryLock};
 use super::batch::PreparedBatch;
 use super::{
     MemoryBatchOp, MemoryCondition, MemoryEngine, MemoryError, MemoryRead, MemoryStats,
-    MemoryValue, MemoryWriteOptions, unix_time_ms,
+    MemoryValue, MemoryWriteOptions, ShardState, unix_time_ms,
 };
 
 mod wal;
@@ -38,7 +39,18 @@ use wal::{RecoveredEdit, Wal};
 pub struct DurableMemoryEngine {
     memory: MemoryEngine,
     wal: Mutex<Wal>,
+    read_mode: DurableReadMode,
     _directory_lock: Arc<DirectoryLock>,
+}
+
+/// Controls access to affected shards while a frame synchronizes.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DurableReadMode {
+    /// Readers wait behind an in-progress commit on affected shards.
+    #[default]
+    HoldAffectedShards,
+    /// Readers can see the previous committed values while a new commit synchronizes.
+    ReadCommitted,
 }
 
 #[derive(Debug)]
@@ -121,12 +133,45 @@ impl DurableMemoryEngine {
         Self::open_at(directory, shards, max_payload_bytes, unix_time_ms())
     }
 
+    /// Opens a durable store with an explicit reader synchronization mode.
+    pub fn open_with_read_mode(
+        directory: impl AsRef<Path>,
+        shards: usize,
+        max_payload_bytes: Option<usize>,
+        read_mode: DurableReadMode,
+    ) -> Result<Self, DurableMemoryError> {
+        Self::open_at_with_read_mode(
+            directory,
+            shards,
+            max_payload_bytes,
+            unix_time_ms(),
+            read_mode,
+        )
+    }
+
     /// Opens with an explicit recovery timestamp, primarily for deterministic replay.
     pub fn open_at(
         directory: impl AsRef<Path>,
         shards: usize,
         max_payload_bytes: Option<usize>,
         now_ms: u64,
+    ) -> Result<Self, DurableMemoryError> {
+        Self::open_at_with_read_mode(
+            directory,
+            shards,
+            max_payload_bytes,
+            now_ms,
+            DurableReadMode::default(),
+        )
+    }
+
+    /// Opens with an explicit recovery timestamp and reader synchronization mode.
+    pub fn open_at_with_read_mode(
+        directory: impl AsRef<Path>,
+        shards: usize,
+        max_payload_bytes: Option<usize>,
+        now_ms: u64,
+        read_mode: DurableReadMode,
     ) -> Result<Self, DurableMemoryError> {
         let mut memory = MemoryEngine::new(shards, None)?;
         let directory = directory.as_ref();
@@ -160,6 +205,7 @@ impl DurableMemoryEngine {
         Ok(Self {
             memory,
             wal: Mutex::new(wal),
+            read_mode,
             _directory_lock: directory_lock,
         })
     }
@@ -283,7 +329,7 @@ impl DurableMemoryEngine {
             return Ok(Some(wal.version));
         }
         let mut version = wal.version;
-        let Some(mut prepared) = self.memory.prepare_batch_at(operations, now_ms, |_| {
+        let Some(prepared) = self.memory.prepare_batch_at(operations, now_ms, |_| {
             version = version
                 .checked_add(1)
                 .ok_or(MemoryError::VersionExhausted)?;
@@ -292,35 +338,55 @@ impl DurableMemoryEngine {
         else {
             return Ok(None);
         };
-        let growth = prepared.after.saturating_sub(prepared.before);
-        let decrease = prepared.before.saturating_sub(prepared.after);
-        self.memory.reserve_payload(growth)?;
-        let changes = wal::encode(&prepared, version).and_then(|encoded| {
-            let changes = own_changes(&prepared)?;
-            wal.append(&encoded, version)?;
-            Ok(changes)
-        });
-        let changes = match changes {
-            Ok(changes) => changes,
-            Err(error) => {
-                self.memory.release_payload(growth);
-                return Err(error);
-            }
-        };
-        for (shard, changes) in prepared.shards.iter_mut().zip(changes) {
-            for edit in changes {
-                match edit {
-                    PreparedEdit::Put(key, entry) => {
-                        shard.state.entries.insert(key, entry);
-                    }
-                    PreparedEdit::Delete(key) => {
-                        shard.state.entries.remove(key);
-                    }
-                }
+        // The WAL mutex excludes every other writer, so admission can inspect
+        // the committed counter and leave it alone until publication.
+        let final_payload = self
+            .memory
+            .payload_bytes
+            .load(Relaxed)
+            .checked_sub(prepared.before)
+            .and_then(|unchanged| unchanged.checked_add(prepared.after))
+            .ok_or(MemoryError::CapacityOverflow)?;
+        if self
+            .memory
+            .max_payload_bytes
+            .is_some_and(|limit| final_payload > limit)
+        {
+            return Err(MemoryError::PayloadLimitExceeded.into());
+        }
+        let encoded = wal::encode(&prepared, version)?;
+        let changes = own_changes(&prepared)?;
+
+        let mut guards = Vec::new();
+        guards
+            .try_reserve_exact(prepared.indices.len())
+            .map_err(|_| MemoryError::CapacityOverflow)?;
+        let PreparedBatch {
+            indices, shards, ..
+        } = prepared;
+
+        let release_during_sync = self.read_mode == DurableReadMode::ReadCommitted;
+        if release_during_sync {
+            drop(shards);
+        } else {
+            guards.extend(shards.into_iter().map(|shard| shard.state));
+        }
+        wal.append(&encoded, version)?;
+
+        if release_during_sync {
+            for index in indices {
+                // Read guards cannot poison a shard. Preflight held each write
+                // lock and the WAL mutex excludes every other writer.
+                let state = self.memory.shards[index]
+                    .write()
+                    .expect("no other writer can poison a private durable shard");
+                guards.push(state);
             }
         }
-        self.memory.release_payload(decrease);
-        // Every affected shard remains write-locked through WAL commit and publication.
+        for (state, changes) in guards.iter_mut().zip(changes) {
+            publish(state, changes);
+        }
+        self.memory.payload_bytes.store(final_payload, Relaxed);
         Ok(Some(version))
     }
 }
@@ -346,6 +412,19 @@ fn replay(memory: &mut MemoryEngine, edit: RecoveredEdit, now_ms: u64) {
 enum PreparedEdit<'input> {
     Put(Box<[u8]>, MemoryValue),
     Delete(&'input [u8]),
+}
+
+fn publish(state: &mut ShardState, changes: Vec<PreparedEdit<'_>>) {
+    for edit in changes {
+        match edit {
+            PreparedEdit::Put(key, entry) => {
+                state.entries.insert(key, entry);
+            }
+            PreparedEdit::Delete(key) => {
+                state.entries.remove(key);
+            }
+        }
+    }
 }
 
 fn own_changes<'input>(

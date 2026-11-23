@@ -41,6 +41,7 @@ pub(super) struct BatchShard<'engine, 'input> {
 
 pub(super) struct PreparedBatch<'engine, 'input> {
     pub(super) shards: Vec<BatchShard<'engine, 'input>>,
+    pub(super) indices: Vec<usize>,
     pub(super) before: usize,
     pub(super) after: usize,
 }
@@ -240,6 +241,7 @@ impl MemoryEngine {
         }
         Ok(Some(PreparedBatch {
             shards,
+            indices,
             before,
             after,
         }))

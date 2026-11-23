@@ -7,8 +7,8 @@ use std::thread;
 use std::time::Instant;
 
 use kerniva_engine::{
-    DurableMemoryEngine, DurableMemoryError, DurableWalStats, MemoryBatchOp, MemoryEngine,
-    MemoryError, MemoryStats, MemoryWriteOptions,
+    DurableMemoryEngine, DurableMemoryError, DurableReadMode, DurableWalStats, MemoryBatchOp,
+    MemoryEngine, MemoryError, MemoryStats, MemoryWriteOptions,
 };
 
 struct Config {
@@ -25,6 +25,7 @@ struct Config {
     seed: u64,
     max_payload_bytes: Option<usize>,
     durable_directory: Option<PathBuf>,
+    durable_read_mode: Option<DurableReadMode>,
 }
 
 impl Default for Config {
@@ -43,6 +44,7 @@ impl Default for Config {
             seed: 42,
             max_payload_bytes: None,
             durable_directory: None,
+            durable_read_mode: None,
         }
     }
 }
@@ -56,7 +58,8 @@ fn parse_config() -> Result<Option<Config>, String> {
                 "memory_benchmark [--shards N] [--threads N] [--keys N] [--operations N] \
                 [--warmup-per-thread N] [--read-percent 0..100] [--hot-percent 0..100] \
                 [--hot-keys N] [--value-bytes N] [--sample-every N] [--seed N] \
-                [--max-payload-bytes N] [--durable-directory EXISTING_EMPTY_DIRECTORY]"
+                [--max-payload-bytes N] [--durable-directory EXISTING_EMPTY_DIRECTORY] \
+                [--durable-read-mode hold|committed]"
             );
             return Ok(None);
         }
@@ -68,6 +71,17 @@ fn parse_config() -> Result<Option<Config>, String> {
                 return Err("--durable-directory may be specified only once".into());
             }
             config.durable_directory = Some(PathBuf::from(raw));
+            continue;
+        }
+        if name == "--durable-read-mode" {
+            if config.durable_read_mode.is_some() {
+                return Err("--durable-read-mode may be specified only once".into());
+            }
+            config.durable_read_mode = Some(match raw.as_str() {
+                "hold" => DurableReadMode::HoldAffectedShards,
+                "committed" => DurableReadMode::ReadCommitted,
+                _ => return Err("--durable-read-mode must be hold or committed".into()),
+            });
             continue;
         }
         if name == "--seed" {
@@ -103,6 +117,9 @@ fn parse_config() -> Result<Option<Config>, String> {
     }
     if config.hot_keys == 0 || config.hot_keys > config.keys {
         return Err("hot-keys must be between 1 and keys".into());
+    }
+    if config.durable_read_mode.is_some() && config.durable_directory.is_none() {
+        return Err("--durable-read-mode requires --durable-directory".into());
     }
     Ok(Some(config))
 }
@@ -277,6 +294,7 @@ fn durability_fields(
     before: Option<DurableWalStats>,
     after: Option<DurableWalStats>,
     directory: Option<&Path>,
+    read_mode: DurableReadMode,
 ) -> Result<String, String> {
     let (Some(before), Some(after), Some(directory)) = (before, after, directory) else {
         return Ok(String::new());
@@ -304,8 +322,12 @@ fn durability_fields(
             .ok_or("WAL sync time decreased")?,
         requires_reopen: after.requires_reopen,
     };
+    let read_mode = match read_mode {
+        DurableReadMode::HoldAffectedShards => "hold",
+        DurableReadMode::ReadCommitted => "committed",
+    };
     let mut fields = format!(
-        ",\"durability\":\"sync\",\"durable_directory\":{},\"preload_batch_size\":256",
+        ",\"durability\":\"sync\",\"durable_directory\":{},\"durable_read_mode\":\"{read_mode}\",\"preload_batch_size\":256",
         json_string(&directory.to_string_lossy()),
     );
     fields.push_str(
@@ -431,8 +453,13 @@ fn operation_json(stats: &mut OperationStats) -> String {
 fn run(config: Config) -> Result<bool, String> {
     if let Some(directory) = &config.durable_directory {
         let directory = empty_durable_directory(directory)?;
-        let engine = DurableMemoryEngine::open(&directory, config.shards, config.max_payload_bytes)
-            .map_err(|error| format!("durable engine initialization: {error:?}"))?;
+        let engine = DurableMemoryEngine::open_with_read_mode(
+            &directory,
+            config.shards,
+            config.max_payload_bytes,
+            config.durable_read_mode.unwrap_or_default(),
+        )
+        .map_err(|error| format!("durable engine initialization: {error:?}"))?;
         let initial = engine
             .stats()
             .map_err(|error| format!("empty durable stats: {error:?}"))?;
@@ -555,6 +582,7 @@ fn run_engine<E: BenchmarkStore>(config: Config, engine: E) -> Result<bool, Stri
         wal_before,
         wal_after,
         inputs.config.durable_directory.as_deref(),
+        inputs.config.durable_read_mode.unwrap_or_default(),
     )?;
     let mut validation_failures = 0;
     let mut validation_first_error = None;

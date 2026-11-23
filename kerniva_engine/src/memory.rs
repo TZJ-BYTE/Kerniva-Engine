@@ -11,7 +11,7 @@ mod durable;
 mod strings;
 
 pub use batch::MemoryBatchOp;
-pub use durable::{DurableMemoryEngine, DurableMemoryError, DurableWalStats};
+pub use durable::{DurableMemoryEngine, DurableMemoryError, DurableReadMode, DurableWalStats};
 
 type Shard = RwLock<ShardState>;
 
