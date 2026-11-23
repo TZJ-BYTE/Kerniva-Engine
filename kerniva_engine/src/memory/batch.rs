@@ -222,7 +222,7 @@ impl MemoryEngine {
         Ok(true)
     }
 
-    fn touched_shards<'a>(
+    pub(super) fn touched_shards<'a>(
         &self,
         keys: impl ExactSizeIterator<Item = &'a [u8]>,
     ) -> Result<Vec<usize>, MemoryError> {

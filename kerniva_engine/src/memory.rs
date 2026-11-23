@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod batch;
+mod strings;
 
 pub use batch::MemoryBatchOp;
 
@@ -240,6 +241,17 @@ impl MemoryEngine {
             .shard(key)
             .write()
             .map_err(|_| MemoryError::LockPoisoned)?;
+        self.put_locked(&mut shard, key, value, options, now_ms)
+    }
+
+    fn put_locked(
+        &self,
+        shard: &mut ShardState,
+        key: &[u8],
+        value: &[u8],
+        options: MemoryWriteOptions,
+        now_ms: u64,
+    ) -> Result<Option<u64>, MemoryError> {
         let next_version = shard.last_version.checked_add(1);
         let previous = shard.entries.get_mut(key);
         let visible_version = previous

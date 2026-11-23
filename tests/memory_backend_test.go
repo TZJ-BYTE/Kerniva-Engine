@@ -107,15 +107,15 @@ func TestRustMemoryBackendNetwork(t *testing.T) {
 
 			memoryExpectReply(t, memoryMustReply(t, client, "SET", "guard", "original"), '+', "OK")
 			for _, args := range [][]string{
-				{"SET", "guard", "changed", "NX"},
-				{"SET", "guard", "changed", "EX", "1"},
+				{"SET", "guard", "changed", "KEEPTTL"},
+				{"SET", "guard", "changed", "EXAT", "1"},
 				{"SET", "guard", "changed", "GET"},
 				{"MSET", "guard", "changed", "unpaired"},
-				{"DEL", "guard", binaryKey},
+				{"DECRBY", "guard", "1"},
 				{"HSET", "guard", "field", "changed"},
 				{"MULTI"},
 				{"WATCH", "guard"},
-				{"EXPIRE", "guard", "1"},
+				{"PEXPIREAT", "guard", "1"},
 			} {
 				if reply := memoryMustReply(t, client, args...); reply.Type != '-' {
 					t.Fatalf("unsupported/invalid %s was accepted: %+v", args[0], reply)
@@ -129,7 +129,7 @@ func TestRustMemoryBackendNetwork(t *testing.T) {
 
 			stop()
 			if _, err := os.Stat(cfg.DataDir); !os.IsNotExist(err) {
-				t.Fatalf("pure-memory backend created/accessed its unused data directory: %v", err)
+				t.Fatalf("pure-memory backend created its unused data directory: %v", err)
 			}
 		})
 	}

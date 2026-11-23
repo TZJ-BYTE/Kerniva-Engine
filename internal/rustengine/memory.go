@@ -11,6 +11,8 @@ import (
 var (
 	ErrMemoryBufferTooSmall = errors.New("memory engine output buffer is too small")
 	ErrMemoryPayloadLimit   = errors.New("memory engine resident payload limit exceeded")
+	ErrMemoryInteger        = errors.New("value is not an integer or out of range")
+	ErrMemoryExpiration     = errors.New("invalid expiration time")
 	errMemoryEngineClosed   = errors.New("memory engine is closed")
 )
 
@@ -25,6 +27,19 @@ type MemorySpan struct {
 type MemoryPair struct {
 	Key   []byte
 	Value []byte
+}
+
+type MemorySetCondition uint32
+
+const (
+	MemorySetAny MemorySetCondition = iota
+	MemorySetNX
+	MemorySetXX
+)
+
+type nativeMemoryPutOptions struct {
+	TTLMillis uint64
+	Condition MemorySetCondition
 }
 
 // MemoryStats counts resident key/value payload bytes, excluding map capacity,
@@ -46,7 +61,8 @@ type nativeMemoryPair struct {
 }
 
 type memoryDLLAPI struct {
-	open, close, getInto, put, delete, mset, mgetInto, stats *nativeProc
+	open, close, getInto, put, delete, mset, mgetInto, stats       *nativeProc
+	putOptions, expire, pttl, increment, countExisting, deleteMany *nativeProc
 }
 
 var (
@@ -314,6 +330,9 @@ func ensureMemoryAPI() (*memoryDLLAPI, error) {
 		{"get_into", &loaded.getInto}, {"put", &loaded.put},
 		{"delete", &loaded.delete}, {"mset", &loaded.mset},
 		{"mget_into", &loaded.mgetInto}, {"stats", &loaded.stats},
+		{"put_options", &loaded.putOptions}, {"expire", &loaded.expire},
+		{"pttl", &loaded.pttl}, {"increment", &loaded.increment},
+		{"count_existing", &loaded.countExisting}, {"delete_many", &loaded.deleteMany},
 	} {
 		proc, err := find(symbol.name)
 		if err != nil {
@@ -356,6 +375,10 @@ func memoryStatusError(operation string, status int32) error {
 		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryBufferTooSmall)
 	case 3:
 		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryPayloadLimit)
+	case 4:
+		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryInteger)
+	case 5:
+		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryExpiration)
 	case -1:
 		return fmt.Errorf("%s memory engine: invalid argument or handle", operation)
 	case -2:

@@ -21,6 +21,11 @@ typedef struct {
 } KernivaMemoryPair;
 
 typedef struct {
+    uint64_t ttl_ms;
+    uint32_t condition;
+} KernivaMemoryPutOptions;
+
+typedef struct {
     size_t offset;
     size_t len;
     size_t found;
@@ -37,8 +42,16 @@ enum {
     KERNIVA_MEMORY_MISSING = 1,
     KERNIVA_MEMORY_BUFFER_TOO_SMALL = 2,
     KERNIVA_MEMORY_PAYLOAD_LIMIT = 3,
+    KERNIVA_MEMORY_INVALID_INTEGER = 4,
+    KERNIVA_MEMORY_INVALID_EXPIRATION = 5,
     KERNIVA_MEMORY_INVALID_ARGUMENT = -1,
     KERNIVA_MEMORY_INTERNAL = -2
+};
+
+enum {
+    KERNIVA_MEMORY_SET_ANY = 0,
+    KERNIVA_MEMORY_SET_NX = 1,
+    KERNIVA_MEMORY_SET_XX = 2
 };
 
 /*
@@ -68,6 +81,31 @@ int32_t kerniva_memory_put(KernivaMemoryEngine *handle,
                            const uint8_t *value, size_t value_len);
 int32_t kerniva_memory_delete(KernivaMemoryEngine *handle,
                               const uint8_t *key, size_t key_len);
+
+/* A zero SET TTL creates a persistent key. MISSING means the condition failed. */
+int32_t kerniva_memory_put_options(KernivaMemoryEngine *handle,
+                                   const uint8_t *key, size_t key_len,
+                                   const uint8_t *value, size_t value_len,
+                                   const KernivaMemoryPutOptions *options);
+
+/* EXPIRE with a nonpositive TTL deletes a present key. */
+int32_t kerniva_memory_expire(KernivaMemoryEngine *handle,
+                              const uint8_t *key, size_t key_len,
+                              const int64_t *ttl_ms);
+/* The output is -2 for a missing key, -1 for a persistent key. */
+int32_t kerniva_memory_pttl(KernivaMemoryEngine *handle,
+                            const uint8_t *key, size_t key_len, int64_t *out);
+int32_t kerniva_memory_increment(KernivaMemoryEngine *handle,
+                                 const uint8_t *key, size_t key_len,
+                                 const int64_t *delta, int64_t *out);
+
+/* EXISTS counts repeated keys. DELETE removes the keys together and counts each once. */
+int32_t kerniva_memory_count_existing(KernivaMemoryEngine *handle,
+                                      const KernivaMemorySlice *keys, size_t count,
+                                      size_t *out);
+int32_t kerniva_memory_delete_many(KernivaMemoryEngine *handle,
+                                   const KernivaMemorySlice *keys, size_t count,
+                                   size_t *out);
 
 /* An entire write batch commits or fails together. Duplicate keys are applied in order. */
 int32_t kerniva_memory_mset(KernivaMemoryEngine *handle,

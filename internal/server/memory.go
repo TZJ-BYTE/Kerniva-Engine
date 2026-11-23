@@ -3,6 +3,8 @@ package server
 import (
 	"errors"
 	"fmt"
+	"math"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -62,7 +64,7 @@ func dispatchMemoryCommand(dst []byte, ctx *ConnectionContext, manager *database
 			return memoryArityError(dst, cmd), false
 		}
 		if len(args) > 2 {
-			return protocol.AppendErrorString(dst, "ERR SET options are unavailable with the rust-memory backend"), false
+			return appendMemorySetOptions(dst, db, args), false
 		}
 		if err := db.Put(args[0], args[1]); err != nil {
 			return memoryCommandError(dst, err), false
@@ -85,21 +87,94 @@ func dispatchMemoryCommand(dst []byte, ctx *ConnectionContext, manager *database
 			return memoryCommandError(dst, err), false
 		}
 		return protocol.AppendSimpleString(dst, "OK"), false
-	case "DEL":
+	case "DEL", "EXISTS":
 		if len(args) == 0 {
 			return memoryArityError(dst, cmd), false
 		}
-		if len(args) > 1 {
-			return protocol.AppendErrorString(dst, "ERR rust-memory DEL currently accepts one key"), false
+		var count int64
+		var err error
+		if cmd == "DEL" {
+			if len(args) == 1 {
+				var removed bool
+				removed, err = db.Delete(args[0])
+				if removed {
+					count = 1
+				}
+			} else {
+				count, err = db.DeleteMany(args)
+			}
+		} else {
+			count, err = db.CountExisting(args)
 		}
-		removed, err := db.Delete(args[0])
 		if err != nil {
 			return memoryCommandError(dst, err), false
 		}
-		if removed {
+		return protocol.AppendInteger(dst, count), false
+	case "TTL", "PTTL":
+		if len(args) != 1 {
+			return memoryArityError(dst, cmd), false
+		}
+		ttl, err := db.PTTL(args[0])
+		if err != nil {
+			return memoryCommandError(dst, err), false
+		}
+		if cmd == "TTL" && ttl >= 0 {
+			// Redis 8.0.5 expire.c rounds relative TTL to the nearest second.
+			// Split the arithmetic so a large millisecond value cannot overflow.
+			seconds := ttl / 1000
+			if ttl%1000 >= 500 {
+				seconds++
+			}
+			ttl = seconds
+		}
+		return protocol.AppendInteger(dst, ttl), false
+	case "EXPIRE", "PEXPIRE":
+		if len(args) < 2 {
+			return memoryArityError(dst, cmd), false
+		}
+		if len(args) > 2 {
+			return protocol.AppendErrorString(dst, "ERR EXPIRE options are unavailable with the rust-memory backend"), false
+		}
+		ttl, err := memoryParseInteger(args[1])
+		if err != nil {
+			return memoryIntegerArgumentError(dst), false
+		}
+		if cmd == "EXPIRE" {
+			if ttl > math.MaxInt64/1000 || ttl < math.MinInt64/1000 {
+				return protocol.AppendErrorString(dst, "ERR invalid expire time in 'expire' command"), false
+			}
+			ttl *= 1000
+		}
+		changed, err := db.Expire(args[0], ttl)
+		if err != nil {
+			return memoryCommandError(dst, err), false
+		}
+		if changed {
 			return protocol.AppendInteger(dst, 1), false
 		}
 		return protocol.AppendInteger(dst, 0), false
+	case "INCR", "INCRBY", "DECR":
+		expected := 1
+		if cmd == "INCRBY" {
+			expected = 2
+		}
+		if len(args) != expected {
+			return memoryArityError(dst, cmd), false
+		}
+		by := int64(1)
+		if cmd == "DECR" {
+			by = -1
+		} else if cmd == "INCRBY" {
+			by, err = memoryParseInteger(args[1])
+			if err != nil {
+				return memoryIntegerArgumentError(dst), false
+			}
+		}
+		value, err := db.Increment(args[0], by)
+		if err != nil {
+			return memoryCommandError(dst, err), false
+		}
+		return protocol.AppendInteger(dst, value), false
 	case "INFO":
 		if len(args) > 1 {
 			return memoryArityError(dst, cmd), false
@@ -108,11 +183,80 @@ func dispatchMemoryCommand(dst []byte, ctx *ConnectionContext, manager *database
 		if err != nil {
 			return memoryCommandError(dst, err), false
 		}
-		info := fmt.Sprintf("# Database\r\nstorage_backend:rust-memory\r\nmode:memory\r\npersistence_enabled:false\r\nmemory_abi_version:1\r\ndb_id:%d\r\ndb_count:%d\r\nmemory_keys:%d\r\nused_memory_bytes:%d\r\nmemory_shards:%d\r\n", ctx.memoryDBIndex, manager.DBCount(), stats.Keys, stats.PayloadBytes, stats.Shards)
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		info := fmt.Sprintf("# Database\r\nstorage_backend:rust-memory\r\nmode:memory\r\npersistence_enabled:false\r\nmemory_abi_version:1\r\ndb_id:%d\r\ndb_count:%d\r\nmemory_keys:%d\r\nused_memory_bytes:%d\r\nmemory_shards:%d\r\n# Runtime\r\nheap_alloc_bytes:%d\r\nnum_gc:%d\r\ngc_pause_total_ns:%d\r\n",
+			ctx.memoryDBIndex, manager.DBCount(), stats.Keys, stats.PayloadBytes, stats.Shards, mem.HeapAlloc, mem.NumGC, mem.PauseTotalNs)
 		return protocol.AppendBulkString(dst, info), false
 	default:
-		return protocol.AppendErrorString(dst, "ERR command '"+strings.ToLower(cmd)+"' is unavailable with the rust-memory backend"), false
+		return protocol.AppendErrorString(dst, "ERR command is unavailable with the rust-memory backend"), false
 	}
+}
+
+func appendMemorySetOptions(dst []byte, db *rustengine.MemoryEngine, args [][]byte) []byte {
+	condition := rustengine.MemorySetAny
+	var ttl uint64
+	hasTTL := false
+	for index := 2; index < len(args); index++ {
+		option := strings.ToUpper(string(args[index]))
+		switch option {
+		case "NX":
+			if condition == rustengine.MemorySetXX {
+				return protocol.AppendErrorString(dst, "ERR syntax error")
+			}
+			condition = rustengine.MemorySetNX
+		case "XX":
+			if condition == rustengine.MemorySetNX {
+				return protocol.AppendErrorString(dst, "ERR syntax error")
+			}
+			condition = rustengine.MemorySetXX
+		case "EX", "PX":
+			if hasTTL || index+1 >= len(args) {
+				return protocol.AppendErrorString(dst, "ERR syntax error")
+			}
+			milliseconds, err := memoryParseInteger(args[index+1])
+			if err != nil {
+				return memoryIntegerArgumentError(dst)
+			}
+			if milliseconds <= 0 {
+				return protocol.AppendErrorString(dst, "ERR invalid expire time in 'set' command")
+			}
+			if option == "EX" {
+				if milliseconds > math.MaxInt64/1000 {
+					return protocol.AppendErrorString(dst, "ERR invalid expire time in 'set' command")
+				}
+				milliseconds *= 1000
+			}
+			ttl = uint64(milliseconds)
+			hasTTL = true
+			index++
+		default:
+			return protocol.AppendErrorString(dst, "ERR SET option is unavailable with the rust-memory backend")
+		}
+	}
+	changed, err := db.PutOptions(args[0], args[1], condition, ttl)
+	if err != nil {
+		return memoryCommandError(dst, err)
+	}
+	if !changed {
+		return protocol.AppendNull(dst)
+	}
+	return protocol.AppendSimpleString(dst, "OK")
+}
+
+// Redis integer arguments use the canonical signed decimal representation.
+// strconv.ParseInt alone also accepts plus signs and redundant leading zeroes.
+func memoryParseInteger(value []byte) (int64, error) {
+	if len(value) == 0 || value[0] == '+' ||
+		(value[0] == '0' && len(value) > 1) ||
+		(value[0] == '-' && (len(value) == 1 || value[1] == '0')) {
+		return 0, strconv.ErrSyntax
+	}
+	return strconv.ParseInt(string(value), 10, 64)
+}
+
+func memoryIntegerArgumentError(dst []byte) []byte {
+	return protocol.AppendErrorString(dst, "ERR value is not an integer or out of range")
 }
 
 func (ctx *ConnectionContext) memoryBuffer(size int) []byte {
@@ -184,6 +328,12 @@ func memoryArityError(dst []byte, cmd string) []byte {
 }
 
 func memoryCommandError(dst []byte, err error) []byte {
+	if errors.Is(err, rustengine.ErrMemoryExpiration) {
+		return protocol.AppendErrorString(dst, "ERR invalid expire time")
+	}
+	if errors.Is(err, rustengine.ErrMemoryInteger) {
+		return memoryIntegerArgumentError(dst)
+	}
 	if errors.Is(err, rustengine.ErrMemoryPayloadLimit) {
 		return protocol.AppendErrorString(dst, "OOM command not allowed when used memory > 'maxmemory'.")
 	}

@@ -2,12 +2,16 @@ use std::mem::{MaybeUninit, size_of};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::{ptr, slice};
 
-use crate::{MemoryBatchOp, MemoryEngine, MemoryError, MemoryRead, MemoryWriteOptions};
+use crate::{
+    MemoryBatchOp, MemoryCondition, MemoryEngine, MemoryError, MemoryRead, MemoryWriteOptions,
+};
 
 const OK: i32 = 0;
 const MISSING: i32 = 1;
 const BUFFER_TOO_SMALL: i32 = 2;
 const PAYLOAD_LIMIT: i32 = 3;
+const INVALID_INTEGER: i32 = 4;
+const INVALID_EXPIRATION: i32 = 5;
 const INVALID_ARGUMENT: i32 = -1;
 const INTERNAL: i32 = -2;
 
@@ -27,6 +31,12 @@ pub struct KernivaMemoryPair {
 }
 
 #[repr(C)]
+pub struct KernivaMemoryPutOptions {
+    pub ttl_ms: u64,
+    pub condition: u32,
+}
+
+#[repr(C)]
 pub struct KernivaMemorySpan {
     pub offset: usize,
     pub len: usize,
@@ -42,7 +52,8 @@ pub struct KernivaMemoryStats {
 
 fn status(error: MemoryError) -> i32 {
     match error {
-        MemoryError::InvalidShardCount | MemoryError::InvalidExpiration => INVALID_ARGUMENT,
+        MemoryError::InvalidShardCount => INVALID_ARGUMENT,
+        MemoryError::InvalidExpiration => INVALID_EXPIRATION,
         MemoryError::PayloadLimitExceeded => PAYLOAD_LIMIT,
         _ => INTERNAL,
     }
@@ -89,6 +100,21 @@ unsafe fn output_bytes<'a>(dst: *mut u8, dst_len: usize) -> ApiResult<&'a mut [M
     }
     // MaybeUninit permits C callers to supply uninitialized output storage.
     Ok(unsafe { slice::from_raw_parts_mut(dst.cast(), dst_len) })
+}
+
+unsafe fn input_keys<'a>(
+    keys: *const KernivaMemorySlice,
+    count: usize,
+) -> ApiResult<Vec<&'a [u8]>> {
+    let keys = unsafe { input(keys, count)? };
+    let mut borrowed_keys = Vec::new();
+    borrowed_keys
+        .try_reserve_exact(count)
+        .map_err(|_| INTERNAL)?;
+    for key in keys {
+        borrowed_keys.push(unsafe { input(key.data, key.len)? });
+    }
+    Ok(borrowed_keys)
 }
 
 #[unsafe(no_mangle)]
@@ -202,6 +228,146 @@ pub unsafe extern "C" fn kerniva_memory_delete(
 
 /// # Safety
 ///
+/// The handle and buffers must remain valid during the call. Options must
+/// point to one initialized configuration.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_put_options(
+    handle: *mut MemoryEngine,
+    key: *const u8,
+    key_len: usize,
+    value: *const u8,
+    value_len: usize,
+    options: *const KernivaMemoryPutOptions,
+) -> i32 {
+    ffi_call(|| {
+        let engine = unsafe { engine_ref(handle)? };
+        let key = unsafe { input(key, key_len)? };
+        let value = unsafe { input(value, value_len)? };
+        let options = &unsafe { input(options, 1)? }[0];
+        let condition = match options.condition {
+            0 => MemoryCondition::Any,
+            1 => MemoryCondition::Missing,
+            2 => MemoryCondition::Present,
+            _ => return Err(INVALID_ARGUMENT),
+        };
+        let applied = engine
+            .put_relative(key, value, condition, options.ttl_ms)
+            .map_err(status)?;
+        Ok(if applied { OK } else { MISSING })
+    })
+}
+
+/// # Safety
+///
+/// The handle and key must remain valid. The TTL pointer must point to one
+/// initialized integer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_expire(
+    handle: *mut MemoryEngine,
+    key: *const u8,
+    key_len: usize,
+    ttl_ms: *const i64,
+) -> i32 {
+    ffi_call(|| {
+        let engine = unsafe { engine_ref(handle)? };
+        let key = unsafe { input(key, key_len)? };
+        let ttl_ms = unsafe { input(ttl_ms, 1)? }[0];
+        let applied = engine.expire_relative(key, ttl_ms).map_err(status)?;
+        Ok(if applied { OK } else { MISSING })
+    })
+}
+
+/// # Safety
+///
+/// The handle and key must remain valid. The output must be writable for one
+/// integer and disjoint from inputs.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_pttl(
+    handle: *mut MemoryEngine,
+    key: *const u8,
+    key_len: usize,
+    out: *mut i64,
+) -> i32 {
+    ffi_call(|| {
+        check_region(out, 1)?;
+        let engine = unsafe { engine_ref(handle)? };
+        let key = unsafe { input(key, key_len)? };
+        let ttl_ms = engine.remaining_ttl_ms(key).map_err(status)?;
+        unsafe { out.write(ttl_ms) };
+        Ok(OK)
+    })
+}
+
+/// # Safety
+///
+/// The handle, key and delta must remain valid. The output must be writable
+/// for one integer and disjoint from inputs.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_increment(
+    handle: *mut MemoryEngine,
+    key: *const u8,
+    key_len: usize,
+    delta: *const i64,
+    out: *mut i64,
+) -> i32 {
+    ffi_call(|| {
+        check_region(out, 1)?;
+        let engine = unsafe { engine_ref(handle)? };
+        let key = unsafe { input(key, key_len)? };
+        let delta = unsafe { input(delta, 1)? }[0];
+        let value = engine
+            .increment(key, delta)
+            .map_err(status)?
+            .ok_or(INVALID_INTEGER)?;
+        unsafe { out.write(value) };
+        Ok(OK)
+    })
+}
+
+/// # Safety
+///
+/// The handle, key array and referenced keys must remain valid. The output
+/// must be writable for one count and disjoint from inputs.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_count_existing(
+    handle: *mut MemoryEngine,
+    keys: *const KernivaMemorySlice,
+    count: usize,
+    out: *mut usize,
+) -> i32 {
+    ffi_call(|| {
+        check_region(out, 1)?;
+        let engine = unsafe { engine_ref(handle)? };
+        let keys = unsafe { input_keys(keys, count)? };
+        let count = engine.count_existing(&keys).map_err(status)?;
+        unsafe { out.write(count) };
+        Ok(OK)
+    })
+}
+
+/// # Safety
+///
+/// The handle, key array and referenced keys must remain valid. The output
+/// must be writable for one count and disjoint from inputs.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_delete_many(
+    handle: *mut MemoryEngine,
+    keys: *const KernivaMemorySlice,
+    count: usize,
+    out: *mut usize,
+) -> i32 {
+    ffi_call(|| {
+        check_region(out, 1)?;
+        let engine = unsafe { engine_ref(handle)? };
+        let keys = unsafe { input_keys(keys, count)? };
+        let count = engine.delete_many(&keys).map_err(status)?;
+        unsafe { out.write(count) };
+        Ok(OK)
+    })
+}
+
+/// # Safety
+///
 /// The handle must remain open. The pair array and all referenced key and value
 /// bytes must be valid for their lengths.
 #[unsafe(no_mangle)]
@@ -249,16 +415,8 @@ pub unsafe extern "C" fn kerniva_memory_mget_into(
         check_region(spans, count)?;
         check_region(needed, 1)?;
         let engine = unsafe { engine_ref(handle)? };
-        let keys = unsafe { input(keys, count)? };
-        let mut borrowed_keys = Vec::new();
-        borrowed_keys
-            .try_reserve_exact(count)
-            .map_err(|_| INTERNAL)?;
-        for key in keys {
-            borrowed_keys.push(unsafe { input(key.data, key.len)? });
-        }
-
-        let values = engine.get_many(&borrowed_keys).map_err(status)?;
+        let keys = unsafe { input_keys(keys, count)? };
+        let values = engine.get_many(&keys).map_err(status)?;
         let total = values.iter().flatten().try_fold(0usize, |len, entry| {
             len.checked_add(entry.value.len()).ok_or(INTERNAL)
         })?;
