@@ -57,7 +57,7 @@ Windows 服务端文件名为 kerniva-server.exe。部署时将平台对应的 k
 
 ### Rust 内存后端实验
 
-在 WSL 单独启动一个实例，使用本次构建的服务端和动态库。
+在 WSL 单独启动一个实例，使用本次构建的服务端和动态库。在另一个终端运行 `redis-cli`。
 
 ~~~bash
 KERNIVA_STORAGE_BACKEND=rust-memory KERNIVA_PERSISTENCE_ENABLED=false \
@@ -68,7 +68,9 @@ redis-cli -p 16380 SET sample value
 redis-cli -p 16380 GET sample
 ~~~
 
-`INFO` 输出 `storage_backend:rust-memory`、分片数和常驻键值字节数。各逻辑库独立计量 `max_memory`，0 表示无限制。分片数为正的 2 次幂。实验入口支持 GET、普通 SET、单键 DEL、MGET、MSET、SELECT、PING、QUIT 和 INFO；复杂命令会返回错误。默认配置继续使用现有后端。
+`INFO` 输出 `storage_backend:rust-memory`、分片数和常驻键值字节数。各逻辑库独立计量 `max_memory`，0 表示无限制。分片数为正的 2 次幂。
+
+实验入口支持 GET、SET（NX、XX、EX、PX）、MGET、MSET、DEL、EXISTS、TTL、PTTL、EXPIRE、PEXPIRE、INCR、INCRBY、DECR、SELECT、PING、QUIT 和 INFO。过期键立即从查询结果消失，删除或覆盖才回收其常驻字节。Rust 库也提供显式过期回收入口。默认配置继续使用现有后端。
 
 ## 配置
 
@@ -153,6 +155,7 @@ go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -n
 
 - [后续开发路线与 WSL 主环境决策](docs/architecture/adr-0001-wsl-rust-memory-core.md)
 - [Rust 内存内核无人值守开发计划](docs/rust_memory_unattended_plan.md)
+- [Rust 主存内核 WSL 实验记录](docs/rust_memory_wsl_report.md)
 - [整体架构与数据流](docs/kerniva_engine_architecture.md)
 - [存储格式、恢复与 C ABI](docs/kerniva_engine_design.md)
 - [五阶段改进和后续计划](docs/project_review_and_plan.md)

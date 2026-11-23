@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import statistics
 import sys
 from collections import defaultdict
@@ -188,14 +189,27 @@ def summarize(rows):
     return summary
 
 
-def paired_rows(rows):
+DEFAULT_PAIRS = (
+    ("baseline", "final"), ("baseline", "go-only"), ("go-only", "final"),
+    ("start", "candidate"), ("redis", "start"), ("redis", "candidate"),
+    ("legacy", "rust16"), ("redis", "legacy"), ("redis", "rust16"),
+)
+
+
+def parse_pair(value):
+    names = value.split(":")
+    if len(names) != 2 or names[0] == names[1] or any(not re.fullmatch(r"[A-Za-z0-9_-]+", name) for name in names):
+        raise argparse.ArgumentTypeError("pair must be distinct REFERENCE:CANDIDATE variant names")
+    return tuple(names)
+
+
+def paired_rows(rows, pair_definitions=DEFAULT_PAIRS):
     grouped = defaultdict(dict)
     for row in rows:
         grouped[tuple(row[field] for field in GROUP_FIELDS) + (row["round"],)][row["variant"]] = row
     pairs = []
     for key, variants in sorted(grouped.items()):
-        for reference, name in (("baseline", "final"), ("baseline", "go-only"), ("go-only", "final"),
-                                ("start", "candidate"), ("redis", "start"), ("redis", "candidate")):
+        for reference, name in pair_definitions:
             if reference not in variants or name not in variants:
                 continue
             reference_row, candidate = variants[reference], variants[name]
@@ -203,6 +217,10 @@ def paired_rows(rows):
                 raise ValueError("Paired windows must use the same request seed")
             item = dict(zip(GROUP_FIELDS + ("round",), key))
             item["superseded"] = reference_row["superseded"]
+            item["seed"] = reference_row["seed"]
+            for prefix, member in (("reference", reference_row), ("candidate", candidate)):
+                for field in ("result_path", "server_sha256", "library_sha256", "client_sha256", "offered"):
+                    item[f"{prefix}_{field}"] = member[field]
             item.update(reference=reference, candidate=name, both_stable=reference_row["stable"] and candidate["stable"], reference_failures=reference_row["failures"], candidate_failures=candidate["failures"])
             for metric in SUMMARY_METRICS:
                 item[f"reference_{metric}"] = reference_row[metric]
@@ -211,6 +229,48 @@ def paired_rows(rows):
                 item[f"candidate_over_reference_{metric}"] = candidate_value / reference_value if reference_value and candidate_value is not None else None
             pairs.append(item)
     return pairs
+
+
+def write_paired_markdown(path, pairs):
+    """Summarize same-round ratios without pooling different plans or workloads."""
+    grouped = defaultdict(list)
+    for pair in pairs:
+        grouped[tuple(pair[field] for field in GROUP_FIELDS) +
+                (pair["reference"], pair["candidate"], pair["superseded"])].append(pair)
+    lines = ["# Paired comparisons", "",
+             "Ratios are candidate/reference, reported as the median [minimum, maximum] of same-round ratios.",
+             "Each group represents one complete experiment configuration and one comparison pair.",
+             "Load-pass counts describe requests delivered and served at the planned rate. Percentiles use successful requests. Failure rates use all offered requests.",
+             "Raw per-round values, seeds, source result paths and binary identities are in paired.csv. Missing metrics remain n/a.", ""]
+    metrics = (("GET p99", "get_success_latency_p99_us"),
+               ("SET p99", "set_success_latency_p99_us"),
+               ("GET p99.9", "get_success_latency_p99_9_us"),
+               ("SET p99.9", "set_success_latency_p99_9_us"),
+               ("Server CPU", "cpu_percent_one_core"),
+               ("Sampled server RSS peak", "rss_sampled_peak_bytes"))
+    for key, members in sorted(grouped.items()):
+        configuration = dict(zip(GROUP_FIELDS + ("reference", "candidate", "superseded"), key))
+        rounds = sorted(member["round"] for member in members)
+        lines.extend([f"## {configuration['reference']} -> {configuration['candidate']}", "",
+                      "Experiment configuration", "",
+                      "`" + json.dumps(configuration, sort_keys=True) + "`", "",
+                      f"Both variants reached the load target in {sum(member['both_stable'] for member in members)} of {len(members)} matched rounds {rounds}.", ""])
+        for side in ("reference", "candidate"):
+            failures = sum(member[f"{side}_failures"] for member in members)
+            offered = sum(member[f"{side}_offered"] for member in members)
+            lines.append(f"The {side} recorded {failures} failures over {offered} offered requests.")
+        lines.extend(["", "| Metric | Candidate/reference median [min, max] | Defined rounds |",
+                      "| --- | --- | ---: |"])
+        for label, metric in metrics:
+            values = [member[f"candidate_over_reference_{metric}"] for member in members
+                      if member[f"candidate_over_reference_{metric}"] is not None]
+            result = (f"{statistics.median(values):.6f} [{min(values):.6f}, {max(values):.6f}]"
+                      if values else "n/a")
+            lines.append(f"| {label} | {result} | {len(values)}/{len(members)} |")
+        lines.append("")
+    if not pairs:
+        lines.append("No configured variant pair had matching rounds.")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def histogram_upper(index):
@@ -377,6 +437,8 @@ def main():
     parser.add_argument("run_root", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--no-figures", action="store_true")
+    parser.add_argument("--pair", action="append", type=parse_pair, default=[],
+                        help="Add a REFERENCE:CANDIDATE comparison; repeatable, existing default pairs remain enabled")
     arguments = parser.parse_args()
     output = arguments.output or arguments.run_root / "analysis"
     output.mkdir(parents=True, exist_ok=True)
@@ -392,7 +454,10 @@ def main():
     summary = summarize(rows)
     write_csv(output / "summary.csv", summary)
     write_csv(output / "formal-summary.csv", [row for row in summary if row["duration_seconds"] >= 30 and row["rounds"] >= 3 and not row["superseded"]])
-    write_csv(output / "paired.csv", paired_rows(rows))
+    pair_definitions = list(dict.fromkeys(DEFAULT_PAIRS + tuple(arguments.pair)))
+    pairs = paired_rows(rows, pair_definitions)
+    write_csv(output / "paired.csv", pairs)
+    write_paired_markdown(output / "paired-summary.md", pairs)
     windows = []
     for row in rows:
         measurement = read_json(Path(row["result_path"]))["measurement"]
@@ -405,6 +470,8 @@ def main():
         "run_count": len(rows), "formal_run_count": sum(row["rounds"] for row in summary if row["duration_seconds"] >= 30 and row["rounds"] >= 3 and not row["superseded"]),
         "superseded_run_count": sum(row["superseded"] for row in rows),
         "summary_statistics": "median, minimum and maximum of per-round metrics. Each p99 summary uses per-round p99 values",
+        "paired_comparisons": [{"reference": reference, "candidate": candidate} for reference, candidate in pair_definitions],
+        "paired_summary": "Same-round, same-seed candidate/reference ratios, grouped by every GROUP_FIELDS value, variant pair and superseded state. Ratios with zero/missing references remain null",
         "stable_rule": "zero failures, min(actual send/success and window send/success) >= 98% target, and no sustained queue-growth heuristic",
         "stable_scope": "Load criterion only. Tail spread is reported by per-round minima/maxima, scatter and time series",
         "empty_latency_samples": "Zero-count latency histograms export null quantiles; no successful samples means success latency is undefined",
@@ -426,6 +493,8 @@ def main():
         analysis_argv.extend(["--output", str(output.resolve())])
     if arguments.no_figures:
         analysis_argv.append("--no-figures")
+    for reference, candidate in arguments.pair:
+        analysis_argv.extend(["--pair", f"{reference}:{candidate}"])
     try:
         matplotlib_version = package_metadata.version("matplotlib")
     except package_metadata.PackageNotFoundError:
