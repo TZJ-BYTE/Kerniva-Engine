@@ -218,6 +218,21 @@ impl DurableMemoryEngine {
         Ok(self.memory.get_into(key, dst)?)
     }
 
+    pub(crate) fn get_into_uninit(
+        &self,
+        key: &[u8],
+        dst: &mut [std::mem::MaybeUninit<u8>],
+    ) -> Result<MemoryRead, DurableMemoryError> {
+        Ok(self.memory.get_into_uninit(key, dst)?)
+    }
+
+    pub(crate) fn get_many(
+        &self,
+        keys: &[&[u8]],
+    ) -> Result<Vec<Option<MemoryValue>>, DurableMemoryError> {
+        Ok(self.memory.get_many(keys)?)
+    }
+
     pub fn get_entry_at(
         &self,
         key: &[u8],

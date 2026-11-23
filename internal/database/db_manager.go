@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -37,7 +38,7 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	if cfg.StorageBackend == config.StorageRustMemory {
+	if cfg.StorageBackend == config.StorageRustMemory || cfg.StorageBackend == config.StorageRustMemorySync {
 		return newMemoryDBManager(cfg)
 	}
 	databases := make([]*Database, cfg.DBCount)
@@ -123,25 +124,56 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 }
 
 func newMemoryDBManager(cfg *config.Config) (*DBManager, error) {
-	manager := &DBManager{config: cfg, memoryDatabases: make([]*rustengine.MemoryEngine, 0, cfg.DBCount)}
+	manager := &DBManager{
+		config:             cfg,
+		memoryDatabases:    make([]*rustengine.MemoryEngine, 0, cfg.DBCount),
+		persistenceEnabled: cfg.StorageBackend == config.StorageRustMemorySync,
+	}
+	if manager.persistenceEnabled {
+		manager.dataDir = filepath.Join(cfg.DataDir, "rust-memory-v1")
+	}
 	var limit *uint64
 	if cfg.MaxMemory != 0 {
 		maxPayload := uint64(cfg.MaxMemory)
 		limit = &maxPayload
 	}
 	for i := 0; i < cfg.DBCount; i++ {
-		engine, err := rustengine.OpenMemory(cfg.RustMemoryShards, limit)
+		var engine *rustengine.MemoryEngine
+		var err error
+		if manager.persistenceEnabled {
+			directory := filepath.Join(manager.dataDir, fmt.Sprintf("db_%d", i))
+			if err = os.MkdirAll(directory, 0o750); err == nil {
+				engine, err = rustengine.OpenDurableMemory(directory, cfg.RustMemoryShards, limit, cfg.RustMemoryReadDuringSync)
+			}
+			if err != nil {
+				err = fmt.Errorf("%s: %w", directory, err)
+			}
+		} else {
+			engine, err = rustengine.OpenMemory(cfg.RustMemoryShards, limit)
+		}
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("initialize rust-memory database %d: %w", i, err), manager.closeMemoryDatabases())
+			return nil, errors.Join(fmt.Errorf("initialize %s database %d: %w", cfg.StorageBackend, i, err), manager.closeMemoryDatabases())
 		}
 		manager.memoryDatabases = append(manager.memoryDatabases, engine)
 	}
-	logger.Info("初始化 %d 个 Rust 内存数据库，每库 %d 个分片", cfg.DBCount, cfg.RustMemoryShards)
+	if manager.persistenceEnabled {
+		logger.Info("初始化 %d 个 Rust 同步内存数据库，每库 %d 个分片，目录：%s", cfg.DBCount, cfg.RustMemoryShards, manager.dataDir)
+	} else {
+		logger.Info("初始化 %d 个 Rust 内存数据库，每库 %d 个分片", cfg.DBCount, cfg.RustMemoryShards)
+	}
 	return manager, nil
 }
 
 func (m *DBManager) UsesRustMemory() bool {
 	return m != nil && len(m.memoryDatabases) != 0
+}
+
+func (m *DBManager) UsesRustMemorySync() bool {
+	return m.UsesRustMemory() && m.config.StorageBackend == config.StorageRustMemorySync
+}
+
+func (m *DBManager) RustMemoryReadDuringSync() bool {
+	return m.UsesRustMemorySync() && m.config.RustMemoryReadDuringSync
 }
 
 func (m *DBManager) GetMemoryDBByIndex(index int) (*rustengine.MemoryEngine, error) {
@@ -228,10 +260,17 @@ func (m *DBManager) GetStats() map[string]interface{} {
 	stats["db_count"] = m.DBCount()
 	stats["persistence_enabled"] = m.persistenceEnabled
 	if m.UsesRustMemory() {
+		mode := "memory"
 		stats["storage_backend"] = config.StorageRustMemory
+		if m.UsesRustMemorySync() {
+			mode = "memory-sync"
+			stats["storage_backend"] = config.StorageRustMemorySync
+			stats["data_dir"] = m.dataDir
+			stats["memory_read_during_sync"] = m.RustMemoryReadDuringSync()
+		}
 		dbStats := make([]map[string]interface{}, len(m.memoryDatabases))
 		for i, db := range m.memoryDatabases {
-			item := map[string]interface{}{"db_id": i, "mode": "memory"}
+			item := map[string]interface{}{"db_id": i, "mode": mode}
 			fields, err := db.Stats()
 			if err != nil {
 				item["stats_error"] = err.Error()

@@ -72,6 +72,21 @@ redis-cli -p 16380 GET sample
 
 实验入口支持 GET、SET（NX、XX、EX、PX）、MGET、MSET、DEL、EXISTS、TTL、PTTL、EXPIRE、PEXPIRE、INCR、INCRBY、DECR、SELECT、PING、QUIT 和 INFO。过期键立即从查询结果消失，删除或覆盖才回收其常驻字节。Rust 库也提供显式过期回收入口。默认配置继续使用现有后端。
 
+### Rust 同步持久化实验
+
+~~~bash
+KERNIVA_STORAGE_BACKEND=rust-memory-sync KERNIVA_PERSISTENCE_ENABLED=true \
+  KERNIVA_PERSISTENCE_WRITE_MODE=strong KERNIVA_PERSISTENCE_DURABILITY=sync \
+  KERNIVA_MAX_MEMORY_POLICY=noeviction KERNIVA_RUST_MEMORY_SHARDS=16 \
+  KERNIVA_RUST_MEMORY_READ_DURING_SYNC=true KERNIVA_DATA_DIR=./data-sync-experiment \
+  KERNIVA_DB_COUNT=1 KERNIVA_PORT=16381 ./bin/kerniva-server -config ./config.yaml
+redis-cli -p 16381 INFO
+~~~
+
+该后端先同步 WAL 再确认写入，每库通过 `data_dir/rust-memory-v1/db_N` 恢复。当前开放 GET、普通 SET、MGET、MSET、单键 DEL 及 SELECT、PING、QUIT、INFO。开启 `KERNIVA_RUST_MEMORY_READ_DURING_SYNC` 后，读请求在磁盘同步期间可返回上一版已提交数据，批次发布时仍保持原子可见性。省略配置时，读请求在受影响的分片等待同步完成。
+
+同步日志目前仅追加。INFO 输出 WAL 大小、提交数、同步次数及累计耗时。实验应使用独立数据目录并关注空间和重启回放时间。
+
 ## 配置
 
 -config 默认指向 config.yaml。文件缺失时使用内置默认值并记录警告。YAML 字段拼写错误、格式错误和非法值会使启动失败。KERNIVA_* 环境变量覆盖文件，例如 KERNIVA_PORT、KERNIVA_NETWORK_TYPE、KERNIVA_MAX_MEMORY、KERNIVA_PERSISTENCE_ENABLED 和 KERNIVA_PERSISTENCE_DURABILITY。

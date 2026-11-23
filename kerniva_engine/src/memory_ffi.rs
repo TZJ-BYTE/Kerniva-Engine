@@ -1,10 +1,16 @@
 use std::mem::{MaybeUninit, size_of};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::Path;
 use std::{ptr, slice};
 
 use crate::{
-    MemoryBatchOp, MemoryCondition, MemoryEngine, MemoryError, MemoryRead, MemoryWriteOptions,
+    DurableMemoryEngine, DurableReadMode, MemoryBatchOp, MemoryCondition, MemoryEngine,
+    MemoryError, MemoryRead, MemoryWriteOptions,
 };
+
+mod store;
+
+use store::{KernivaMemoryEngine, durable_status};
 
 const OK: i32 = 0;
 const MISSING: i32 = 1;
@@ -14,6 +20,10 @@ const INVALID_INTEGER: i32 = 4;
 const INVALID_EXPIRATION: i32 = 5;
 const INVALID_ARGUMENT: i32 = -1;
 const INTERNAL: i32 = -2;
+const STORAGE_ERROR: i32 = -3;
+const DURABILITY_UNKNOWN: i32 = -4;
+const REOPEN_REQUIRED: i32 = -5;
+const UNSUPPORTED: i32 = -6;
 
 type ApiResult<T> = Result<T, i32>;
 
@@ -48,6 +58,16 @@ pub struct KernivaMemoryStats {
     pub keys: usize,
     pub payload_bytes: usize,
     pub shards: usize,
+}
+
+#[repr(C)]
+pub struct KernivaMemoryWalStats {
+    pub log_bytes: u64,
+    pub commits: u64,
+    pub failed_commits: u64,
+    pub sync_attempts: u64,
+    pub sync_elapsed_ns: u64,
+    pub requires_reopen: u64,
 }
 
 fn status(error: MemoryError) -> i32 {
@@ -88,7 +108,7 @@ unsafe fn input<'a, T>(data: *const T, count: usize) -> ApiResult<&'a [T]> {
     Ok(unsafe { slice::from_raw_parts(data, count) })
 }
 
-unsafe fn engine_ref<'a>(handle: *mut MemoryEngine) -> ApiResult<&'a MemoryEngine> {
+unsafe fn engine_ref<'a>(handle: *mut KernivaMemoryEngine) -> ApiResult<&'a KernivaMemoryEngine> {
     check_region(handle, 1)?;
     Ok(unsafe { &*handle })
 }
@@ -122,6 +142,14 @@ pub extern "C" fn kerniva_memory_abi_version() -> u32 {
     1
 }
 
+fn memory_limit(limited: u32, limit: usize) -> ApiResult<Option<usize>> {
+    match limited {
+        0 => Ok(None),
+        1 => Ok(Some(limit)),
+        _ => Err(INVALID_ARGUMENT),
+    }
+}
+
 /// # Safety
 ///
 /// The caller must supply writable storage for one engine pointer.
@@ -130,18 +158,57 @@ pub unsafe extern "C" fn kerniva_memory_open(
     shards: usize,
     limited: u32,
     limit: usize,
-    out: *mut *mut MemoryEngine,
+    out: *mut *mut KernivaMemoryEngine,
 ) -> i32 {
     ffi_call(|| {
         check_region(out, 1)?;
         unsafe { out.write(ptr::null_mut()) };
-        let limit = match limited {
-            0 => None,
-            1 => Some(limit),
+        let limit = memory_limit(limited, limit)?;
+        let engine = MemoryEngine::new(shards, limit).map_err(status)?;
+        unsafe {
+            out.write(Box::into_raw(Box::new(KernivaMemoryEngine::Volatile(
+                engine,
+            ))))
+        };
+        Ok(OK)
+    })
+}
+
+/// # Safety
+///
+/// The path must be valid for its length. The caller must supply writable,
+/// disjoint storage for one engine pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_open_sync(
+    path: *const u8,
+    path_len: usize,
+    shards: usize,
+    limited: u32,
+    limit: usize,
+    read_during_sync: u32,
+    out: *mut *mut KernivaMemoryEngine,
+) -> i32 {
+    ffi_call(|| {
+        check_region(out, 1)?;
+        unsafe { out.write(ptr::null_mut()) };
+        let path = unsafe { input(path, path_len)? };
+        if path.is_empty() || path.contains(&0) {
+            return Err(INVALID_ARGUMENT);
+        }
+        let path = std::str::from_utf8(path).map_err(|_| INVALID_ARGUMENT)?;
+        let limit = memory_limit(limited, limit)?;
+        let mode = match read_during_sync {
+            0 => DurableReadMode::HoldAffectedShards,
+            1 => DurableReadMode::ReadCommitted,
             _ => return Err(INVALID_ARGUMENT),
         };
-        let engine = MemoryEngine::new(shards, limit).map_err(status)?;
-        unsafe { out.write(Box::into_raw(Box::new(engine))) };
+        let engine = DurableMemoryEngine::open_with_read_mode(Path::new(path), shards, limit, mode)
+            .map_err(durable_status)?;
+        unsafe {
+            out.write(Box::into_raw(Box::new(KernivaMemoryEngine::Durable(
+                engine,
+            ))))
+        };
         Ok(OK)
     })
 }
@@ -150,7 +217,7 @@ pub unsafe extern "C" fn kerniva_memory_open(
 ///
 /// A non-null handle must have been returned by open and no calls may be in progress.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn kerniva_memory_close(handle: *mut MemoryEngine) -> i32 {
+pub unsafe extern "C" fn kerniva_memory_close(handle: *mut KernivaMemoryEngine) -> i32 {
     ffi_call(|| {
         check_region(handle, 1)?;
         drop(unsafe { Box::from_raw(handle) });
@@ -164,7 +231,7 @@ pub unsafe extern "C" fn kerniva_memory_close(handle: *mut MemoryEngine) -> i32 
 /// with output disjoint from input and from the written length.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_get_into(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
     dst: *mut u8,
@@ -176,7 +243,7 @@ pub unsafe extern "C" fn kerniva_memory_get_into(
         let engine = unsafe { engine_ref(handle)? };
         let key = unsafe { input(key, key_len)? };
         let dst = unsafe { output_bytes(dst, dst_len)? };
-        let (code, len) = match engine.get_into_uninit(key, dst).map_err(status)? {
+        let (code, len) = match engine.get_into_uninit(key, dst)? {
             MemoryRead::Missing => (MISSING, 0),
             MemoryRead::Copied(len) => (OK, len),
             MemoryRead::BufferTooSmall(len) => (BUFFER_TOO_SMALL, len),
@@ -191,7 +258,7 @@ pub unsafe extern "C" fn kerniva_memory_get_into(
 /// The handle must remain open and input bytes must be valid for their lengths.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_put(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
     value: *const u8,
@@ -201,7 +268,7 @@ pub unsafe extern "C" fn kerniva_memory_put(
         let engine = unsafe { engine_ref(handle)? };
         let key = unsafe { input(key, key_len)? };
         let value = unsafe { input(value, value_len)? };
-        engine.put(key, value).map_err(status)?;
+        engine.put(key, value)?;
         Ok(OK)
     })
 }
@@ -211,18 +278,14 @@ pub unsafe extern "C" fn kerniva_memory_put(
 /// The handle must remain open and key bytes must be valid for their length.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_delete(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
 ) -> i32 {
     ffi_call(|| {
         let engine = unsafe { engine_ref(handle)? };
         let key = unsafe { input(key, key_len)? };
-        Ok(if engine.delete(key).map_err(status)? {
-            OK
-        } else {
-            MISSING
-        })
+        Ok(if engine.delete(key)? { OK } else { MISSING })
     })
 }
 
@@ -232,7 +295,7 @@ pub unsafe extern "C" fn kerniva_memory_delete(
 /// point to one initialized configuration.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_put_options(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
     value: *const u8,
@@ -240,7 +303,7 @@ pub unsafe extern "C" fn kerniva_memory_put_options(
     options: *const KernivaMemoryPutOptions,
 ) -> i32 {
     ffi_call(|| {
-        let engine = unsafe { engine_ref(handle)? };
+        let engine = (unsafe { engine_ref(handle)? }).volatile()?;
         let key = unsafe { input(key, key_len)? };
         let value = unsafe { input(value, value_len)? };
         let options = &unsafe { input(options, 1)? }[0];
@@ -263,13 +326,13 @@ pub unsafe extern "C" fn kerniva_memory_put_options(
 /// initialized integer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_expire(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
     ttl_ms: *const i64,
 ) -> i32 {
     ffi_call(|| {
-        let engine = unsafe { engine_ref(handle)? };
+        let engine = (unsafe { engine_ref(handle)? }).volatile()?;
         let key = unsafe { input(key, key_len)? };
         let ttl_ms = unsafe { input(ttl_ms, 1)? }[0];
         let applied = engine.expire_relative(key, ttl_ms).map_err(status)?;
@@ -283,14 +346,14 @@ pub unsafe extern "C" fn kerniva_memory_expire(
 /// integer and disjoint from inputs.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_pttl(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
     out: *mut i64,
 ) -> i32 {
     ffi_call(|| {
         check_region(out, 1)?;
-        let engine = unsafe { engine_ref(handle)? };
+        let engine = (unsafe { engine_ref(handle)? }).volatile()?;
         let key = unsafe { input(key, key_len)? };
         let ttl_ms = engine.remaining_ttl_ms(key).map_err(status)?;
         unsafe { out.write(ttl_ms) };
@@ -304,7 +367,7 @@ pub unsafe extern "C" fn kerniva_memory_pttl(
 /// for one integer and disjoint from inputs.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_increment(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     key: *const u8,
     key_len: usize,
     delta: *const i64,
@@ -312,7 +375,7 @@ pub unsafe extern "C" fn kerniva_memory_increment(
 ) -> i32 {
     ffi_call(|| {
         check_region(out, 1)?;
-        let engine = unsafe { engine_ref(handle)? };
+        let engine = (unsafe { engine_ref(handle)? }).volatile()?;
         let key = unsafe { input(key, key_len)? };
         let delta = unsafe { input(delta, 1)? }[0];
         let value = engine
@@ -330,14 +393,14 @@ pub unsafe extern "C" fn kerniva_memory_increment(
 /// must be writable for one count and disjoint from inputs.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_count_existing(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     keys: *const KernivaMemorySlice,
     count: usize,
     out: *mut usize,
 ) -> i32 {
     ffi_call(|| {
         check_region(out, 1)?;
-        let engine = unsafe { engine_ref(handle)? };
+        let engine = (unsafe { engine_ref(handle)? }).volatile()?;
         let keys = unsafe { input_keys(keys, count)? };
         let count = engine.count_existing(&keys).map_err(status)?;
         unsafe { out.write(count) };
@@ -351,14 +414,14 @@ pub unsafe extern "C" fn kerniva_memory_count_existing(
 /// must be writable for one count and disjoint from inputs.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_delete_many(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     keys: *const KernivaMemorySlice,
     count: usize,
     out: *mut usize,
 ) -> i32 {
     ffi_call(|| {
         check_region(out, 1)?;
-        let engine = unsafe { engine_ref(handle)? };
+        let engine = (unsafe { engine_ref(handle)? }).volatile()?;
         let keys = unsafe { input_keys(keys, count)? };
         let count = engine.delete_many(&keys).map_err(status)?;
         unsafe { out.write(count) };
@@ -372,7 +435,7 @@ pub unsafe extern "C" fn kerniva_memory_delete_many(
 /// bytes must be valid for their lengths.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_mset(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     pairs: *const KernivaMemoryPair,
     count: usize,
 ) -> i32 {
@@ -389,7 +452,7 @@ pub unsafe extern "C" fn kerniva_memory_mset(
             });
         }
         // All operations are unconditional and set no deadline.
-        if !engine.apply_batch_at(&operations, 0).map_err(status)? {
+        if !engine.apply_batch(&operations)? {
             return Err(INTERNAL);
         }
         Ok(OK)
@@ -402,7 +465,7 @@ pub unsafe extern "C" fn kerniva_memory_mset(
 /// lengths, and every output region must be disjoint from other arguments.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_mget_into(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     keys: *const KernivaMemorySlice,
     count: usize,
     dst: *mut u8,
@@ -416,7 +479,7 @@ pub unsafe extern "C" fn kerniva_memory_mget_into(
         check_region(needed, 1)?;
         let engine = unsafe { engine_ref(handle)? };
         let keys = unsafe { input_keys(keys, count)? };
-        let values = engine.get_many(&keys).map_err(status)?;
+        let values = engine.get_many(&keys)?;
         let total = values.iter().flatten().try_fold(0usize, |len, entry| {
             len.checked_add(entry.value.len()).ok_or(INTERNAL)
         })?;
@@ -456,18 +519,47 @@ pub unsafe extern "C" fn kerniva_memory_mget_into(
 /// one stats structure.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn kerniva_memory_stats(
-    handle: *mut MemoryEngine,
+    handle: *mut KernivaMemoryEngine,
     out: *mut KernivaMemoryStats,
 ) -> i32 {
     ffi_call(|| {
         check_region(out, 1)?;
         let engine = unsafe { engine_ref(handle)? };
-        let stats = engine.stats().map_err(status)?;
+        let stats = engine.stats()?;
         unsafe {
             out.write(KernivaMemoryStats {
                 keys: stats.keys,
                 payload_bytes: stats.payload_bytes,
                 shards: stats.shards,
+            });
+        }
+        Ok(OK)
+    })
+}
+
+/// # Safety
+///
+/// The handle must remain open. The caller must supply writable storage for
+/// one WAL stats structure, disjoint from the handle.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kerniva_memory_wal_stats(
+    handle: *mut KernivaMemoryEngine,
+    out: *mut KernivaMemoryWalStats,
+) -> i32 {
+    ffi_call(|| {
+        check_region(out, 1)?;
+        let KernivaMemoryEngine::Durable(engine) = (unsafe { engine_ref(handle)? }) else {
+            return Err(UNSUPPORTED);
+        };
+        let stats = engine.wal_stats().map_err(durable_status)?;
+        unsafe {
+            out.write(KernivaMemoryWalStats {
+                log_bytes: stats.log_bytes,
+                commits: stats.commits,
+                failed_commits: stats.failed_commits,
+                sync_attempts: stats.sync_attempts,
+                sync_elapsed_ns: stats.sync_elapsed_ns.min(u64::MAX as u128) as u64,
+                requires_reopen: u64::from(stats.requires_reopen),
             });
         }
         Ok(OK)

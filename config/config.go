@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	StorageLegacy     = "legacy"
-	StorageRustMemory = "rust-memory"
+	StorageLegacy         = "legacy"
+	StorageRustMemory     = "rust-memory"
+	StorageRustMemorySync = "rust-memory-sync"
 )
 
 // ColdStartStrategy 冷启动数据加载策略
@@ -38,6 +39,9 @@ type Config struct {
 	DBCount          int    `yaml:"db_count" json:"db_count"`
 	StorageBackend   string `yaml:"storage_backend" json:"storage_backend"`
 	RustMemoryShards int    `yaml:"rust_memory_shards" json:"rust_memory_shards"`
+
+	// Applies only to the experimental synchronous Rust backend.
+	RustMemoryReadDuringSync bool `yaml:"rust_memory_read_during_sync" json:"rust_memory_read_during_sync"`
 
 	// 内存配置
 	MaxMemory       int64  `yaml:"max_memory" json:"max_memory"`
@@ -116,7 +120,10 @@ func (c *Config) applyEnvOverrides() {
 			*target = parsed
 		}
 	}
-	for name, target := range map[string]*bool{"KERNIVA_PERSISTENCE_ENABLED": &c.PersistenceEnabled, "KERNIVA_PPROF_ENABLED": &c.PprofEnabled} {
+	for name, target := range map[string]*bool{
+		"KERNIVA_PERSISTENCE_ENABLED": &c.PersistenceEnabled, "KERNIVA_PPROF_ENABLED": &c.PprofEnabled,
+		"KERNIVA_RUST_MEMORY_READ_DURING_SYNC": &c.RustMemoryReadDuringSync,
+	} {
 		if value, ok := os.LookupEnv(name); ok {
 			parsed, err := strconv.ParseBool(value)
 			if err != nil {
@@ -168,18 +175,32 @@ func (c *Config) Validate() error {
 	if err := validateChoice("max_memory_policy", c.MaxMemoryPolicy, "", "noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"); err != nil {
 		return err
 	}
-	if err := validateChoice("storage_backend", c.StorageBackend, "", StorageLegacy, StorageRustMemory); err != nil {
+	if err := validateChoice("storage_backend", c.StorageBackend, "", StorageLegacy, StorageRustMemory, StorageRustMemorySync); err != nil {
 		return err
 	}
-	if c.StorageBackend == StorageRustMemory {
-		if c.PersistenceEnabled {
+	if c.StorageBackend == StorageRustMemory || c.StorageBackend == StorageRustMemorySync {
+		if c.StorageBackend == StorageRustMemory && c.PersistenceEnabled {
 			return fmt.Errorf("rust-memory requires persistence_enabled=false")
 		}
 		if c.MaxMemoryPolicy != "" && c.MaxMemoryPolicy != "noeviction" {
-			return fmt.Errorf("rust-memory requires the noeviction memory policy")
+			return fmt.Errorf("%s requires the noeviction memory policy", c.StorageBackend)
 		}
 		if c.RustMemoryShards <= 0 || c.RustMemoryShards&(c.RustMemoryShards-1) != 0 {
 			return fmt.Errorf("rust_memory_shards must be a positive power of two")
+		}
+	}
+	if c.StorageBackend == StorageRustMemorySync {
+		if !c.PersistenceEnabled || c.PersistenceDurability != "sync" {
+			return fmt.Errorf("rust-memory-sync requires persistence_enabled=true and persistence_durability=sync")
+		}
+		if c.PersistenceWriteMode != "" && c.PersistenceWriteMode != "strong" {
+			return fmt.Errorf("rust-memory-sync requires the strong write mode")
+		}
+		if c.MaxMemoryPolicy != "noeviction" {
+			return fmt.Errorf("rust-memory-sync requires the noeviction memory policy")
+		}
+		if strings.TrimSpace(c.DataDir) == "" {
+			return fmt.Errorf("rust-memory-sync requires data_dir")
 		}
 	}
 	if err := validateChoice("cold_start_strategy", c.ColdStartStrategy, "", "no_load", "load_all", "lazy_load"); err != nil {

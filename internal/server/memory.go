@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/TZJ-BYTE/Kerniva/config"
 	"github.com/TZJ-BYTE/Kerniva/internal/database"
 	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
@@ -47,6 +48,19 @@ func dispatchMemoryCommand(dst []byte, ctx *ConnectionContext, manager *database
 		}
 		ctx.memoryDBIndex = index
 		return protocol.AppendSimpleString(dst, "OK"), false
+	}
+
+	if manager.UsesRustMemorySync() {
+		// Only these commands have synchronous WAL implementations. Never fall
+		// through to the memory-only atomic/TTL operations on a durable handle.
+		switch cmd {
+		case "GET", "SET", "MGET", "MSET", "DEL", "INFO":
+		default:
+			return protocol.AppendErrorString(dst, "ERR command is unavailable with the rust-memory-sync backend"), false
+		}
+		if (cmd == "SET" && len(args) > 2) || (cmd == "DEL" && len(args) > 1) {
+			return protocol.AppendErrorString(dst, "ERR command options are unavailable with the rust-memory-sync backend"), false
+		}
 	}
 
 	db, err := manager.GetMemoryDBByIndex(ctx.memoryDBIndex)
@@ -185,8 +199,19 @@ func dispatchMemoryCommand(dst []byte, ctx *ConnectionContext, manager *database
 		}
 		var mem runtime.MemStats
 		runtime.ReadMemStats(&mem)
-		info := fmt.Sprintf("# Database\r\nstorage_backend:rust-memory\r\nmode:memory\r\npersistence_enabled:false\r\nmemory_abi_version:1\r\ndb_id:%d\r\ndb_count:%d\r\nmemory_keys:%d\r\nused_memory_bytes:%d\r\nmemory_shards:%d\r\n# Runtime\r\nheap_alloc_bytes:%d\r\nnum_gc:%d\r\ngc_pause_total_ns:%d\r\n",
-			ctx.memoryDBIndex, manager.DBCount(), stats.Keys, stats.PayloadBytes, stats.Shards, mem.HeapAlloc, mem.NumGC, mem.PauseTotalNs)
+		backend, mode, persistent := config.StorageRustMemory, "memory", false
+		persistenceInfo := ""
+		if manager.UsesRustMemorySync() {
+			wal, err := db.WalStats()
+			if err != nil {
+				return memoryCommandError(dst, err), false
+			}
+			backend, mode, persistent = config.StorageRustMemorySync, "memory-sync", true
+			persistenceInfo = fmt.Sprintf("memory_read_during_sync:%t\r\nwal_log_bytes:%d\r\nwal_commits:%d\r\nwal_failed_commits:%d\r\nwal_sync_attempts:%d\r\nwal_sync_elapsed_ns:%d\r\nwal_requires_reopen:%d\r\n",
+				manager.RustMemoryReadDuringSync(), wal.LogBytes, wal.Commits, wal.FailedCommits, wal.SyncAttempts, wal.SyncElapsedNS, wal.RequiresReopen)
+		}
+		info := fmt.Sprintf("# Database\r\nstorage_backend:%s\r\nmode:%s\r\npersistence_enabled:%t\r\n%smemory_abi_version:1\r\ndb_id:%d\r\ndb_count:%d\r\nmemory_keys:%d\r\nused_memory_bytes:%d\r\nmemory_shards:%d\r\n# Runtime\r\nheap_alloc_bytes:%d\r\nnum_gc:%d\r\ngc_pause_total_ns:%d\r\n",
+			backend, mode, persistent, persistenceInfo, ctx.memoryDBIndex, manager.DBCount(), stats.Keys, stats.PayloadBytes, stats.Shards, mem.HeapAlloc, mem.NumGC, mem.PauseTotalNs)
 		return protocol.AppendBulkString(dst, info), false
 	default:
 		return protocol.AppendErrorString(dst, "ERR command is unavailable with the rust-memory backend"), false

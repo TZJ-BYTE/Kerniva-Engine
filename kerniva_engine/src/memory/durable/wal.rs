@@ -111,6 +111,13 @@ impl Wal {
         let file = open_active_segment(&path)?;
         file.sync_all()?;
         sync_directory(directory)?;
+        // The caller may have just created the directory and its parents. On
+        // Unix, each new directory entry must also reach its parent's disk
+        // state before we can acknowledge writes to the WAL.
+        #[cfg(unix)]
+        for parent in directory.canonicalize()?.ancestors().skip(1) {
+            sync_directory(parent)?;
+        }
 
         Ok(Self {
             file,

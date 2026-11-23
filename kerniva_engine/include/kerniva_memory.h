@@ -37,6 +37,15 @@ typedef struct {
     size_t shards;
 } KernivaMemoryStats;
 
+typedef struct {
+    uint64_t log_bytes;
+    uint64_t commits;
+    uint64_t failed_commits;
+    uint64_t sync_attempts;
+    uint64_t sync_elapsed_ns;
+    uint64_t requires_reopen;
+} KernivaMemoryWalStats;
+
 enum {
     KERNIVA_MEMORY_OK = 0,
     KERNIVA_MEMORY_MISSING = 1,
@@ -45,7 +54,11 @@ enum {
     KERNIVA_MEMORY_INVALID_INTEGER = 4,
     KERNIVA_MEMORY_INVALID_EXPIRATION = 5,
     KERNIVA_MEMORY_INVALID_ARGUMENT = -1,
-    KERNIVA_MEMORY_INTERNAL = -2
+    KERNIVA_MEMORY_INTERNAL = -2,
+    KERNIVA_MEMORY_STORAGE_ERROR = -3,
+    KERNIVA_MEMORY_DURABILITY_UNKNOWN = -4,
+    KERNIVA_MEMORY_REOPEN_REQUIRED = -5,
+    KERNIVA_MEMORY_UNSUPPORTED = -6
 };
 
 enum {
@@ -66,6 +79,14 @@ uint32_t kerniva_memory_abi_version(void);
 /* limited = 0 for no limit, 1 to apply the resident key/value byte limit. */
 int32_t kerniva_memory_open(size_t shards, uint32_t limited, size_t limit,
                             KernivaMemoryEngine **out);
+/*
+ * Opens the sync-on-write store in a UTF-8 directory. read_during_sync is 0
+ * to hold affected shards, 1 to allow reads of the previous committed state.
+ * Sync handles support GET, PUT, DELETE, MGET, MSET, stats and WAL stats.
+ */
+int32_t kerniva_memory_open_sync(const uint8_t *path, size_t path_len,
+                                 size_t shards, uint32_t limited, size_t limit,
+                                 uint32_t read_during_sync, KernivaMemoryEngine **out);
 int32_t kerniva_memory_close(KernivaMemoryEngine *handle);
 
 /*
@@ -121,6 +142,7 @@ int32_t kerniva_memory_mget_into(KernivaMemoryEngine *handle,
                                  uint8_t *dst, size_t dst_len,
                                  KernivaMemorySpan *spans, size_t *needed);
 int32_t kerniva_memory_stats(KernivaMemoryEngine *handle, KernivaMemoryStats *out);
+int32_t kerniva_memory_wal_stats(KernivaMemoryEngine *handle, KernivaMemoryWalStats *out);
 
 #ifdef __cplusplus
 }

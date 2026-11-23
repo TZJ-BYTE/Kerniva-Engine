@@ -13,6 +13,10 @@ var (
 	ErrMemoryPayloadLimit   = errors.New("memory engine resident payload limit exceeded")
 	ErrMemoryInteger        = errors.New("value is not an integer or out of range")
 	ErrMemoryExpiration     = errors.New("invalid expiration time")
+	ErrMemoryStorage        = errors.New("durable memory storage error")
+	ErrMemoryDurability     = errors.New("durable memory write outcome is unknown")
+	ErrMemoryReopenRequired = errors.New("durable memory must be reopened")
+	ErrMemoryUnsupported    = errors.New("operation is unsupported by this memory engine")
 	errMemoryEngineClosed   = errors.New("memory engine is closed")
 )
 
@@ -74,24 +78,18 @@ var (
 // Close waits for all active calls and prevents subsequent calls from using it.
 // A MemoryEngine must not be copied.
 type MemoryEngine struct {
-	mu     sync.RWMutex
-	handle uintptr
-	api    *memoryDLLAPI
+	mu       sync.RWMutex
+	handle   uintptr
+	api      *memoryDLLAPI
+	walStats *nativeProc
 }
 
 // OpenMemory creates a directory-free Rust memory store. A nil limit means
 // unlimited resident payload; a non-nil zero limit permits only zero payload.
 func OpenMemory(shards int, maxPayloadBytes *uint64) (*MemoryEngine, error) {
-	if shards <= 0 || shards&(shards-1) != 0 {
-		return nil, errors.New("memory shard count must be a positive power of two")
-	}
-	var limited, limit uintptr
-	if maxPayloadBytes != nil {
-		limited = 1
-		limit = uintptr(*maxPayloadBytes)
-		if uint64(limit) != *maxPayloadBytes {
-			return nil, errors.New("memory payload limit exceeds the native address size")
-		}
+	limited, limit, err := nativeMemoryOptions(shards, maxPayloadBytes)
+	if err != nil {
+		return nil, err
 	}
 	native, err := ensureMemoryAPI()
 	if err != nil {
@@ -108,6 +106,20 @@ func OpenMemory(shards int, maxPayloadBytes *uint64) (*MemoryEngine, error) {
 		return nil, errors.New("open memory engine returned an invalid handle")
 	}
 	return &MemoryEngine{handle: handle, api: native}, nil
+}
+
+func nativeMemoryOptions(shards int, maxPayloadBytes *uint64) (limited, limit uintptr, err error) {
+	if shards <= 0 || shards&(shards-1) != 0 {
+		return 0, 0, errors.New("memory shard count must be a positive power of two")
+	}
+	if maxPayloadBytes == nil {
+		return 0, 0, nil
+	}
+	limit = uintptr(*maxPayloadBytes)
+	if uint64(limit) != *maxPayloadBytes {
+		return 0, 0, errors.New("memory payload limit exceeds the native address size")
+	}
+	return 1, limit, nil
 }
 
 // GetInto copies a present value into dst without allocating a native result.
@@ -305,15 +317,7 @@ func ensureMemoryAPI() (*memoryDLLAPI, error) {
 	if memoryAPI != nil {
 		return memoryAPI, nil
 	}
-	find := func(suffix string) (*nativeProc, error) {
-		name := "kerniva_memory_" + suffix
-		address, err := findSymbol(api.dll, name)
-		if err != nil {
-			return nil, fmt.Errorf("Rust memory ABI is unavailable: find %s: %w", name, err)
-		}
-		return &nativeProc{address: address}, nil
-	}
-	version, err := find("abi_version")
+	version, err := findMemorySymbol("abi_version")
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +338,7 @@ func ensureMemoryAPI() (*memoryDLLAPI, error) {
 		{"pttl", &loaded.pttl}, {"increment", &loaded.increment},
 		{"count_existing", &loaded.countExisting}, {"delete_many", &loaded.deleteMany},
 	} {
-		proc, err := find(symbol.name)
+		proc, err := findMemorySymbol(symbol.name)
 		if err != nil {
 			return nil, err
 		}
@@ -342,6 +346,15 @@ func ensureMemoryAPI() (*memoryDLLAPI, error) {
 	}
 	memoryAPI = loaded
 	return loaded, nil
+}
+
+func findMemorySymbol(suffix string) (*nativeProc, error) {
+	name := "kerniva_memory_" + suffix
+	address, err := findSymbol(api.dll, name)
+	if err != nil {
+		return nil, fmt.Errorf("Rust memory ABI is unavailable: find %s: %w", name, err)
+	}
+	return &nativeProc{address: address}, nil
 }
 
 func memoryBytesPointer(value []byte) unsafe.Pointer {
@@ -383,6 +396,14 @@ func memoryStatusError(operation string, status int32) error {
 		return fmt.Errorf("%s memory engine: invalid argument or handle", operation)
 	case -2:
 		return fmt.Errorf("%s memory engine: native internal error", operation)
+	case -3:
+		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryStorage)
+	case -4:
+		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryDurability)
+	case -5:
+		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryReopenRequired)
+	case -6:
+		return fmt.Errorf("%s memory engine: %w", operation, ErrMemoryUnsupported)
 	default:
 		return fmt.Errorf("%s memory engine: unexpected native status %d", operation, status)
 	}

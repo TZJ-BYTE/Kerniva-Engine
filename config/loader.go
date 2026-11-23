@@ -21,6 +21,8 @@ func defaultConfigNoEnv() *Config {
 		MaxMemory:        256 * 1024 * 1024,
 		MaxMemoryPolicy:  "noeviction",
 
+		RustMemoryReadDuringSync: false,
+
 		PersistenceEnabled:       true,
 		PersistenceType:          "kerniva",
 		DataDir:                  "./data",
