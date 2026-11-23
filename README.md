@@ -87,6 +87,18 @@ redis-cli -p 16381 INFO
 
 同步日志目前仅追加。INFO 输出 WAL 大小、提交数、同步次数及累计耗时。实验应使用独立数据目录并关注空间和重启回放时间。
 
+### 复现同步时的读等待对照
+
+在 WSL 2 的 ext4 工作区运行。需要 Python 3.10 或更新版本，以及上文列出的 Go、Rust 工具链。
+
+~~~bash
+python3 scripts/thesis-reproduce-read-isolation.py
+~~~
+
+脚本构建一套服务端、Rust 动态库和压测客户端，将 2,000 与 5,000 请求/秒分别校准两轮；选择两种锁策略都达标的最高速率，再测四轮配对。增加 `--smoke` 可快速检查流程。默认在 `logs/read-isolation-*` 下保存工具链、二进制身份、原始结果、`result.json` 和 `formal/analysis/paired-summary.md`。返回码 2 表示校准无可用档位，或正式轮次有负载未达标，原始数据保留供检查。
+
+已经测得的短窗、长测、重放、Redis 和 ABI 数据见 [WSL 实验记录](docs/rust_memory_wsl_report.md)。
+
 ## 配置
 
 -config 默认指向 config.yaml。文件缺失时使用内置默认值并记录警告。YAML 字段拼写错误、格式错误和非法值会使启动失败。KERNIVA_* 环境变量覆盖文件，例如 KERNIVA_PORT、KERNIVA_NETWORK_TYPE、KERNIVA_MAX_MEMORY、KERNIVA_PERSISTENCE_ENABLED 和 KERNIVA_PERSISTENCE_DURABILITY。
