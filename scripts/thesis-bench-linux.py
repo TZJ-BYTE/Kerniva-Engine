@@ -253,7 +253,7 @@ def server_info(port):
 def metadata_sample(data_directory):
     files = []
     for path in sorted(data_directory.rglob("*")):
-        if path.is_file() and ("checkpoint" in path.name or path.suffix == ".seg"):
+        if path.is_file() and ("checkpoint" in path.name or path.suffix in (".seg", ".wal")):
             try:
                 stat = path.stat()
                 files.append({"path": str(path.relative_to(data_directory)), "size": stat.st_size,
@@ -369,6 +369,38 @@ def validate_measurement(measurement, case, options):
         raise ValueError("Client offered count does not match the fixed arrival plan")
 
 
+def validate_memory_backend(variant, info):
+    environment = variant["environment"]
+    backend = environment.get("KERNIVA_STORAGE_BACKEND", "").strip().lower()
+    if backend not in ("rust-memory", "rust-memory-sync"):
+        return
+    sync = backend == "rust-memory-sync"
+    expected = {"storage_backend": backend, "persistence_enabled": str(sync).lower()}
+    if "KERNIVA_RUST_MEMORY_SHARDS" in environment:
+        expected["memory_shards"] = str(int(environment["KERNIVA_RUST_MEMORY_SHARDS"]))
+    if sync:
+        read_during_sync = environment.get("KERNIVA_RUST_MEMORY_READ_DURING_SYNC", "false").lower()
+        expected["memory_read_during_sync"] = str(read_during_sync in ("1", "t", "true")).lower()
+        expected["wal_requires_reopen"] = "0"
+        expected["wal_failed_commits"] = "0"
+    for key, value in expected.items():
+        if info.get(key) != value:
+            raise ValueError(f"Kerniva effective {key} is {info.get(key)!r}, expected {value!r}")
+
+
+def validate_wal_measurement(before, after, measurement):
+    if after.get("storage_backend") != "rust-memory-sync":
+        return
+    commits = numeric_delta(before, after, "wal_commits")
+    sync_attempts = numeric_delta(before, after, "wal_sync_attempts")
+    if commits is None or commits != sync_attempts:
+        raise ValueError("Rust memory WAL commit and sync counts disagree")
+    # Failed or timed-out requests can leave a write in flight or committed
+    # without a reply. Preserve these windows for separate analysis.
+    if measurement["failures"] == 0 and commits != measurement["set"]["succeeded"]:
+        raise ValueError("Rust memory WAL commit count does not match acknowledged writes")
+
+
 def write_server_configuration(attempt, data, port, variant, case, options):
     if variant["engine"] == "redis":
         appendonly = "no" if options["durability"] == "memory" else "yes"
@@ -466,6 +498,7 @@ def run_case(case_directory, variant, case, plan, benchmark, options, args, atte
                      args.deadline_epoch, "Client preload and warmup")
         info_before = server_info(port)
         write_json(attempt / "info-before.json", info_before)
+        validate_memory_backend(variant, info_before)
         write_json(attempt / "metadata-before.json", metadata_sample(data))
         began = time.monotonic()
 
@@ -501,6 +534,8 @@ def run_case(case_directory, variant, case, plan, benchmark, options, args, atte
         validate_measurement(measurement, case, options)
         info_after = server_info(port)
         write_json(attempt / "info-after.json", info_after)
+        validate_memory_backend(variant, info_after)
+        validate_wal_measurement(info_before, info_after, measurement)
         write_json(attempt / "metadata-after.json", metadata_sample(data))
         result = {"status": "complete", "completed_utc": utc_now(), "plan_id": plan["plan_id"],
                   "case": case, "variant": variant, "client_sha256": plan["benchmark_sha256"],
