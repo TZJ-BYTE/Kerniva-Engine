@@ -5,7 +5,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use kerniva_engine::{Engine, EngineError, Options, SyncPolicy, WriteOp};
+use kerniva_engine::{
+    DurableMemoryEngine, DurableMemoryError, Engine, EngineError, Options, SyncPolicy, WriteOp,
+};
 
 struct TempDir(PathBuf);
 
@@ -684,4 +686,45 @@ fn zero_rewrite_compaction_survives_process_termination() {
     let engine = Engine::open(dir.options()).unwrap();
     assert_eq!(engine.get(b"old").unwrap(), None);
     assert_eq!(engine.get(b"filler").unwrap(), Some(vec![3; 8192]));
+}
+
+#[test]
+fn storage_engines_keep_directory_formats_separate() {
+    let root = TempDir::new("directory_formats");
+    let legacy_path = root.path().join("legacy");
+    let legacy = Engine::open(Options::new(&legacy_path)).unwrap();
+    assert!(legacy_path.join("segments").is_dir());
+    assert!(legacy_path.join("meta").is_dir());
+    legacy.put(b"key", b"legacy").unwrap();
+    drop(legacy);
+    assert!(matches!(
+        DurableMemoryEngine::open(&legacy_path, 4, None),
+        Err(DurableMemoryError::Storage(EngineError::InvalidOptions(_)))
+    ));
+    let reopened = Engine::open(Options::new(&legacy_path)).unwrap();
+    assert_eq!(
+        reopened.get(b"key").unwrap().as_deref(),
+        Some(&b"legacy"[..])
+    );
+
+    let memory_path = root.path().join("memory");
+    fs::create_dir(&memory_path).unwrap();
+    let durable = DurableMemoryEngine::open(&memory_path, 4, None).unwrap();
+    durable.put(b"key", b"durable").unwrap();
+    assert!(matches!(
+        Engine::open(Options::new(&memory_path)),
+        Err(EngineError::Locked(_))
+    ));
+    drop(durable);
+    assert!(matches!(
+        Engine::open(Options::new(&memory_path)),
+        Err(EngineError::InvalidOptions(_))
+    ));
+    assert!(!memory_path.join("segments").exists());
+    assert!(!memory_path.join("meta").exists());
+    let reopened = DurableMemoryEngine::open(&memory_path, 4, None).unwrap();
+    assert_eq!(
+        reopened.get(b"key").unwrap().as_deref(),
+        Some(&b"durable"[..])
+    );
 }

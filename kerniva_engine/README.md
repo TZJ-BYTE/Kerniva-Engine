@@ -48,7 +48,22 @@ Rust API 还支持绝对毫秒过期时间、按存在状态或版本条件写�
 
 过期键从截止时刻起对读取和条件判断不可见。它的常驻字节在覆盖、删除或显式调用 `purge_expired_at` 后返还。清理按单分片扫描，适合由调用方在低频维护路径调度。版本是绑定到实例和键的比较令牌。
 
-Go 服务接入见[开发计划](../docs/rust_memory_unattended_plan.md)。
+Go 服务接入使用独立的 [内存 C ABI](include/kerniva_memory.h)，运行方法见[项目 README](../README.md)。
+
+## 主存内核的同步 WAL
+
+`DurableMemoryEngine::open` 在独立的已有目录内恢复或创建 `memory-v1.wal`。运行时从 Rust 分片内存中读取。写入先完成一帧 WAL 的同步，再进行状态发布并返回成功。版本和绝对过期时间会随提交恢复。目录锁确保同一目录同时只有一个实例打开。
+
+以下原生示例创建独立实验目录，批量预填 32B 键值，测量 95% 读负载下的读写延迟以及 WAL 同步次数。
+
+~~~bash
+dir=$(mktemp -d "$HOME/kerniva-durable-bench.XXXXXX")
+cargo run --release --manifest-path kerniva_engine/Cargo.toml --example memory_benchmark -- \
+  --durable-directory "$dir" --shards 16 --threads 16 --keys 100000 \
+  --operations 300000 --warmup-per-thread 100 --read-percent 95 --sample-every 1
+~~~
+
+日志回滚失败时，实例保留已发布读视图并停止接受新写入。重新打开时，完整帧可恢复，截断尾会回退到最后一帧结束。完整帧损坏会报告错误。失去成功回复的请求可能已经同步，处理重试时应考虑这种结果。当前日志会随提交增长，恢复须扫描日志，启动预算按最终常驻数据检查。
 
 ## 同步策略
 

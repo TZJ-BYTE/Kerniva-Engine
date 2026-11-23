@@ -60,8 +60,16 @@ pub struct EngineStats {
 
 impl Engine {
     pub fn open(options: Options) -> Result<Self> {
-        options.ensure_dirs()?;
+        options.validate()?;
+        fs::create_dir_all(options.data_dir())?;
         let directory_lock = directory_lock::acquire(options.data_dir())?;
+        if options.data_dir().join("memory-v1.wal").try_exists()? {
+            return Err(EngineError::InvalidOptions(
+                "legacy engine requires a directory separate from the durable memory store".into(),
+            ));
+        }
+        fs::create_dir_all(options.segments_dir())?;
+        fs::create_dir_all(options.meta_dir())?;
         let checkpoint = checkpoint::load(&options.checkpoint_path())?;
         let segment_ids = list_segment_ids(&options.segments_dir())?;
         let segment_lengths: BTreeMap<u64, u64> = segment_ids

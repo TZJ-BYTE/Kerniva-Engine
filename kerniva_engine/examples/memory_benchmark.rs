@@ -1,11 +1,15 @@
 use std::fmt::Write as _;
 use std::hint::black_box;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Instant;
 
-use kerniva_engine::MemoryEngine;
+use kerniva_engine::{
+    DurableMemoryEngine, DurableMemoryError, DurableWalStats, MemoryBatchOp, MemoryEngine,
+    MemoryError, MemoryStats, MemoryWriteOptions,
+};
 
 struct Config {
     shards: usize,
@@ -20,6 +24,7 @@ struct Config {
     sample_every: usize,
     seed: u64,
     max_payload_bytes: Option<usize>,
+    durable_directory: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -37,6 +42,7 @@ impl Default for Config {
             sample_every: 16,
             seed: 42,
             max_payload_bytes: None,
+            durable_directory: None,
         }
     }
 }
@@ -50,13 +56,20 @@ fn parse_config() -> Result<Option<Config>, String> {
                 "memory_benchmark [--shards N] [--threads N] [--keys N] [--operations N] \
                 [--warmup-per-thread N] [--read-percent 0..100] [--hot-percent 0..100] \
                 [--hot-keys N] [--value-bytes N] [--sample-every N] [--seed N] \
-                [--max-payload-bytes N]"
+                [--max-payload-bytes N] [--durable-directory EXISTING_EMPTY_DIRECTORY]"
             );
             return Ok(None);
         }
         let raw = arguments
             .next()
             .ok_or_else(|| format!("missing value for {name}"))?;
+        if name == "--durable-directory" {
+            if config.durable_directory.is_some() {
+                return Err("--durable-directory may be specified only once".into());
+            }
+            config.durable_directory = Some(PathBuf::from(raw));
+            continue;
+        }
         if name == "--seed" {
             config.seed = raw.parse().map_err(|_| format!("invalid seed: {raw}"))?;
             continue;
@@ -144,15 +157,178 @@ struct WorkloadStats {
     put: OperationStats,
 }
 
-struct Inputs {
-    engine: MemoryEngine,
+// Generic dispatch keeps the default in-memory workload monomorphized rather
+// than introducing a virtual or enum branch in every timed native operation.
+trait BenchmarkStore: Send + Sync + 'static {
+    type Error: std::fmt::Debug;
+
+    fn get(&self, key: &[u8]) -> Result<Option<Arc<[u8]>>, Self::Error>;
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), Self::Error>;
+    fn stats(&self) -> Result<MemoryStats, Self::Error>;
+
+    fn wal_stats(&self) -> Result<Option<DurableWalStats>, Self::Error> {
+        Ok(None)
+    }
+
+    fn preload(&self, keys: &[[u8; 8]], value: &[u8]) -> Result<(), String> {
+        for (index, key) in keys.iter().enumerate() {
+            self.put(key, value)
+                .map_err(|error| format!("preload key {index}: {error:?}"))?;
+        }
+        Ok(())
+    }
+}
+
+impl BenchmarkStore for MemoryEngine {
+    type Error = MemoryError;
+
+    #[inline]
+    fn get(&self, key: &[u8]) -> Result<Option<Arc<[u8]>>, Self::Error> {
+        MemoryEngine::get(self, key)
+    }
+
+    #[inline]
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), Self::Error> {
+        MemoryEngine::put(self, key, value)
+    }
+
+    fn stats(&self) -> Result<MemoryStats, Self::Error> {
+        MemoryEngine::stats(self)
+    }
+}
+
+impl BenchmarkStore for DurableMemoryEngine {
+    type Error = DurableMemoryError;
+
+    #[inline]
+    fn get(&self, key: &[u8]) -> Result<Option<Arc<[u8]>>, Self::Error> {
+        DurableMemoryEngine::get(self, key)
+    }
+
+    #[inline]
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), Self::Error> {
+        DurableMemoryEngine::put(self, key, value)
+    }
+
+    fn stats(&self) -> Result<MemoryStats, Self::Error> {
+        DurableMemoryEngine::stats(self)
+    }
+
+    fn wal_stats(&self) -> Result<Option<DurableWalStats>, Self::Error> {
+        DurableMemoryEngine::wal_stats(self).map(Some)
+    }
+
+    fn preload(&self, keys: &[[u8; 8]], value: &[u8]) -> Result<(), String> {
+        for (index, chunk) in keys.chunks(256).enumerate() {
+            let operations: Vec<_> = chunk
+                .iter()
+                .map(|key| MemoryBatchOp::Put {
+                    key,
+                    value,
+                    options: MemoryWriteOptions::default(),
+                })
+                .collect();
+            if !self
+                .apply_batch_at(&operations, 0)
+                .map_err(|error| format!("preload batch {index}: {error:?}"))?
+            {
+                return Err(format!("unconditional preload batch {index} was rejected"));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn empty_durable_directory(directory: &Path) -> Result<PathBuf, String> {
+    let metadata = std::fs::symlink_metadata(directory)
+        .map_err(|error| format!("durable directory: {error}"))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err("--durable-directory must name an existing non-symlink directory".into());
+    }
+    let directory = std::fs::canonicalize(directory)
+        .map_err(|error| format!("resolve durable directory: {error}"))?;
+    if std::fs::read_dir(&directory)
+        .map_err(|error| format!("read durable directory: {error}"))?
+        .next()
+        .transpose()
+        .map_err(|error| format!("read durable directory entry: {error}"))?
+        .is_some()
+    {
+        return Err(
+            "--durable-directory must be empty; existing files are never removed or reused".into(),
+        );
+    }
+    Ok(directory)
+}
+
+fn wal_stats_json(stats: DurableWalStats) -> String {
+    format!(
+        "{{\"log_bytes\":{},\"commits\":{},\"failed_commits\":{},\"sync_attempts\":{},\"sync_elapsed_ns\":{},\"requires_reopen\":{}}}",
+        stats.log_bytes,
+        stats.commits,
+        stats.failed_commits,
+        stats.sync_attempts,
+        stats.sync_elapsed_ns,
+        stats.requires_reopen,
+    )
+}
+
+fn durability_fields(
+    before: Option<DurableWalStats>,
+    after: Option<DurableWalStats>,
+    directory: Option<&Path>,
+) -> Result<String, String> {
+    let (Some(before), Some(after), Some(directory)) = (before, after, directory) else {
+        return Ok(String::new());
+    };
+    let delta = DurableWalStats {
+        log_bytes: after
+            .log_bytes
+            .checked_sub(before.log_bytes)
+            .ok_or("WAL byte counter decreased")?,
+        commits: after
+            .commits
+            .checked_sub(before.commits)
+            .ok_or("WAL commit counter decreased")?,
+        failed_commits: after
+            .failed_commits
+            .checked_sub(before.failed_commits)
+            .ok_or("WAL failure counter decreased")?,
+        sync_attempts: after
+            .sync_attempts
+            .checked_sub(before.sync_attempts)
+            .ok_or("WAL sync counter decreased")?,
+        sync_elapsed_ns: after
+            .sync_elapsed_ns
+            .checked_sub(before.sync_elapsed_ns)
+            .ok_or("WAL sync time decreased")?,
+        requires_reopen: after.requires_reopen,
+    };
+    let mut fields = format!(
+        ",\"durability\":\"sync\",\"durable_directory\":{},\"preload_batch_size\":256",
+        json_string(&directory.to_string_lossy()),
+    );
+    fields.push_str(
+        ",\"wal\":{\"scope\":\"measured workload only; excludes preload and warmup\",\"before\":",
+    );
+    fields.push_str(&wal_stats_json(before));
+    fields.push_str(",\"after\":");
+    fields.push_str(&wal_stats_json(after));
+    fields.push_str(",\"delta\":");
+    fields.push_str(&wal_stats_json(delta));
+    fields.push('}');
+    Ok(fields)
+}
+
+struct Inputs<E: BenchmarkStore> {
+    engine: E,
     keys: Vec<[u8; 8]>,
     value: Vec<u8>,
     config: Config,
 }
 
-fn run_workload(
-    inputs: &Inputs,
+fn run_workload<E: BenchmarkStore>(
+    inputs: &Inputs<E>,
     operations: usize,
     measured: bool,
     random: &mut Random,
@@ -253,8 +429,25 @@ fn operation_json(stats: &mut OperationStats) -> String {
 }
 
 fn run(config: Config) -> Result<bool, String> {
-    let engine = MemoryEngine::new(config.shards, config.max_payload_bytes)
-        .map_err(|error| format!("engine initialization: {error:?}"))?;
+    if let Some(directory) = &config.durable_directory {
+        let directory = empty_durable_directory(directory)?;
+        let engine = DurableMemoryEngine::open(&directory, config.shards, config.max_payload_bytes)
+            .map_err(|error| format!("durable engine initialization: {error:?}"))?;
+        let initial = engine
+            .stats()
+            .map_err(|error| format!("empty durable stats: {error:?}"))?;
+        if initial.keys != 0 || initial.payload_bytes != 0 {
+            return Err("durable directory changed before open; refusing recovered data".into());
+        }
+        run_engine(config, engine)
+    } else {
+        let engine = MemoryEngine::new(config.shards, config.max_payload_bytes)
+            .map_err(|error| format!("engine initialization: {error:?}"))?;
+        run_engine(config, engine)
+    }
+}
+
+fn run_engine<E: BenchmarkStore>(config: Config, engine: E) -> Result<bool, String> {
     let mut keys = Vec::new();
     keys.try_reserve_exact(config.keys)
         .map_err(|error| error.to_string())?;
@@ -267,11 +460,7 @@ fn run(config: Config) -> Result<bool, String> {
         .map_err(|error| error.to_string())?;
     value.resize(config.value_bytes, b'v');
     let preload_started = Instant::now();
-    for (index, key) in keys.iter().enumerate() {
-        engine
-            .put(key, &value)
-            .map_err(|error| format!("preload key {index}: {error:?}"))?;
-    }
+    engine.preload(&keys, &value)?;
     let preload_seconds = preload_started.elapsed().as_secs_f64();
     let before = engine
         .stats()
@@ -344,10 +533,12 @@ fn run(config: Config) -> Result<bool, String> {
         }));
     }
     ready.wait();
+    let wal_before = inputs.engine.wal_stats();
     let measured_started = Instant::now();
     start.wait();
     finished.wait();
     let elapsed_seconds = measured_started.elapsed().as_secs_f64();
+    let wal_after = inputs.engine.wal_stats();
     let mut measured = WorkloadStats::default();
     let mut warmup = WorkloadStats::default();
     for handle in handles {
@@ -358,6 +549,13 @@ fn run(config: Config) -> Result<bool, String> {
         measured.get.merge(worker_measured.get);
         measured.put.merge(worker_measured.put);
     }
+    let wal_before = wal_before.map_err(|error| format!("initial WAL stats: {error:?}"))?;
+    let wal_after = wal_after.map_err(|error| format!("final WAL stats: {error:?}"))?;
+    let durability = durability_fields(
+        wal_before,
+        wal_after,
+        inputs.config.durable_directory.as_deref(),
+    )?;
     let mut validation_failures = 0;
     let mut validation_first_error = None;
     for key in &inputs.keys {
@@ -384,8 +582,14 @@ fn run(config: Config) -> Result<bool, String> {
         && measured.get.offered + measured.put.offered == inputs.config.operations
         && before.keys == inputs.config.keys
         && after.keys == inputs.config.keys
-        && before.payload_bytes == after.payload_bytes;
+        && before.payload_bytes == after.payload_bytes
+        && wal_after.is_none_or(|stats| !stats.requires_reopen);
     let config = &inputs.config;
+    let mode = if config.durable_directory.is_some() {
+        "native_durable_memory_closed_loop"
+    } else {
+        "native_memory_closed_loop"
+    };
     let budget = config
         .max_payload_bytes
         .map_or_else(|| "null".into(), |value| value.to_string());
@@ -393,8 +597,9 @@ fn run(config: Config) -> Result<bool, String> {
         .as_deref()
         .map_or_else(|| "null".into(), json_string);
     println!(
-        "{{\"schema_version\":1,\"status\":\"{}\",\"mode\":\"native_memory_closed_loop\",\"crate_version\":\"{}\",\"shards_requested\":{},\"shards_actual\":{},\"threads\":{},\"keys\":{},\"key_bytes\":8,\"value_bytes\":{},\"operations\":{},\"warmup_per_thread\":{},\"warmup_failures\":{},\"read_percent\":{},\"hot_percent\":{},\"hot_keys\":{},\"seed\":{},\"rng\":\"per_thread_xorshift64\",\"sample_every\":{},\"sampling\":\"systematic total-operation index with seeded per-thread phase\",\"latency_origin\":\"engine call including returned Arc release; successful sampled operations only\",\"throughput_scope\":\"full worker loop including key selection and local counters\",\"elapsed_seconds\":{:.9},\"attempted_ops_per_second\":{:.3},\"successful_ops_per_second\":{:.3},\"succeeded\":{},\"failures\":{},\"preload_seconds\":{:.9},\"payload_bytes_before\":{},\"payload_bytes_after\":{},\"max_payload_bytes\":{},\"harness_key_catalog_bytes\":{},\"harness_sample_capacity_bytes\":{},\"validation_keys\":{},\"validation_failures\":{},\"validation_first_error\":{},\"get\":{},\"put\":{}}}",
+        "{{\"schema_version\":1,\"status\":\"{}\",\"mode\":{},\"crate_version\":\"{}\",\"shards_requested\":{},\"shards_actual\":{},\"threads\":{},\"keys\":{},\"key_bytes\":8,\"value_bytes\":{},\"operations\":{},\"warmup_per_thread\":{},\"warmup_failures\":{},\"read_percent\":{},\"hot_percent\":{},\"hot_keys\":{},\"seed\":{},\"rng\":\"per_thread_xorshift64\",\"sample_every\":{},\"sampling\":\"systematic total-operation index with seeded per-thread phase\",\"latency_origin\":\"engine call including returned Arc release; successful sampled operations only\",\"throughput_scope\":\"full worker loop including key selection and local counters\",\"elapsed_seconds\":{:.9},\"attempted_ops_per_second\":{:.3},\"successful_ops_per_second\":{:.3},\"succeeded\":{},\"failures\":{},\"preload_seconds\":{:.9},\"payload_bytes_before\":{},\"payload_bytes_after\":{},\"max_payload_bytes\":{},\"harness_key_catalog_bytes\":{},\"harness_sample_capacity_bytes\":{},\"validation_keys\":{},\"validation_failures\":{},\"validation_first_error\":{},\"get\":{},\"put\":{}{}}}",
         if valid { "passed" } else { "failed" },
+        json_string(mode),
         env!("CARGO_PKG_VERSION"),
         config.shards,
         after.shards,
@@ -425,6 +630,7 @@ fn run(config: Config) -> Result<bool, String> {
         validation_error,
         operation_json(&mut measured.get),
         operation_json(&mut measured.put),
+        durability,
     );
     Ok(valid)
 }

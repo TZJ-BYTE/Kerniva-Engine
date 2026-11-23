@@ -27,16 +27,22 @@ impl<'a> MemoryBatchOp<'a> {
     }
 }
 
-struct PendingValue<'a> {
-    bytes: &'a [u8],
-    version: u64,
-    expires_at_ms: Option<u64>,
+pub(super) struct PendingValue<'a> {
+    pub(super) bytes: &'a [u8],
+    pub(super) version: u64,
+    pub(super) expires_at_ms: Option<u64>,
 }
 
-struct BatchShard<'engine, 'input> {
-    state: RwLockWriteGuard<'engine, ShardState>,
-    changes: HashMap<&'input [u8], Option<PendingValue<'input>>>,
+pub(super) struct BatchShard<'engine, 'input> {
+    pub(super) state: RwLockWriteGuard<'engine, ShardState>,
+    pub(super) changes: HashMap<&'input [u8], Option<PendingValue<'input>>>,
     last_version: u64,
+}
+
+pub(super) struct PreparedBatch<'engine, 'input> {
+    pub(super) shards: Vec<BatchShard<'engine, 'input>>,
+    pub(super) before: usize,
+    pub(super) after: usize,
 }
 
 impl<'input> BatchShard<'_, 'input> {
@@ -44,6 +50,7 @@ impl<'input> BatchShard<'_, 'input> {
         &mut self,
         operation: MemoryBatchOp<'input>,
         now_ms: u64,
+        next_version: &mut impl FnMut(u64) -> Result<u64, MemoryError>,
     ) -> Result<bool, MemoryError> {
         let key = operation.key();
         let visible_version = match self.changes.get(key) {
@@ -62,10 +69,7 @@ impl<'input> BatchShard<'_, 'input> {
                 if !options.condition.matches(visible_version) {
                     return Ok(false);
                 }
-                self.last_version = self
-                    .last_version
-                    .checked_add(1)
-                    .ok_or(MemoryError::VersionExhausted)?;
+                self.last_version = next_version(self.last_version)?;
                 Some(PendingValue {
                     bytes: value,
                     version: self.last_version,
@@ -182,6 +186,27 @@ impl MemoryEngine {
         operations: &[MemoryBatchOp<'_>],
         now_ms: u64,
     ) -> Result<bool, MemoryError> {
+        let Some(mut prepared) = self.prepare_batch_at(operations, now_ms, |previous| {
+            previous.checked_add(1).ok_or(MemoryError::VersionExhausted)
+        })?
+        else {
+            return Ok(false);
+        };
+        self.reserve_payload(prepared.after.saturating_sub(prepared.before))?;
+        for shard in &mut prepared.shards {
+            shard.publish();
+        }
+        self.release_payload(prepared.before.saturating_sub(prepared.after));
+        // All write guards are still held after every entry and version is published.
+        Ok(true)
+    }
+
+    pub(super) fn prepare_batch_at<'engine, 'input>(
+        &'engine self,
+        operations: &[MemoryBatchOp<'input>],
+        now_ms: u64,
+        mut next_version: impl FnMut(u64) -> Result<u64, MemoryError>,
+    ) -> Result<Option<PreparedBatch<'engine, 'input>>, MemoryError> {
         let indices = self.touched_shards(operations.iter().copied().map(MemoryBatchOp::key))?;
         let mut shards = Vec::new();
         shards
@@ -203,8 +228,8 @@ impl MemoryEngine {
             let position = indices
                 .binary_search(&self.shard_index(operation.key()))
                 .expect("modified shard is locked");
-            if !shards[position].stage(operation, now_ms)? {
-                return Ok(false);
+            if !shards[position].stage(operation, now_ms, &mut next_version)? {
+                return Ok(None);
             }
         }
 
@@ -213,13 +238,11 @@ impl MemoryEngine {
         for shard in &mut shards {
             shard.prepare(&mut before, &mut after)?;
         }
-        self.reserve_payload(after.saturating_sub(before))?;
-        for shard in &mut shards {
-            shard.publish();
-        }
-        self.release_payload(before.saturating_sub(after));
-        // All write guards are still held after every entry and version is published.
-        Ok(true)
+        Ok(Some(PreparedBatch {
+            shards,
+            before,
+            after,
+        }))
     }
 
     pub(super) fn touched_shards<'a>(

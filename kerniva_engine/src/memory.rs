@@ -7,9 +7,11 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod batch;
+mod durable;
 mod strings;
 
 pub use batch::MemoryBatchOp;
+pub use durable::{DurableMemoryEngine, DurableMemoryError, DurableWalStats};
 
 type Shard = RwLock<ShardState>;
 

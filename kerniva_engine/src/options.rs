@@ -65,14 +65,6 @@ impl Options {
         self.segments_dir().join(format!("{segment_id:010}.seg"))
     }
 
-    pub(crate) fn ensure_dirs(&self) -> Result<()> {
-        self.validate()?;
-        std::fs::create_dir_all(&self.data_dir)?;
-        std::fs::create_dir_all(self.segments_dir())?;
-        std::fs::create_dir_all(self.meta_dir())?;
-        Ok(())
-    }
-
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
