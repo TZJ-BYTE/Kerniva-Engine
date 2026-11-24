@@ -144,6 +144,15 @@ func OpenFollowerWithOptions(root, upstream string, databases []int, options Fol
 	if err != nil {
 		return nil, fmt.Errorf("lock replica root: %w", err)
 	}
+	var transport http.RoundTripper
+	if defaults, ok := http.DefaultTransport.(*http.Transport); ok && defaults != nil {
+		pool := defaults.Clone()
+		// Each database can finish a pull and return a connection to the pool.
+		if pool.MaxIdleConnsPerHost == 0 {
+			pool.MaxIdleConnsPerHost = max(http.DefaultMaxIdleConnsPerHost, len(databases))
+		}
+		transport = pool
+	}
 	f := &Follower{
 		root:     root,
 		pullURL:  address.JoinPath("pull").String(),
@@ -152,6 +161,7 @@ func OpenFollowerWithOptions(root, upstream string, databases []int, options Fol
 		pullIdle: options.PullIdleTimeout,
 		trace:    openMemoryTrace(),
 		client: &http.Client{
+			Transport:     transport,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
