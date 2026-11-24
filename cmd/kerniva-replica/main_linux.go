@@ -40,11 +40,13 @@ func run(ctx context.Context, args []string) error {
 		flags.StringVar(&listen, "listen", "127.0.0.1:18379", "loopback HTTP listening address")
 	}
 	var interval, pullIdle time.Duration
+	var snapshotConcurrency int
 	if mode == "follow" {
 		flags.StringVar(&upstream, "source", "", "source HTTP URL")
 		flags.StringVar(&databases, "dbs", "0", "comma-separated database numbers")
 		flags.DurationVar(&interval, "interval", time.Second, "delay between pulls for each database")
 		flags.DurationVar(&pullIdle, "pull-idle-timeout", gologreplica.DefaultTransferIdleTimeout, "maximum time with no response or new bytes during a pull")
+		flags.IntVar(&snapshotConcurrency, "snapshot-concurrency", 0, "maximum concurrent snapshot pulls across databases (0 is unlimited)")
 	}
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -86,7 +88,9 @@ func run(ctx context.Context, args []string) error {
 		}
 		numbers = append(numbers, number)
 	}
-	follower, err := gologreplica.OpenFollowerWithPullIdleTimeout(*root, upstream, numbers, pullIdle)
+	follower, err := gologreplica.OpenFollowerWithOptions(*root, upstream, numbers, gologreplica.FollowerOptions{
+		PullIdleTimeout: pullIdle, SnapshotConcurrency: snapshotConcurrency,
+	})
 	if err != nil {
 		return err
 	}

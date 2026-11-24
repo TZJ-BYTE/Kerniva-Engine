@@ -205,8 +205,15 @@ func (s *source) pull(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid snapshot request", http.StatusBadRequest)
 		return
 	}
-	current, err := s.capture(r.Context(), db, after, rebase, forceSnapshot)
+	deferSnapshot := query.Get(deferSnapshotQuery) == "1"
+	current, err := s.capture(r.Context(), db, after, rebase, forceSnapshot, deferSnapshot)
 	if err != nil {
+		if errors.Is(err, errSnapshotRequired) {
+			w.Header().Set(snapshotRequiredHeader, "1")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		status := http.StatusInternalServerError
 		switch {
 		case errors.Is(err, errCursor), errors.Is(err, errSnapshotUnavailable):
@@ -243,7 +250,7 @@ func (s *source) pull(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *source) capture(ctx context.Context, db int, after, rebase uint64, forceSnapshot bool) (*export, error) {
+func (s *source) capture(ctx context.Context, db int, after, rebase uint64, forceSnapshot, deferSnapshot bool) (*export, error) {
 	directory := filepath.Join(s.root, dbName(db))
 	// Rust uses the same Linux flock for CURRENT publication and file removal.
 	// Retaining descriptors makes this view independent of future unlink calls.
@@ -348,6 +355,9 @@ func (s *source) capture(ctx context.Context, db int, after, rebase uint64, forc
 		}
 	}
 	if needsSnapshot || result.info.Rebase {
+		if deferSnapshot {
+			return nil, errSnapshotRequired
+		}
 		result.info.Snapshot = cutoff
 		result.info.Last = max(after, cutoff)
 		if _, err := appendFile(snapshotName(cutoff)); err != nil {

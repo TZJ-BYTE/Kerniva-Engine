@@ -99,7 +99,7 @@ func TestRetainedSegmentsSourceSelection(t *testing.T) {
 	s := &source{root: primary}
 	s.id, err = sourceID(primary)
 	check(t, err)
-	capture, err := s.capture(t.Context(), 0, 1, 0, false)
+	capture, err := s.capture(t.Context(), 0, 1, 0, false, false)
 	check(t, err)
 	defer capture.close()
 	if capture.info.Snapshot != 0 || capture.info.Last != 3 || len(capture.info.Files) != 1 {
@@ -146,7 +146,9 @@ func TestRetainedReplicaRecoversCorruptBridgeWithSnapshot(t *testing.T) {
 	check(t, err)
 	defer good.Close()
 	poll(t, good)
-	bad, err := OpenFollower(t.TempDir(), upstream.URL, []int{0})
+	bad, err := OpenFollowerWithOptions(t.TempDir(), upstream.URL, []int{0}, FollowerOptions{
+		PullIdleTimeout: DefaultTransferIdleTimeout, SnapshotConcurrency: 1,
+	})
 	check(t, err)
 	defer bad.Close()
 	poll(t, bad)
@@ -237,6 +239,9 @@ func TestRetainedReplicaRecoversCorruptBridgeWithSnapshot(t *testing.T) {
 	assertPrevious()
 	if got := forced.Load(); got != 2 {
 		t.Fatalf("failed polls made %d replacement requests, want 2", got)
+	}
+	if len(bad.snapshotSlots) != 0 {
+		t.Fatal("failed replacement kept a snapshot permit")
 	}
 
 	mode.Store(0)

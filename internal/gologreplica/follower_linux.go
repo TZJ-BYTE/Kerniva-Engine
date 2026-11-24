@@ -88,6 +88,7 @@ type Follower struct {
 	lease         *os.File
 	client        *http.Client
 	pullIdle      time.Duration
+	snapshotSlots chan struct{}
 	sourceMu      sync.RWMutex
 	lifecycleMu   sync.Mutex
 	lifetime      context.Context
@@ -104,6 +105,17 @@ func OpenFollower(root, upstream string, databases []int) (*Follower, error) {
 
 // OpenFollowerWithPullIdleTimeout configures the maximum time without a response or new bytes in a pull.
 func OpenFollowerWithPullIdleTimeout(root, upstream string, databases []int, pullIdle time.Duration) (*Follower, error) {
+	return OpenFollowerWithOptions(root, upstream, databases, FollowerOptions{PullIdleTimeout: pullIdle})
+}
+
+type FollowerOptions struct {
+	PullIdleTimeout time.Duration
+	// SnapshotConcurrency bounds concurrent snapshot pulls. Zero leaves them unlimited.
+	SnapshotConcurrency int
+}
+
+// OpenFollowerWithOptions loads the replica and configures its pull policy.
+func OpenFollowerWithOptions(root, upstream string, databases []int, options FollowerOptions) (*Follower, error) {
 	address, err := url.Parse(upstream)
 	if err != nil || (address.Scheme != "http" && address.Scheme != "https") ||
 		address.Host == "" || address.User != nil || address.RawQuery != "" || address.Fragment != "" {
@@ -112,8 +124,11 @@ func OpenFollowerWithPullIdleTimeout(root, upstream string, databases []int, pul
 	if root == "" || len(databases) == 0 {
 		return nil, errors.New("replica root and databases are required")
 	}
-	if pullIdle <= 0 {
+	if options.PullIdleTimeout <= 0 {
 		return nil, errors.New("pull idle timeout must be positive")
+	}
+	if options.SnapshotConcurrency < 0 {
+		return nil, errors.New("snapshot concurrency must be nonnegative")
 	}
 	root, err = filepath.Abs(filepath.Join(root, "follower-v1"))
 	if err != nil {
@@ -131,10 +146,13 @@ func OpenFollowerWithPullIdleTimeout(root, upstream string, databases []int, pul
 		pullURL:  address.JoinPath("pull").String(),
 		byNumber: make(map[int]*replicaDB, len(databases)),
 		lease:    lease,
-		pullIdle: pullIdle,
+		pullIdle: options.PullIdleTimeout,
 		client: &http.Client{
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
+	}
+	if options.SnapshotConcurrency != 0 {
+		f.snapshotSlots = make(chan struct{}, options.SnapshotConcurrency)
 	}
 	id, err := os.ReadFile(filepath.Join(root, "UPSTREAM"))
 	if err == nil {
@@ -375,8 +393,6 @@ func (f *Follower) fetch(ctx context.Context, db *replicaDB, previous *view) (*v
 }
 
 func (f *Follower) pull(ctx context.Context, db *replicaDB, previous *view, forceSnapshot bool) (*view, error) {
-	ctx, progress := watchPullProgress(ctx, f.pullIdle)
-	defer progress.close()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, f.pullURL, nil)
 	if err != nil {
 		return nil, err
@@ -401,6 +417,46 @@ func (f *Follower) pull(ctx context.Context, db *replicaDB, previous *view, forc
 		db.retryRebaseAt = now.Add(rebaseRetryDelay)
 	}
 	request.URL.RawQuery = query.Encode()
+	if f.snapshotSlots == nil {
+		return f.pullOnce(request, db, previous, after, requested, forceSnapshot, false, false)
+	}
+	if !forceSnapshot {
+		next, err := f.pullOnce(request, db, previous, after, requested, false, true, false)
+		if !errors.Is(err, errSnapshotRequired) {
+			return next, err
+		}
+	}
+	// The probe has closed before we enter the queue. Timing starts again
+	// only after a permit is available and the next request is sent.
+	select {
+	case f.snapshotSlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		<-f.snapshotSlots
+		return nil, err
+	}
+	if requested != 0 {
+		db.retryRebaseAt = time.Now().Add(rebaseRetryDelay)
+	}
+	return f.pullOnce(request, db, previous, after, requested, forceSnapshot, false, true)
+}
+
+func (f *Follower) pullOnce(request *http.Request, db *replicaDB, previous *view, after, requested uint64, forceSnapshot, probeSnapshot, snapshotPermit bool) (*view, error) {
+	defer func() {
+		if snapshotPermit {
+			<-f.snapshotSlots
+		}
+	}()
+	ctx, progress := watchPullProgress(request.Context(), f.pullIdle)
+	defer progress.close()
+	request = request.Clone(ctx)
+	if probeSnapshot {
+		query := request.URL.Query()
+		query.Set(deferSnapshotQuery, "1")
+		request.URL.RawQuery = query.Encode()
+	}
 	response, err := f.client.Do(request)
 	if err != nil {
 		if errors.Is(context.Cause(ctx), errPullIdle) {
@@ -410,6 +466,9 @@ func (f *Follower) pull(ctx context.Context, db *replicaDB, previous *view, forc
 	}
 	defer response.Body.Close()
 	progress.received()
+	if probeSnapshot && response.StatusCode == http.StatusNoContent && response.Header.Get(snapshotRequiredHeader) == "1" {
+		return nil, errSnapshotRequired
+	}
 	body := bufio.NewReader(pullReader{ctx: ctx, body: response.Body, progress: progress})
 	if response.StatusCode != http.StatusOK {
 		message, err := io.ReadAll(io.LimitReader(body, 512))
@@ -433,6 +492,21 @@ func (f *Follower) pull(ctx context.Context, db *replicaDB, previous *view, forc
 	}
 	if info.Rebase && info.Snapshot != requested {
 		return nil, errors.New("unexpected replica rebase")
+	}
+	if probeSnapshot && info.Snapshot != 0 {
+		// Older sources ignore the probe option and stream the snapshot.
+		// Reuse their response only when a permit can be acquired immediately.
+		select {
+		case f.snapshotSlots <- struct{}{}:
+			snapshotPermit = true
+		default:
+			return nil, errSnapshotRequired
+		}
+	}
+	if snapshotPermit && info.Snapshot == 0 {
+		// The source can publish a different cutoff between the two requests.
+		<-f.snapshotSlots
+		snapshotPermit = false
 	}
 	if previous != nil && len(info.Files) == 0 {
 		if err := readEnd(body); err != nil {

@@ -212,7 +212,7 @@ func TestExportDescriptorSurvivesRustReclaim(t *testing.T) {
 	s := &source{root: primary}
 	s.id, err = sourceID(primary)
 	check(t, err)
-	export, err := s.capture(t.Context(), 0, 0, 0, false)
+	export, err := s.capture(t.Context(), 0, 0, 0, false, false)
 	check(t, err)
 	defer export.close()
 	if export.info.Last != 1 || len(export.files) != 1 {

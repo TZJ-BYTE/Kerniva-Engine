@@ -28,6 +28,7 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 	handler, err := NewSource(primary)
 	check(t, err)
 	var attempts atomic.Int32
+	var deferred atomic.Int32
 	var injectChecksumError atomic.Bool
 	var lastRebase atomic.Pointer[manifest]
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,9 +36,15 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 			handler.ServeHTTP(w, r)
 			return
 		}
-		attempts.Add(1)
+		if r.URL.Query().Get(deferSnapshotQuery) == "" {
+			attempts.Add(1)
+		}
 		recorded := httptest.NewRecorder()
 		handler.ServeHTTP(recorded, r)
+		if recorded.Code == http.StatusNoContent {
+			deferred.Add(1)
+			w.Header().Set(snapshotRequiredHeader, recorded.Header().Get(snapshotRequiredHeader))
+		}
 		data := recorded.Body.Bytes()
 		info, err := readManifest(bytes.NewReader(data))
 		if err == nil && info.Rebase {
@@ -51,7 +58,9 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 	}))
 	defer upstream.Close()
 	root := t.TempDir()
-	follower, err := OpenFollower(root, upstream.URL, []int{0})
+	follower, err := OpenFollowerWithOptions(root, upstream.URL, []int{0}, FollowerOptions{
+		PullIdleTimeout: DefaultTransferIdleTimeout, SnapshotConcurrency: 1,
+	})
 	check(t, err)
 	db := follower.byNumber[0]
 	db.minimumRebase = 1
@@ -103,7 +112,7 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 	injectChecksumError.Store(false)
 	seal("tail", "second")
 	poll(t, follower)
-	if attempts.Load() != 1 || db.result.Load().status.Sequence != 14 {
+	if attempts.Load() != 1 || deferred.Load() != 1 || db.result.Load().status.Sequence != 14 {
 		t.Fatal("snapshot retry delay blocked ordinary sealed-log progress")
 	}
 	compact()
@@ -111,7 +120,7 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 	db.retryRebaseAt = time.Time{}
 	poll(t, follower)
 	if got := reportStatus(t, follower, 0); got.Sequence != 15 || got.Snapshot != 0 ||
-		got.Rebases != 0 || attempts.Load() != 2 || db.requestedSnapshot != 14 {
+		got.Rebases != 0 || attempts.Load() != 1 || deferred.Load() != 1 || db.requestedSnapshot != 14 {
 		t.Fatalf("stale request did not continue with latest hint and suffix: %+v", got)
 	}
 	generation = filepath.Join(db.directory, db.result.Load().view.Generation)
@@ -123,7 +132,7 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 	poll(t, follower)
 	rebased := reportStatus(t, follower, 0)
 	if rebased.Sequence != 15 || rebased.Snapshot != 14 || rebased.Rebases != 1 ||
-		rebased.Bootstraps != 0 || attempts.Load() != 3 {
+		rebased.Bootstraps != 0 || attempts.Load() != 2 || deferred.Load() != 2 {
 		t.Fatalf("online rebase regressed or advanced its cursor: %+v", rebased)
 	}
 	info := lastRebase.Load()
@@ -144,7 +153,7 @@ func TestOnlineRebaseKeepsSequenceAndReusesTail(t *testing.T) {
 		t.Fatalf("covered log prefix was retained: %v", err)
 	}
 	poll(t, follower)
-	if attempts.Load() != 3 {
+	if attempts.Load() != 2 || deferred.Load() != 2 {
 		t.Fatal("same checkpoint was requested again")
 	}
 

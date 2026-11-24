@@ -15,6 +15,13 @@ const DefaultTransferIdleTimeout = 30 * time.Second
 
 var errPullIdle = errors.New("replication pull idle timeout")
 
+const (
+	deferSnapshotQuery     = "defer_snapshot"
+	snapshotRequiredHeader = "Kerniva-Snapshot-Required"
+)
+
+var errSnapshotRequired = errors.New("replication pull requires a snapshot")
+
 // A pull with steady progress may take longer than its idle limit.
 // One timer follows progress without creating a timer per response read.
 type pullProgress struct {
