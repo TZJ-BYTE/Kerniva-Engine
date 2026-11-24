@@ -22,6 +22,8 @@ usage() {
   ./kerniva status
   ./kerniva logs [--follow] [--tail N]
   ./kerniva client [host] [port]
+  ./kerniva workbench [--port PORT] [--config PATH]
+  ./kerniva shell [--config PATH | --url http://127.0.0.1:PORT]
 EOF
 }
 
@@ -48,6 +50,12 @@ cmd="${1:-help}"
 shift || true
 
 case "$cmd" in
+  shell)
+    exec python3 -B "$ROOT/scripts/kerniva-workbench.py" --shell "$@"
+    ;;
+  workbench)
+    exec python3 -B "$ROOT/scripts/kerniva-workbench.py" "$@"
+    ;;
   help|-h|--help|"")
     usage
     exit 0

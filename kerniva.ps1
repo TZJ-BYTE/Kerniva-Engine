@@ -59,6 +59,8 @@ function Usage {
   .\kerniva status
   .\kerniva logs [--follow] [--tail N]
   .\kerniva client [host] [port]
+  .\kerniva workbench [--port PORT] [--config PATH]
+  .\kerniva shell [--config PATH | --url http://127.0.0.1:PORT]
 
 说明:
   - build 调用 scripts\build.ps1 构建服务和原生库
@@ -87,6 +89,14 @@ if (-not $Command -or $Command -in @("help", "-h", "--help", "/?")) {
 }
 
 switch ($Command.ToLowerInvariant()) {
+  "shell" {
+    & python -B (Join-Path $root "scripts\kerniva-workbench.py") --shell @ArgsRest
+    exit $LASTEXITCODE
+  }
+  "workbench" {
+    & python -B (Join-Path $root "scripts\kerniva-workbench.py") @ArgsRest
+    exit $LASTEXITCODE
+  }
   "build" {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "scripts\build.ps1")
     exit $LASTEXITCODE

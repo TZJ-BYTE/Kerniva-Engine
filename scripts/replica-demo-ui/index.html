@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Kerniva · 复制控制台</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#/overview" id="skip-workspace">跳到工作区</a>
+  <aside class="sidebar" aria-label="工作区侧栏">
+    <a class="brand" href="#/overview"><span class="brand-symbol" aria-hidden="true">K</span><span><strong>Kerniva</strong><small>本地工作区 · Linux</small></span></a>
+    <button id="toggle-nav" class="button button-light nav-toggle" type="button" aria-controls="section-nav" aria-expanded="false">目录</button>
+    <nav id="section-nav" aria-label="工作区导航">
+      <a href="#/overview" data-nav="overview"><span aria-hidden="true">▤</span>概览</a>
+      <a href="#/replication" data-nav="replication"><span aria-hidden="true">⇄</span>复制诊断</a>
+      <a href="#/commands/0" data-nav="commands" id="nav-commands"><span aria-hidden="true">›_</span>校验命令</a>
+      <a href="#/activity?page=1" data-nav="activity"><span aria-hidden="true">≡</span>操作记录</a>
+      <a href="#/experiments?page=1" data-nav="experiments"><span aria-hidden="true">□</span>实验数据</a>
+      <div class="nav-group" aria-label="逻辑库">
+        <p>逻辑库</p>
+        <a href="#/databases/0" data-sidebar-db="0"><span class="nav-db-label">DB 0</span></a>
+        <a href="#/databases/1" data-sidebar-db="1"><span class="nav-db-label">DB 1</span></a>
+      </div>
+      <a id="open-workbench" href="http://127.0.0.1:18782/" title="打开独立运行的数据库工作台"><span aria-hidden="true">↗</span>数据库工作台</a>
+    </nav>
+    <div class="sidebar-foot"><span>面板地址</span><code id="panel-host">—</code></div>
+  </aside>
+  <div class="shell">
+    <header class="topbar">
+      <div class="breadcrumb"><span>Kerniva</span><span aria-hidden="true">/</span><strong id="view-name">概览</strong></div>
+      <div id="connection" class="connection" data-state="pending" role="status"><span class="signal"></span><span id="connection-label">正在连接</span></div>
+    </header>
+    <main id="top" class="layout" tabindex="-1">
+    <div id="connection-notice" class="notice" hidden>
+      <div><strong>暂时无法获取节点状态</strong><p>请确认本地演示服务正在运行，再点击重试。</p></div>
+      <button id="retry" class="button button-light" type="button">重试连接</button>
+    </div>
+
+    <section data-view="overview" hidden>
+      <header class="view-heading"><h1 id="overview-title" tabindex="-1">主从复制概览</h1><p>主库、源侧车与两个独立副本的当前状态。</p></header>
+    <section class="topology" id="topology" aria-labelledby="topology-title">
+      <div class="topology-heading">
+        <div><h2 id="topology-title">复制拓扑</h2><p>主库封存日志，两个副本分别从源侧车拉取。</p></div>
+        <span id="last-refresh" class="refresh">等待读取状态</span>
+      </div>
+      <div class="graph" aria-label="主库的封存段由源侧车分别传给副本 A 和副本 B">
+        <article id="node-primary" class="node" data-state="pending" aria-label="主库">
+          <div class="node-name"><span class="node-mark" aria-hidden="true">P</span><div><h3>主库</h3><small>Go-log · RESP</small></div></div><span class="endpoint" data-endpoint>—</span><span class="node-state"><span class="signal"></span><span data-node-state>等待连接</span></span>
+        </article>
+        <div class="topology-edge edge-source" aria-hidden="true"><span>封存段</span><i></i></div>
+        <article id="node-source" class="node" data-state="pending" aria-label="源侧车">
+          <div class="node-name"><span class="node-mark" aria-hidden="true">S</span><div><h3>源侧车</h3><small>封存日志与快照</small></div></div><span class="endpoint" data-endpoint>—</span><span class="node-state"><span class="signal"></span><span data-node-state>等待连接</span></span>
+        </article>
+        <div class="topology-edge edge-fork" aria-hidden="true"><span>HTTP</span><i></i><b></b></div>
+        <article id="node-a" class="node" data-state="pending" aria-label="副本 A">
+          <div class="node-name"><span class="node-mark" aria-hidden="true">A</span><div><h3>副本 A</h3><small>只读 HTTP</small></div></div><span class="endpoint" data-endpoint>—</span><span class="node-state"><span class="signal"></span><span data-node-state>等待连接</span></span>
+        </article>
+        <article id="node-b" class="node" data-state="pending" aria-label="副本 B">
+          <div class="node-name"><span class="node-mark" aria-hidden="true">B</span><div><h3>副本 B</h3><small>只读 HTTP</small></div></div><span class="endpoint" data-endpoint>—</span><span class="node-state"><span class="signal"></span><span data-node-state>等待连接</span></span>
+        </article>
+      </div>
+    </section>
+
+      <section class="view-block" aria-labelledby="cross-db-title">
+        <h2 id="cross-db-title">逻辑库状态</h2>
+        <div id="overview-databases" class="summary-grid"></div>
+      </section>
+    </section>
+    <section id="workspace" data-view="databases" hidden>
+      <header class="view-heading"><h1 id="compare-title" tabindex="-1">DB 0</h1><p>写入标记，比较主库和副本读到的值。</p></header>
+      <div class="workspace">
+      <section class="panel compare" aria-labelledby="read-title">
+        <div class="section-header"><div><h2 id="read-title">读取对照</h2></div>
+          <fieldset id="db-selector" class="segmented"><legend class="sr-only">选择逻辑库</legend>
+            <label><input type="radio" name="view-db" value="0" checked><span>DB 0</span></label>
+            <label><input type="radio" name="view-db" value="1"><span>DB 1</span></label>
+          </fieldset>
+        </div>
+        <div class="mark-key">标记键 <code id="marker-key">—</code></div>
+        <div class="read-cards">
+          <article class="read-card" id="read-primary"><div class="read-title"><h3>主库</h3><span class="read-status" data-read-state>等待连接</span></div><div class="read-value" data-value>—</div><div class="read-meta"><span>提交序号 <strong data-sequence>—</strong></span><span>RESP</span></div><p class="read-error" data-error hidden></p></article>
+          <article class="read-card" id="read-a"><div class="read-title"><h3>副本 A</h3><span class="read-status" data-read-state>等待连接</span></div><div class="read-value" data-value>—</div><div class="read-meta"><span>应用序号 <strong data-sequence>—</strong></span><span>快照 <strong data-snapshot>—</strong></span></div><p class="read-error" data-error hidden></p></article>
+          <article class="read-card" id="read-b"><div class="read-title"><h3>副本 B</h3><span class="read-status" data-read-state>等待连接</span></div><div class="read-value" data-value>—</div><div class="read-meta"><span>应用序号 <strong data-sequence>—</strong></span><span>快照 <strong data-snapshot>—</strong></span></div><p class="read-error" data-error hidden></p></article>
+        </div>
+        <p id="compare-note" class="compare-note">写入新标记后，可在这里观察副本何时读到相同的值。</p>
+      </section>
+
+      <section class="panel controls" aria-labelledby="write-title">
+        <div class="section-header"><div><h2 id="write-title">写入标记</h2></div><span class="db-tag" id="write-db">DB 0</span></div>
+        <form id="marker-form">
+          <label for="marker-value">标记值</label>
+          <div class="input-row"><input id="marker-value" name="value" placeholder="输入要复制的内容" maxlength="256" required autocomplete="off"><button id="generate" type="button" class="button button-light">生成标记</button></div>
+          <button id="send-marker" class="button button-primary" type="submit" disabled>写入主库</button>
+        </form>
+        <div class="control-divider"></div>
+        <div class="replica-heading"><h3>副本控制</h3></div>
+        <div class="control-row"><span><span class="mini-node">A</span><strong>副本 A</strong></span><button id="control-a" class="button button-light" type="button" disabled>暂停</button></div>
+        <div class="control-row"><span><span class="mini-node">B</span><strong>副本 B</strong></span><button id="control-b" class="button button-light" type="button" disabled>暂停</button></div>
+        <p id="action-feedback" class="action-feedback" role="status" hidden></p>
+      </section>
+      </div>
+    </section>
+
+    <section id="replication" data-view="replication" hidden>
+      <header class="view-heading"><h1 id="replication-title" tabindex="-1">复制诊断</h1><p>分别观察每个逻辑库的提交、封存和应用进度。</p></header>
+      <div id="replication-metrics"></div>
+      <p class="muted view-note">落后条数以源可取序号减去副本应用序号计算，仅比较同一来源的当前读数。</p>
+    </section>
+
+    <section id="commands" data-view="commands" hidden>
+      <header class="view-heading"><h1 id="commands-title" tabindex="-1">校验命令</h1><p>在本地终端运行，核对当前环境里的真实标记和序号。</p></header>
+      <div class="inline-nav" aria-label="命令逻辑库"><a href="#/commands/0" data-command-db="0">DB 0</a><a href="#/commands/1" data-command-db="1">DB 1</a></div>
+      <div class="command-list">
+        <section><h2>主库 · 读取标记</h2><div class="command-line"><code id="read-command">等待主库状态</code><button id="copy-command" class="button button-light" data-command-copy="read-command" type="button" disabled>复制命令</button></div></section>
+        <section><h2>主库 · 查看日志序号</h2><div class="command-line"><code id="primary-info-command">等待主库状态</code><button class="button button-light" data-command-copy="primary-info-command" type="button" disabled>复制命令</button></div></section>
+        <section><h2>副本 A · 查看状态</h2><div class="command-line"><code id="a-status-command">等待副本 A 状态</code><button class="button button-light" data-command-copy="a-status-command" type="button" disabled>复制命令</button></div></section>
+        <section><h2>副本 A · 读取标记</h2><div class="command-line"><code id="a-get-command">等待副本 A 状态</code><button class="button button-light" data-command-copy="a-get-command" type="button" disabled>复制命令</button></div></section>
+        <section><h2>副本 B · 查看状态</h2><div class="command-line"><code id="b-status-command">等待副本 B 状态</code><button class="button button-light" data-command-copy="b-status-command" type="button" disabled>复制命令</button></div></section>
+        <section><h2>副本 B · 读取标记</h2><div class="command-line"><code id="b-get-command">等待副本 B 状态</code><button class="button button-light" data-command-copy="b-get-command" type="button" disabled>复制命令</button></div></section>
+      </div>
+      <p id="copy-feedback" role="status" hidden></p>
+    </section>
+
+    <section id="activity" data-view="activity" hidden>
+      <header class="view-heading"><h1 id="activity-title" tabindex="-1">操作记录</h1><p>本浏览器对当前复制实例发出的写入、暂停与恢复操作。</p></header>
+      <p id="activity-note" class="muted" role="status" hidden></p>
+      <p id="activity-empty" class="activity-empty">等待读取操作记录…</p>
+      <ol id="activity-list" class="activity-list" aria-live="polite" aria-relevant="additions"></ol>
+      <nav id="activity-pagination" class="pager" aria-label="操作记录分页"></nav>
+    </section>
+
+    <section id="experiments" data-view="experiments" hidden>
+      <header class="view-heading"><h1 id="experiments-title" tabindex="-1">实验数据</h1></header>
+      <div id="experiment-content"></div>
+    </section>
+
+    <section data-view="not-found" hidden>
+      <header class="view-heading"><h1 id="not-found-title" tabindex="-1">未找到页面</h1><p>此工作区没有对应的页面。</p></header>
+      <a href="#/overview" class="button button-light">返回概览</a>
+    </section>
+  </main>
+  </div>
+  <template id="experiment-template">
+    <div class="archive-toolbar">
+      <label>实验组
+        <select id="experiment-series">
+          <option value="all">全部实验</option><option value="shared">固定总带宽</option><option value="capacity">按库独立限速</option>
+        </select>
+      </label>
+      <span id="experiment-count" role="status"></span>
+    </div>
+    <p class="archive-method" data-method></p>
+    <table id="experiment-table">
+      <caption class="sr-only">正式实验窗口。展开窗口名可查看轻库延迟、计量方法和来源。</caption>
+      <thead><tr><th scope="col">实验窗口</th><th scope="col">慢流峰值</th><th scope="col">全库追齐</th><th scope="col">B 峰值内存</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <nav class="archive-pager" aria-label="实验结果分页">
+      <a id="experiment-prev">上一页</a><span id="experiment-position"></span><a id="experiment-next">下一页</a>
+    </nav>
+    <details class="archive-notes"><summary>测量口径与排除记录</summary>
+      <p>追齐时间从副本 B 启动计到 A、B 全部逻辑库达到目标序号。B 峰值内存取 Linux 进程 VmHWM。运行明细里的 GET 延迟是源端已可取到 B 读到新值的采样上界，每窗 3 个标记。</p>
+      <dl class="archive-metadata" data-notes></dl>
+    </details>
+  </template>
+  <script id="experiment-data" type="application/json">{"schema_version":1,"environment":{"hostname":"lemon","uname":"Linux lemon 6.18.58.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Tue Oct 27 00:24:11 UTC 2026 x86_64 GNU/Linux","cpu_count":32,"cpu_model":"Intel(R) Core(TM) i9-14900HX","mem_total":"MemTotal:        7986336 kB","fs":"ext4","disk_device":"sdd","sample_sleep_ms":25.0,"follower_interval_ms":100,"chunk_bytes":16384,"snapshot_bytes_per_db":5250315,"artifact_sha256":{"kerniva-server":"0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773","libkerniva_engine.so":"f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65","kerniva-maintainer":"a3454cc627c93be6a008f6be588635d506ac03a397056a5ac47b9351d456cd5a","candidate-replica":"208304bf6f641f53798942f3690e204a3688ac3f5c604a235815df466645338a","parallel-replica":"7dc71d56d827b74e8998a2f3f4e3d483147c21d41d4544e6d145326f4ce5763b"}},"definitions":{"slow_concurrency":"Peak overlapping B-facing slow snapshot first-to-last payload intervals.","recovery_s":"Seconds from candidate B launch until both A and B were observed at all final sequences. Excludes subsequent exhaustive value verification.","b_peak_rss_mib":"B process Linux VmHWM in MiB (KiB divided by 1024).","b_get_upper_ms":"Minimum and maximum of three B GET upper observation bounds per record; six per two-run setting in series.groups.","b_get_marker_upper_ms":"Upper bound for each marker in sequence order. The bound subtracts the start of the last negative source pull from the end of the first positive B GET.","measurement_clock":"One WSL monotonic clock per run; 25 ms sleep between witness passes, plus RPC and scheduling time."},"series":{"capacity":{"summary_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/summary.json","summary_sha256":"f82020f755ba4a3299b65ea3e139f545b969e412bacc4a06433a57476f45890c","accepted_count":8,"excluded_count":1,"excluded_runs":[{"run":"db2-r1","reason":"Relay BrokenPipe after successful checkpoint; replaced by db2-r3."}],"method":{"dbs":[2,4,8,16],"slow_rate_bps_per_stream":524288,"bandwidth_scope":"Independent per slow stream. Light payloads and A are unshaped."},"group_by":"dbs","groups":[{"dbs":2,"marker_count":6,"b_get_upper_ms":[52.890147,131.935135]},{"dbs":4,"marker_count":6,"b_get_upper_ms":[52.894588,130.576184]},{"dbs":8,"marker_count":6,"b_get_upper_ms":[27.416609,105.334329]},{"dbs":16,"marker_count":6,"b_get_upper_ms":[27.026025,130.208173]}]},"shared":{"summary_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/summary.json","summary_sha256":"64843934a0719bd9f67b69d86b4c9bc2a3d3d21355fc23894187b2ec212924dc","accepted_count":8,"excluded_count":2,"excluded_runs":[{"run":"cap15-r2","reason":"demo controller activity or process restart during window"},{"run":"cap4-r2","reason":"demo controller activity or process restart during window"}],"method":{"dbs":16,"slow_admission_caps":[2,4,8,15],"shared_ceiling_bps":8388608,"bandwidth_scope":"One nonempty B payload queue for slow snapshots and light marker segments. Empty pulls, headers, manifests, source prefetch and A are outside the budget.","admission_scope":"Relay holds a slow slot from before headers until B's on-disk CURRENT replacement is observed; 40 s B pull idle timeout accommodates waiting.","coexistence":"Demo on localhost:18780 remained online. Formal windows exclude detectable controller activity or process changes."},"group_by":"cap","groups":[{"cap":2,"marker_count":6,"b_get_upper_ms":[52.98321,131.309324]},{"cap":4,"marker_count":6,"b_get_upper_ms":[52.59569,156.723235]},{"cap":8,"marker_count":6,"b_get_upper_ms":[53.170989,130.502847]},{"cap":15,"marker_count":6,"b_get_upper_ms":[105.364608,181.638268]}]}},"records":[{"series":"capacity","run":"db2-r2","dbs":2,"slow_concurrency":1,"recovery_s":10.091962065,"b_peak_rss_mib":25.5390625,"b_get_upper_ms":[52.890147,129.239495],"b_get_marker_upper_ms":[52.890147,79.68971,129.239495],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db2-r2/result.json","source_sha256":"2d786f18f11798410039e243028d8f7f60892257967127beb0cd8a000cec0d2d"},{"series":"capacity","run":"db2-r3","dbs":2,"slow_concurrency":1,"recovery_s":10.106658165,"b_peak_rss_mib":24.98828125,"b_get_upper_ms":[53.186932,131.935135],"b_get_marker_upper_ms":[53.186932,105.415669,131.935135],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db2-r3/result.json","source_sha256":"98106516315ad0a9d7ce6b15e3663118d0d2b653bf96ddeb76e3dbb16bdf12ce"},{"series":"capacity","run":"db4-r1","dbs":4,"slow_concurrency":3,"recovery_s":10.120701817999999,"b_peak_rss_mib":50.03515625,"b_get_upper_ms":[52.894588,104.467271],"b_get_marker_upper_ms":[52.894588,78.871125,104.467271],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db4-r1/result.json","source_sha256":"9c7481d69feff7ae351452301ada3d63c8b39c1ff2472b639ddca2713352e6f7"},{"series":"capacity","run":"db4-r2","dbs":4,"slow_concurrency":3,"recovery_s":10.127764947,"b_peak_rss_mib":51.203125,"b_get_upper_ms":[53.939605,130.576184],"b_get_marker_upper_ms":[130.576184,53.939605,105.798458],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db4-r2/result.json","source_sha256":"d4bab49ad5140767584ca608b856fccb947a20342ee4cbcfae06f999867b937b"},{"series":"capacity","run":"db8-r1","dbs":8,"slow_concurrency":7,"recovery_s":10.219139357,"b_peak_rss_mib":94.9453125,"b_get_upper_ms":[27.416609,105.231489],"b_get_marker_upper_ms":[105.231489,27.416609,79.80344],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db8-r1/result.json","source_sha256":"42e14eb5948d2b6faafe37438eced27000eedb9d29bf2ffca55039a4b649fcbf"},{"series":"capacity","run":"db8-r2","dbs":8,"slow_concurrency":7,"recovery_s":10.17767214,"b_peak_rss_mib":100.5703125,"b_get_upper_ms":[27.452215,105.334329],"b_get_marker_upper_ms":[79.14639,105.334329,27.452215],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db8-r2/result.json","source_sha256":"e2f590106a3bf52dc550bba0ffd54243fdd04f9d4816405959c3c9120ecd7dde"},{"series":"capacity","run":"db16-r1","dbs":16,"slow_concurrency":15,"recovery_s":10.262511307,"b_peak_rss_mib":188.2265625,"b_get_upper_ms":[27.026025,104.881036],"b_get_marker_upper_ms":[27.026025,53.379778,104.881036],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db16-r1/result.json","source_sha256":"17f242837a629d38bb47c2d14ebc43bb39974ed8ff324ba766656cf886599de2"},{"series":"capacity","run":"db16-r2","dbs":16,"slow_concurrency":15,"recovery_s":10.278722595,"b_peak_rss_mib":189.03515625,"b_get_upper_ms":[53.549207,130.208173],"b_get_marker_upper_ms":[53.549207,130.208173,53.642224],"source_path":"logs/golog-followup-bSuIKDwd/db-poll-capacity-20261124/db16-r2/result.json","source_sha256":"542a0402525a49be46ae2aa60cd17f9b1f2375ec3c1d266c52bbde6208e9d7b2"},{"series":"shared","run":"cap2-r1","dbs":16,"slow_concurrency":2,"recovery_s":10.709286812,"b_peak_rss_mib":155.1953125,"b_get_upper_ms":[52.98321,130.50526],"b_get_marker_upper_ms":[130.50526,105.654457,52.98321],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap2-r1/result.json","source_sha256":"c9de0d75b16f8cdc2bcd97cc953c2556d386498f6399dbd125aaa496b7938ca1","cap":2},{"series":"shared","run":"cap2-r2","dbs":16,"slow_concurrency":2,"recovery_s":10.539361183,"b_peak_rss_mib":170.33203125,"b_get_upper_ms":[78.764457,131.309324],"b_get_marker_upper_ms":[78.764457,131.309324,130.354759],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap2-r2/result.json","source_sha256":"e24bd17606a8344df7aff97864231e6ffcce15b1f2973f3ba66b0c9b3443601f","cap":2},{"series":"shared","run":"cap4-r1","dbs":16,"slow_concurrency":4,"recovery_s":10.395157377,"b_peak_rss_mib":163.55078125,"b_get_upper_ms":[52.59569,129.791854],"b_get_marker_upper_ms":[78.261674,52.59569,129.791854],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap4-r1/result.json","source_sha256":"e76dfc6707b2331e36331e4eaf78de157701a24ea98d5599c5c3e94864e2bd5e","cap":4},{"series":"shared","run":"cap4-r3","dbs":16,"slow_concurrency":4,"recovery_s":10.452001057,"b_peak_rss_mib":161.6640625,"b_get_upper_ms":[79.706274,156.723235],"b_get_marker_upper_ms":[79.706274,156.723235,104.23595],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap4-r3/result.json","source_sha256":"f0f59174d9f582e53b58e9a1ee8385707d3fabdd3ecb81c1a462ddfe3a0ac41b","cap":4},{"series":"shared","run":"cap8-r1","dbs":16,"slow_concurrency":8,"recovery_s":10.506631246000001,"b_peak_rss_mib":174.69140625,"b_get_upper_ms":[53.170989,79.147019],"b_get_marker_upper_ms":[79.118843,79.147019,53.170989],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap8-r1/result.json","source_sha256":"0a5e4d15c58f7655fa5a8cf3ded4ad25471fc63bdffa76a028f501cc47cfaacb","cap":8},{"series":"shared","run":"cap8-r2","dbs":16,"slow_concurrency":8,"recovery_s":10.439995852,"b_peak_rss_mib":173.5,"b_get_upper_ms":[105.197595,130.502847],"b_get_marker_upper_ms":[130.502847,105.442425,105.197595],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap8-r2/result.json","source_sha256":"ee4e5d28dfd08baefba5ce9cd9c808e453f851627be9555e114c7607900b57f4","cap":8},{"series":"shared","run":"cap15-r1","dbs":16,"slow_concurrency":15,"recovery_s":10.450613565,"b_peak_rss_mib":187.16796875,"b_get_upper_ms":[156.087763,181.638268],"b_get_marker_upper_ms":[180.974528,181.638268,156.087763],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap15-r1/result.json","source_sha256":"2efc31a03373b70b156039a06578c21a5952f05cb45b641f3e9fa81c6ba1ac14","cap":15},{"series":"shared","run":"cap15-r3","dbs":16,"slow_concurrency":15,"recovery_s":10.423293738,"b_peak_rss_mib":178.0625,"b_get_upper_ms":[105.364608,131.163535],"b_get_marker_upper_ms":[130.868925,131.163535,105.364608],"source_path":"logs/golog-followup-bSuIKDwd/shared-link-20261124/cap15-r3/result.json","source_sha256":"0cad08453a7d8d760c178490e2b1e7b73efa0764f3d59c9f7063b564b467c2d9","cap":15}]}</script>
+</body>
+</html>
