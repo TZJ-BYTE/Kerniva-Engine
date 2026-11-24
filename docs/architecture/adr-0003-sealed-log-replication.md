@@ -43,6 +43,8 @@ Rust 整理进程可用 `--retain-covered-segments N` 保留近期日志，默�
 
 成功安装时，名额覆盖下载、校验、替换 `CURRENT` 和同步父目录。故障会释放名额；原有游标恢复及读视图发布规则继续生效。此参数分别作用于每个副本进程。
 
+全量安装及离线重启通过同步回调借用 Rust 的单行键值缓冲，Go 在回调返回前解码出拥有独立存储的读视图项。原生行在回调退出时释放；主库的恢复回调仍可保留 Go 拷贝。两对真实传输在默认并发下分别节省 118 和 156 MiB 峰值 RSS。[配对实测](../verification/replica-recovery-memory.md)
+
 在 Linux 上诊断副本内存时，可只给目标 `follow` 进程设置 `KERNIVA_GOLOG_MEMORY_TRACE=/absolute/path/to/trace.jsonl`。每个窗口使用独立文件。记录包含逻辑库、代、阶段、单调时钟、RSS、Go 堆和累计分配字节。快照恢复中，`rust_handle_ready` 表示原生恢复句柄已就绪，至 `rust_rows_restored` 之间会逐行跨 ABI 传值并建立 Go 读视图。诊断已启用时，向该副本发送 `SIGUSR1` 可补采一条进程读数。采样沿用 Go 自然 GC。各库共享同一进程，多个库同时恢复时其阶段记录中的内存增量可能重叠。
 
 ## 关键接口

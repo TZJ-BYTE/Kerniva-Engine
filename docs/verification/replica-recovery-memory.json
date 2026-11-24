@@ -1,0 +1,1570 @@
+{
+  "units": {
+    "memory": "MiB (1,048,576 bytes)",
+    "peak_MiB": "follower B VmHWM through convergence",
+    "idle_RSS_MiB": "follower B smaps_rollup:Rss",
+    "GET_upper_ms": "last negative source-probe start to first positive B GET end"
+  },
+  "fixture": {
+    "source": "52615bc17058f9ae38a0e53736c0f96d",
+    "slow_dbs": 15,
+    "light_db": 15,
+    "expected_dbs": 16,
+    "link_bytes_per_second": 8388608,
+    "transferred_bytes_per_normal_window": 294025013,
+    "checked_bulk_sha256": "693ead20fdd48d9062f36ab077be561e82040353c014ae2033284b06e52a8fc2",
+    "snapshots": [
+      {
+        "db": 0,
+        "rows": 512,
+        "cut": 516,
+        "tail": 517,
+        "snapshot_bytes": 16801355,
+        "snapshot_sha256": "2af51ad513ca652c7a9c834e959545ef319c985e702534e7863682ee65ec1e63"
+      },
+      {
+        "db": 1,
+        "rows": 256,
+        "cut": 260,
+        "tail": 261,
+        "snapshot_bytes": 8400715,
+        "snapshot_sha256": "bfcd4be61d0f04291fc1c70efcb9d2db4261982c5183ec083e0de281c0b46e91"
+      },
+      {
+        "db": 2,
+        "rows": 512,
+        "cut": 516,
+        "tail": 517,
+        "snapshot_bytes": 16801355,
+        "snapshot_sha256": "76aba03b7d326a4ab567f5c5f9ca3b628406e703a5f3f5bf57b449a44c9d03ac"
+      },
+      {
+        "db": 3,
+        "rows": 256,
+        "cut": 260,
+        "tail": 261,
+        "snapshot_bytes": 8400715,
+        "snapshot_sha256": "8f9387e51bc2e19363403e81543bbef2e7f32b6cbc4fa2a3026485559b831232"
+      },
+      {
+        "db": 4,
+        "rows": 256,
+        "cut": 260,
+        "tail": 261,
+        "snapshot_bytes": 8400715,
+        "snapshot_sha256": "3068a821fe60aebe156fa5f375b89c3975aa368c78c9c51907c695b224b4a807"
+      },
+      {
+        "db": 5,
+        "rows": 256,
+        "cut": 260,
+        "tail": 261,
+        "snapshot_bytes": 8400715,
+        "snapshot_sha256": "de4c90131007c38289b67c3d5f62fc89e9d0a83c03c7e295e085bdaa8b34a4f2"
+      },
+      {
+        "db": 6,
+        "rows": 1024,
+        "cut": 1028,
+        "tail": 1029,
+        "snapshot_bytes": 33602635,
+        "snapshot_sha256": "843f64e6d3448af68881d09f944818f2600636996c7c4517ce2a40eb8c9c9cfe"
+      },
+      {
+        "db": 7,
+        "rows": 512,
+        "cut": 516,
+        "tail": 517,
+        "snapshot_bytes": 16801355,
+        "snapshot_sha256": "03ab161e81ed202592c57749985e0c8259be7d9ff8abd1733ff287bcdfd3aa45"
+      },
+      {
+        "db": 8,
+        "rows": 256,
+        "cut": 260,
+        "tail": 261,
+        "snapshot_bytes": 8400715,
+        "snapshot_sha256": "e7572ce7a8013858024b5c5c1ea3c0ef752bde2279322ee69cf4146dc8f722a1"
+      },
+      {
+        "db": 9,
+        "rows": 1024,
+        "cut": 1028,
+        "tail": 1029,
+        "snapshot_bytes": 33602635,
+        "snapshot_sha256": "2a245205377e5497f56b430dac21fa2638e630522ffdebcce6e237a103d6eed4"
+      },
+      {
+        "db": 10,
+        "rows": 1024,
+        "cut": 1028,
+        "tail": 1029,
+        "snapshot_bytes": 33602635,
+        "snapshot_sha256": "d605af89f6b7efbf192c59ffb2c95a05c7aea15ffd60eed2daaad0c5722368d4"
+      },
+      {
+        "db": 11,
+        "rows": 1024,
+        "cut": 1028,
+        "tail": 1029,
+        "snapshot_bytes": 33602635,
+        "snapshot_sha256": "19ad20439d7becc04b5c211b90399118aa2de683d862614753c6d7df6184714f"
+      },
+      {
+        "db": 12,
+        "rows": 1024,
+        "cut": 1028,
+        "tail": 1029,
+        "snapshot_bytes": 33602635,
+        "snapshot_sha256": "56cbaac22dec8785a1610bd97a03d32356c3fd35691ecaebe87ee753ad3e6b77"
+      },
+      {
+        "db": 13,
+        "rows": 512,
+        "cut": 516,
+        "tail": 517,
+        "snapshot_bytes": 16801355,
+        "snapshot_sha256": "229f31ce222f6f8502f0d0de38f28af63d66289f9c827aa558691f0cf2dd90d2"
+      },
+      {
+        "db": 14,
+        "rows": 512,
+        "cut": 516,
+        "tail": 517,
+        "snapshot_bytes": 16801355,
+        "snapshot_sha256": "92dd8e12c9b173beee1d755d1cc4e0e04bb12d9d774d6fd1e13f5c69d8c6baf4"
+      }
+    ]
+  },
+  "artifacts": {
+    "kerniva-replica": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+    "kerniva-server": "0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773",
+    "kerniva-maintainer": "a3454cc627c93be6a008f6be588635d506ac03a397056a5ac47b9351d456cd5a",
+    "libkerniva_engine.so": "f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65",
+    "golog_replica_snapshot_capacity.py": "0a5067f43d50855b96afbc01672efe5a5a2077a6130342820bc942147b5446cb",
+    "golog_replica_shared_link.py": "586cf989f53da21a34fc0ec70dc92087d2fc373bfc2407d9fd27ed3e0562fa91",
+    "candidate_B": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+    "comparison_script": "816493b3a4d61ecc66fe10a4dc19b7510be070e807135faf9974b46a4414f24e"
+  },
+  "calibration": [
+    {
+      "window": "measured-1-cap0-control",
+      "cap": 0,
+      "trace": false,
+      "raw_sha256": "5587def19b220ca4392e774fbadec81e5966c474e10618140460f01e21cc4942",
+      "elapsed_s": 38.908,
+      "peak_MiB": 585.727,
+      "B_cpu_seconds_at_convergence": 3.66,
+      "GET_upper_ms": [
+        103.417,
+        104.982,
+        103.51
+      ],
+      "CURRENT_upper_ms": [
+        103.516,
+        105.1,
+        103.559
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 582.152,
+          "anonymous_MiB": 573.262,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 3.66
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 582.691,
+          "anonymous_MiB": 573.801,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 3.94
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 599.316,
+          "anonymous_MiB": 590.363,
+          "PSS_file_MiB": 2.395,
+          "B_cpu_seconds": 4.46
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 599.477,
+          "anonymous_MiB": 590.523,
+          "PSS_file_MiB": 2.385,
+          "B_cpu_seconds": 5.18
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 623.754,
+          "anonymous_MiB": 614.801,
+          "PSS_file_MiB": 2.383,
+          "B_cpu_seconds": 6.71
+        }
+      ]
+    },
+    {
+      "window": "measured-2-cap4-control",
+      "cap": 4,
+      "trace": false,
+      "raw_sha256": "f871b42c278fd86355ac65a118f5b8d2c6673ac8b86e7a7abb5cd2baee780a43",
+      "elapsed_s": 38.527,
+      "peak_MiB": 516.125,
+      "B_cpu_seconds_at_convergence": 3.8,
+      "GET_upper_ms": [
+        103.314,
+        204.62,
+        104.562
+      ],
+      "CURRENT_upper_ms": [
+        103.377,
+        204.684,
+        104.632
+      ],
+      "peak_partial_files": 4,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 516.125,
+          "anonymous_MiB": 507.23,
+          "PSS_file_MiB": 2.364,
+          "B_cpu_seconds": 3.8
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 516.371,
+          "anonymous_MiB": 507.477,
+          "PSS_file_MiB": 2.364,
+          "B_cpu_seconds": 4.04
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 539.457,
+          "anonymous_MiB": 530.5,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 4.5
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 592.168,
+          "anonymous_MiB": 583.211,
+          "PSS_file_MiB": 2.385,
+          "B_cpu_seconds": 5.26
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 614.281,
+          "anonymous_MiB": 605.324,
+          "PSS_file_MiB": 2.385,
+          "B_cpu_seconds": 6.65
+        }
+      ]
+    },
+    {
+      "window": "measured-3-cap0-trace",
+      "cap": 0,
+      "trace": true,
+      "raw_sha256": "5d204ce0a07bf0645d37d7a4e8b4e7c8ff8c7062ed9509cad18ccc04d04e9854",
+      "elapsed_s": 39.049,
+      "peak_MiB": 619.434,
+      "B_cpu_seconds_at_convergence": 3.85,
+      "GET_upper_ms": [
+        103.48,
+        154.192,
+        155.239
+      ],
+      "CURRENT_upper_ms": [
+        103.546,
+        154.246,
+        155.307
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 619.434,
+          "anonymous_MiB": 610.48,
+          "PSS_file_MiB": 2.385,
+          "B_cpu_seconds": 3.85,
+          "heap_alloc_MiB": 386.514,
+          "heap_inuse_MiB": 388.078,
+          "heap_sys_MiB": 418.562,
+          "heap_released_MiB": 5.164,
+          "total_alloc_MiB": 682.778,
+          "heap_objects": 65164,
+          "num_gc": 16
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 620.113,
+          "anonymous_MiB": 611.16,
+          "PSS_file_MiB": 2.383,
+          "B_cpu_seconds": 4.14,
+          "heap_alloc_MiB": 284.401,
+          "heap_inuse_MiB": 286.344,
+          "heap_sys_MiB": 418.562,
+          "heap_released_MiB": 4.914,
+          "total_alloc_MiB": 699.154,
+          "heap_objects": 52160,
+          "num_gc": 17
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 620.262,
+          "anonymous_MiB": 611.309,
+          "PSS_file_MiB": 2.383,
+          "B_cpu_seconds": 4.63,
+          "heap_alloc_MiB": 317.135,
+          "heap_inuse_MiB": 318.969,
+          "heap_sys_MiB": 418.594,
+          "heap_released_MiB": 4.906,
+          "total_alloc_MiB": 731.888,
+          "heap_objects": 253492,
+          "num_gc": 17
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 621.391,
+          "anonymous_MiB": 612.438,
+          "PSS_file_MiB": 2.383,
+          "B_cpu_seconds": 5.34,
+          "heap_alloc_MiB": 366.173,
+          "heap_inuse_MiB": 368.898,
+          "heap_sys_MiB": 418.688,
+          "heap_released_MiB": 4.898,
+          "total_alloc_MiB": 780.926,
+          "heap_objects": 555296,
+          "num_gc": 17
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 678.902,
+          "anonymous_MiB": 669.887,
+          "PSS_file_MiB": 2.414,
+          "B_cpu_seconds": 6.89,
+          "heap_alloc_MiB": 464.137,
+          "heap_inuse_MiB": 468.695,
+          "heap_sys_MiB": 474.688,
+          "heap_released_MiB": 5.688,
+          "total_alloc_MiB": 878.89,
+          "heap_objects": 1158098,
+          "num_gc": 17
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 46.977,
+          "native_open_active_only": 0.475,
+          "export_and_go_view_active": 633.778
+        },
+        "intervals_duration_ms": {
+          "other": 38181.623,
+          "native_open_active_only": 193.547,
+          "export_and_go_view_active": 140.474
+        },
+        "export_stage_allocation_pct": 93.03,
+        "max_observed_event_RSS_MiB": 619.41,
+        "max_observed_event_stage": "rust_rows_restored",
+        "last_db": 6,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "6b96261052c600e97a68d24690957c17388b36cbd4e55e128225c3d004a173ac"
+      },
+      "trace_sha256": "d868056fc3d2acae11090ff5b240069b21c0e849fb4ce76a7bf64c31e8e1b05c"
+    },
+    {
+      "window": "measured-4-cap4-trace",
+      "cap": 4,
+      "trace": true,
+      "raw_sha256": "f4eb09cccce18f242a3aeea153ce13f0c2b387adb226200dd9e581c7ad8b029f",
+      "elapsed_s": 38.683,
+      "peak_MiB": 584.059,
+      "B_cpu_seconds_at_convergence": 4.53,
+      "GET_upper_ms": [
+        103.756,
+        105.121,
+        103.309
+      ],
+      "CURRENT_upper_ms": [
+        103.814,
+        105.247,
+        103.371
+      ],
+      "peak_partial_files": 4,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 584.059,
+          "anonymous_MiB": 575.102,
+          "PSS_file_MiB": 2.394,
+          "B_cpu_seconds": 4.53,
+          "heap_alloc_MiB": 390.26,
+          "heap_inuse_MiB": 391.727,
+          "heap_sys_MiB": 410.812,
+          "heap_released_MiB": 5.922,
+          "total_alloc_MiB": 707.754,
+          "heap_objects": 164590,
+          "num_gc": 15
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 588.902,
+          "anonymous_MiB": 579.945,
+          "PSS_file_MiB": 2.394,
+          "B_cpu_seconds": 4.8,
+          "heap_alloc_MiB": 407.222,
+          "heap_inuse_MiB": 409.109,
+          "heap_sys_MiB": 414.812,
+          "heap_released_MiB": 5.43,
+          "total_alloc_MiB": 724.717,
+          "heap_objects": 274292,
+          "num_gc": 15
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 592.832,
+          "anonymous_MiB": 583.875,
+          "PSS_file_MiB": 2.396,
+          "B_cpu_seconds": 5.33,
+          "heap_alloc_MiB": 312.398,
+          "heap_inuse_MiB": 314.281,
+          "heap_sys_MiB": 418.875,
+          "heap_released_MiB": 5.711,
+          "total_alloc_MiB": 758.461,
+          "heap_objects": 234060,
+          "num_gc": 16
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 593.391,
+          "anonymous_MiB": 584.434,
+          "PSS_file_MiB": 2.394,
+          "B_cpu_seconds": 6.09,
+          "heap_alloc_MiB": 363.186,
+          "heap_inuse_MiB": 366.008,
+          "heap_sys_MiB": 418.844,
+          "heap_released_MiB": 5.711,
+          "total_alloc_MiB": 809.248,
+          "heap_objects": 562582,
+          "num_gc": 16
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 652.133,
+          "anonymous_MiB": 643.176,
+          "PSS_file_MiB": 2.395,
+          "B_cpu_seconds": 7.54,
+          "heap_alloc_MiB": 464.703,
+          "heap_inuse_MiB": 469.273,
+          "heap_sys_MiB": 474.906,
+          "heap_released_MiB": 5.312,
+          "total_alloc_MiB": 910.765,
+          "heap_objects": 1219418,
+          "num_gc": 16
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 70.92,
+          "native_open_active_only": 1.041,
+          "export_and_go_view_active": 634.143
+        },
+        "intervals_duration_ms": {
+          "other": 37656.52,
+          "native_open_active_only": 469.858,
+          "export_and_go_view_active": 409.916
+        },
+        "export_stage_allocation_pct": 89.81,
+        "max_observed_event_RSS_MiB": 584.05,
+        "max_observed_event_stage": "current_published",
+        "last_db": 14,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "92e0b20170a7c4c88b7824fe12cbfd19013bcd33d014b84b2a4490cc229331d1"
+      },
+      "trace_sha256": "161d12fc16a6c88d08cca3a5e494540faee724860306e27ad03399acf4545062"
+    },
+    {
+      "window": "measured-5-cap4-trace",
+      "cap": 4,
+      "trace": true,
+      "raw_sha256": "e9b534f28ded940cc4b6963b148c91a5327887660aa73d86934d880219ffe69b",
+      "elapsed_s": 38.637,
+      "peak_MiB": 605.027,
+      "B_cpu_seconds_at_convergence": 4.87,
+      "GET_upper_ms": [
+        104.259,
+        154.183,
+        105.369
+      ],
+      "CURRENT_upper_ms": [
+        104.319,
+        154.239,
+        105.425
+      ],
+      "peak_partial_files": 4,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 605.027,
+          "anonymous_MiB": 596.137,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 4.87,
+          "heap_alloc_MiB": 383.565,
+          "heap_inuse_MiB": 384.953,
+          "heap_sys_MiB": 406.844,
+          "heap_released_MiB": 4.305,
+          "total_alloc_MiB": 695.189,
+          "heap_objects": 121417,
+          "num_gc": 15
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 605.781,
+          "anonymous_MiB": 596.891,
+          "PSS_file_MiB": 2.362,
+          "B_cpu_seconds": 5.31,
+          "heap_alloc_MiB": 400.462,
+          "heap_inuse_MiB": 402.273,
+          "heap_sys_MiB": 406.844,
+          "heap_released_MiB": 3.992,
+          "total_alloc_MiB": 712.086,
+          "heap_objects": 230737,
+          "num_gc": 15
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 618.395,
+          "anonymous_MiB": 609.504,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 5.85,
+          "heap_alloc_MiB": 303.657,
+          "heap_inuse_MiB": 305.539,
+          "heap_sys_MiB": 422.938,
+          "heap_released_MiB": 7.82,
+          "total_alloc_MiB": 745.702,
+          "heap_objects": 177201,
+          "num_gc": 16
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 618.633,
+          "anonymous_MiB": 609.742,
+          "PSS_file_MiB": 2.36,
+          "B_cpu_seconds": 6.51,
+          "heap_alloc_MiB": 348.386,
+          "heap_inuse_MiB": 351.625,
+          "heap_sys_MiB": 422.938,
+          "heap_released_MiB": 7.82,
+          "total_alloc_MiB": 790.431,
+          "heap_objects": 466403,
+          "num_gc": 16
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 661.504,
+          "anonymous_MiB": 652.613,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 8.03,
+          "heap_alloc_MiB": 450.058,
+          "heap_inuse_MiB": 454.5,
+          "heap_sys_MiB": 462.938,
+          "heap_released_MiB": 7.281,
+          "total_alloc_MiB": 892.104,
+          "heap_objects": 1124220,
+          "num_gc": 16
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 57.593,
+          "native_open_active_only": 1.276,
+          "export_and_go_view_active": 634.691
+        },
+        "intervals_duration_ms": {
+          "other": 37180.863,
+          "native_open_active_only": 522.147,
+          "export_and_go_view_active": 786.369
+        },
+        "export_stage_allocation_pct": 91.51,
+        "max_observed_event_RSS_MiB": 605.03,
+        "max_observed_event_stage": "rust_rows_restored",
+        "last_db": 1,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "bfeb29d1df4fe5c18ff42fc6bf9810fdd23ac4c2df9418f7606d50fd02d80eb5"
+      },
+      "trace_sha256": "f68186cb3933c85fd74d7cbac71c83d91701881450321ea7f0e1de50a5471ffa"
+    },
+    {
+      "window": "measured-6-cap0-trace",
+      "cap": 0,
+      "trace": true,
+      "raw_sha256": "4d4e55711c5d6d5a67960ee84c56520790aaf7faf0da43f3743ac4c14818a2a6",
+      "elapsed_s": 38.975,
+      "peak_MiB": 630.898,
+      "B_cpu_seconds_at_convergence": 3.7,
+      "GET_upper_ms": [
+        155.197,
+        204.459,
+        103.724
+      ],
+      "CURRENT_upper_ms": [
+        155.286,
+        204.521,
+        103.794
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 623.984,
+          "anonymous_MiB": 615.094,
+          "PSS_file_MiB": 2.362,
+          "B_cpu_seconds": 3.7,
+          "heap_alloc_MiB": 354.039,
+          "heap_inuse_MiB": 355.672,
+          "heap_sys_MiB": 390.719,
+          "heap_released_MiB": 6.57,
+          "total_alloc_MiB": 682.757,
+          "heap_objects": 56505,
+          "num_gc": 16
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 624.656,
+          "anonymous_MiB": 615.766,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 3.99,
+          "heap_alloc_MiB": 370.465,
+          "heap_inuse_MiB": 372.141,
+          "heap_sys_MiB": 390.688,
+          "heap_released_MiB": 6.289,
+          "total_alloc_MiB": 699.183,
+          "heap_objects": 157456,
+          "num_gc": 16
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 646.195,
+          "anonymous_MiB": 637.305,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 4.54,
+          "heap_alloc_MiB": 402.839,
+          "heap_inuse_MiB": 404.875,
+          "heap_sys_MiB": 410.812,
+          "heap_released_MiB": 5.523,
+          "total_alloc_MiB": 731.557,
+          "heap_objects": 356683,
+          "num_gc": 16
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 691.973,
+          "anonymous_MiB": 683.082,
+          "PSS_file_MiB": 2.362,
+          "B_cpu_seconds": 5.3,
+          "heap_alloc_MiB": 288.827,
+          "heap_inuse_MiB": 290.758,
+          "heap_sys_MiB": 458.688,
+          "heap_released_MiB": 8.898,
+          "total_alloc_MiB": 780.276,
+          "heap_objects": 79528,
+          "num_gc": 17
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 692.062,
+          "anonymous_MiB": 683.172,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 6.74,
+          "heap_alloc_MiB": 386.929,
+          "heap_inuse_MiB": 390.312,
+          "heap_sys_MiB": 458.75,
+          "heap_released_MiB": 8.898,
+          "total_alloc_MiB": 878.378,
+          "heap_objects": 682987,
+          "num_gc": 17
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 46.926,
+          "native_open_active_only": 0.481,
+          "export_and_go_view_active": 633.804
+        },
+        "intervals_duration_ms": {
+          "other": 38383.641,
+          "native_open_active_only": 203.468,
+          "export_and_go_view_active": 177.253
+        },
+        "export_stage_allocation_pct": 93.04,
+        "max_observed_event_RSS_MiB": 625.01,
+        "max_observed_event_stage": "old_generations_cleaned",
+        "last_db": 9,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "44eea41033e2ff7116ee8c70808806dd4df5c0cdadd545260eae9b96d4f6c47c"
+      },
+      "trace_sha256": "5128de0bcbc7247b9cec83563d6d71f1dc8485b17faf641ac164a88fee164f5b"
+    },
+    {
+      "window": "measured-7-cap4-control",
+      "cap": 4,
+      "trace": false,
+      "raw_sha256": "45a3ee3ef58828a834728adbe537301c7202c3f43696fd72d8f81dc3cc9c8ce2",
+      "elapsed_s": 38.671,
+      "peak_MiB": 585.41,
+      "B_cpu_seconds_at_convergence": 4.17,
+      "GET_upper_ms": [
+        103.583,
+        52.687,
+        155.287
+      ],
+      "CURRENT_upper_ms": [
+        103.647,
+        52.734,
+        155.364
+      ],
+      "peak_partial_files": 4,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 577.625,
+          "anonymous_MiB": 568.668,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 4.17
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 579.691,
+          "anonymous_MiB": 570.734,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 4.43
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 614.93,
+          "anonymous_MiB": 605.973,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 4.97
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 627.703,
+          "anonymous_MiB": 618.746,
+          "PSS_file_MiB": 2.383,
+          "B_cpu_seconds": 5.79
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 628.863,
+          "anonymous_MiB": 619.906,
+          "PSS_file_MiB": 2.383,
+          "B_cpu_seconds": 7.37
+        }
+      ]
+    },
+    {
+      "window": "measured-8-cap0-control",
+      "cap": 0,
+      "trace": false,
+      "raw_sha256": "b28ec91bdceaa8157f049af94112c88e54d058e9811861c6a94030d9928cfcfa",
+      "elapsed_s": 38.847,
+      "peak_MiB": 585.746,
+      "B_cpu_seconds_at_convergence": 4.2,
+      "GET_upper_ms": [
+        154.11,
+        155.261,
+        104.345
+      ],
+      "CURRENT_upper_ms": [
+        154.248,
+        155.326,
+        104.407
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 572.93,
+          "anonymous_MiB": 564.035,
+          "PSS_file_MiB": 2.362,
+          "B_cpu_seconds": 4.2
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 573.23,
+          "anonymous_MiB": 564.336,
+          "PSS_file_MiB": 2.362,
+          "B_cpu_seconds": 4.47
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 588.348,
+          "anonymous_MiB": 579.453,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 4.98
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 639.355,
+          "anonymous_MiB": 630.461,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 5.88
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 703.754,
+          "anonymous_MiB": 694.797,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 7.62
+        }
+      ]
+    }
+  ],
+  "transfer_with_trace": [
+    {
+      "window": "compared-trace-1-cap0-baseline",
+      "cap": 0,
+      "trace": true,
+      "raw_sha256": "04899d00e808b4bb6c2713034f3e1dc29c3330798fe0a22b63ff5991fad9f12c",
+      "elapsed_s": 39.132,
+      "peak_MiB": 642.691,
+      "B_cpu_seconds_at_convergence": 4.73,
+      "GET_upper_ms": [
+        154.772,
+        154.695,
+        103.717
+      ],
+      "CURRENT_upper_ms": [
+        154.833,
+        154.762,
+        103.78
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 642.691,
+          "anonymous_MiB": 633.797,
+          "PSS_file_MiB": 2.362,
+          "B_cpu_seconds": 4.73,
+          "heap_alloc_MiB": 282.476,
+          "heap_inuse_MiB": 284.641,
+          "heap_sys_MiB": 422.625,
+          "heap_released_MiB": 4.984,
+          "total_alloc_MiB": 683.377,
+          "heap_objects": 39554,
+          "num_gc": 17
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 642.715,
+          "anonymous_MiB": 633.82,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 5.0,
+          "heap_alloc_MiB": 298.846,
+          "heap_inuse_MiB": 300.555,
+          "heap_sys_MiB": 422.594,
+          "heap_released_MiB": 4.984,
+          "total_alloc_MiB": 699.747,
+          "heap_objects": 140217,
+          "num_gc": 17
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 643.387,
+          "anonymous_MiB": 634.492,
+          "PSS_file_MiB": 2.363,
+          "B_cpu_seconds": 5.53,
+          "heap_alloc_MiB": 331.61,
+          "heap_inuse_MiB": 333.82,
+          "heap_sys_MiB": 422.594,
+          "heap_released_MiB": 4.977,
+          "total_alloc_MiB": 732.511,
+          "heap_objects": 341836,
+          "num_gc": 17
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 644.676,
+          "anonymous_MiB": 635.656,
+          "PSS_file_MiB": 2.404,
+          "B_cpu_seconds": 6.29,
+          "heap_alloc_MiB": 380.627,
+          "heap_inuse_MiB": 383.766,
+          "heap_sys_MiB": 422.594,
+          "heap_released_MiB": 4.977,
+          "total_alloc_MiB": 781.529,
+          "heap_objects": 643476,
+          "num_gc": 17
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 713.129,
+          "anonymous_MiB": 704.109,
+          "PSS_file_MiB": 2.404,
+          "B_cpu_seconds": 8.2,
+          "heap_alloc_MiB": 478.793,
+          "heap_inuse_MiB": 483.57,
+          "heap_sys_MiB": 490.594,
+          "heap_released_MiB": 6.773,
+          "total_alloc_MiB": 879.694,
+          "heap_objects": 1247501,
+          "num_gc": 17
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 47.107,
+          "native_open_active_only": 0.497,
+          "export_and_go_view_active": 634.154
+        },
+        "intervals_duration_ms": {
+          "other": 38211.735,
+          "native_open_active_only": 297.595,
+          "export_and_go_view_active": 306.776
+        },
+        "export_stage_allocation_pct": 93.02,
+        "max_observed_event_RSS_MiB": 642.69,
+        "max_observed_event_stage": "rust_rows_restored",
+        "last_db": 9,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "760881738d9632cc722160876744ddeba0c19ca75cb2cf65b5ebc16018211c61"
+      },
+      "trace_sha256": "5f9331bb15ed0cb6ec288de3adfc96ab38a27eb50a31fb72c2e826ee921692c5",
+      "follower_B_sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682"
+    },
+    {
+      "window": "compared-trace-2-cap0-candidate",
+      "cap": 0,
+      "trace": true,
+      "raw_sha256": "1fbb8642d1dc62498b22ec8c90955d5a2c88c02eea4b7cab39def1f21c735606",
+      "elapsed_s": 38.952,
+      "peak_MiB": 508.695,
+      "B_cpu_seconds_at_convergence": 4.09,
+      "GET_upper_ms": [
+        103.525,
+        53.187,
+        154.113
+      ],
+      "CURRENT_upper_ms": [
+        103.588,
+        53.285,
+        154.186
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 505.75,
+          "anonymous_MiB": 496.805,
+          "PSS_file_MiB": 6.628,
+          "B_cpu_seconds": 4.09,
+          "heap_alloc_MiB": 282.989,
+          "heap_inuse_MiB": 285.602,
+          "heap_sys_MiB": 294.688,
+          "heap_released_MiB": 4.898,
+          "total_alloc_MiB": 332.926,
+          "heap_objects": 55134,
+          "num_gc": 10
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 517.512,
+          "anonymous_MiB": 508.566,
+          "PSS_file_MiB": 6.628,
+          "B_cpu_seconds": 4.47,
+          "heap_alloc_MiB": 299.324,
+          "heap_inuse_MiB": 301.016,
+          "heap_sys_MiB": 306.75,
+          "heap_released_MiB": 5.414,
+          "total_alloc_MiB": 349.261,
+          "heap_objects": 155645,
+          "num_gc": 10
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 551.312,
+          "anonymous_MiB": 542.367,
+          "PSS_file_MiB": 6.627,
+          "B_cpu_seconds": 5.21,
+          "heap_alloc_MiB": 331.979,
+          "heap_inuse_MiB": 334.086,
+          "heap_sys_MiB": 342.75,
+          "heap_released_MiB": 8.375,
+          "total_alloc_MiB": 381.917,
+          "heap_objects": 356540,
+          "num_gc": 10
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 602.461,
+          "anonymous_MiB": 593.516,
+          "PSS_file_MiB": 6.628,
+          "B_cpu_seconds": 6.04,
+          "heap_alloc_MiB": 381.008,
+          "heap_inuse_MiB": 384.039,
+          "heap_sys_MiB": 390.812,
+          "heap_released_MiB": 6.391,
+          "total_alloc_MiB": 430.945,
+          "heap_objects": 658219,
+          "num_gc": 10
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 657.699,
+          "anonymous_MiB": 648.691,
+          "PSS_file_MiB": 6.69,
+          "B_cpu_seconds": 7.74,
+          "heap_alloc_MiB": 328.333,
+          "heap_inuse_MiB": 330.359,
+          "heap_sys_MiB": 446.812,
+          "heap_released_MiB": 8.883,
+          "total_alloc_MiB": 528.752,
+          "heap_objects": 322497,
+          "num_gc": 11
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 47.312,
+          "native_open_active_only": 0.531,
+          "export_and_go_view_active": 283.486
+        },
+        "intervals_duration_ms": {
+          "other": 38270.82,
+          "native_open_active_only": 224.648,
+          "export_and_go_view_active": 209.139
+        },
+        "export_stage_allocation_pct": 85.56,
+        "max_observed_event_RSS_MiB": 508.87,
+        "max_observed_event_stage": "go_view_ready",
+        "last_db": 10,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "9052e9d5773146fded886ce8862646b48d525783bcd7e70632af269dec7d92eb"
+      },
+      "trace_sha256": "3b0a4313a4add4e4bc7edd1ff9db9e95385919609f59609399ba306706b84d13",
+      "follower_B_sha256": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99"
+    },
+    {
+      "window": "compared-trace-3-cap0-candidate",
+      "cap": 0,
+      "trace": true,
+      "raw_sha256": "e9d991a33461e546d92e56209927acb8403ddf8e4b976f40fbb29b30da51fc26",
+      "elapsed_s": 39.161,
+      "peak_MiB": 523.043,
+      "B_cpu_seconds_at_convergence": 4.5,
+      "GET_upper_ms": [
+        103.584,
+        206.307,
+        103.621
+      ],
+      "CURRENT_upper_ms": [
+        103.642,
+        155.572,
+        103.681
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 504.637,
+          "anonymous_MiB": 495.742,
+          "PSS_file_MiB": 6.566,
+          "B_cpu_seconds": 4.5,
+          "heap_alloc_MiB": 283.016,
+          "heap_inuse_MiB": 285.281,
+          "heap_sys_MiB": 294.656,
+          "heap_released_MiB": 5.672,
+          "total_alloc_MiB": 332.606,
+          "heap_objects": 54675,
+          "num_gc": 10
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 517.145,
+          "anonymous_MiB": 508.25,
+          "PSS_file_MiB": 6.566,
+          "B_cpu_seconds": 4.85,
+          "heap_alloc_MiB": 299.388,
+          "heap_inuse_MiB": 301.008,
+          "heap_sys_MiB": 306.625,
+          "heap_released_MiB": 5.523,
+          "total_alloc_MiB": 348.978,
+          "heap_objects": 155410,
+          "num_gc": 10
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 551.199,
+          "anonymous_MiB": 542.305,
+          "PSS_file_MiB": 6.566,
+          "B_cpu_seconds": 5.48,
+          "heap_alloc_MiB": 332.089,
+          "heap_inuse_MiB": 334.336,
+          "heap_sys_MiB": 338.625,
+          "heap_released_MiB": 4.195,
+          "total_alloc_MiB": 381.678,
+          "heap_objects": 356560,
+          "num_gc": 10
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 602.199,
+          "anonymous_MiB": 593.18,
+          "PSS_file_MiB": 6.691,
+          "B_cpu_seconds": 6.46,
+          "heap_alloc_MiB": 380.966,
+          "heap_inuse_MiB": 383.969,
+          "heap_sys_MiB": 390.656,
+          "heap_released_MiB": 6.5,
+          "total_alloc_MiB": 430.556,
+          "heap_objects": 657274,
+          "num_gc": 10
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 662.207,
+          "anonymous_MiB": 653.188,
+          "PSS_file_MiB": 6.691,
+          "B_cpu_seconds": 8.27,
+          "heap_alloc_MiB": 323.621,
+          "heap_inuse_MiB": 325.781,
+          "heap_sys_MiB": 450.688,
+          "heap_released_MiB": 8.328,
+          "total_alloc_MiB": 528.438,
+          "heap_objects": 293331,
+          "num_gc": 11
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 46.97,
+          "native_open_active_only": 0.508,
+          "export_and_go_view_active": 283.627
+        },
+        "intervals_duration_ms": {
+          "other": 38188.759,
+          "native_open_active_only": 224.91,
+          "export_and_go_view_active": 250.215
+        },
+        "export_stage_allocation_pct": 85.66,
+        "max_observed_event_RSS_MiB": 521.47,
+        "max_observed_event_stage": "old_generations_cleaned",
+        "last_db": 12,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "ae083a37955516f219717a2623c5fc8ba328fd56726a5f71293c1fff8d5b2286"
+      },
+      "trace_sha256": "088a0faa1999b4cb03976faff41e63113e2f2b7bcd25e252319a3783e2a63f4d",
+      "follower_B_sha256": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99"
+    },
+    {
+      "window": "compared-trace-4-cap0-baseline",
+      "cap": 0,
+      "trace": true,
+      "raw_sha256": "4a8dd6e77d5907bc114dd3c2f8ac784fad4fe3368bbf4a1cb85b4bc59e1c3ed1",
+      "elapsed_s": 38.816,
+      "peak_MiB": 635.199,
+      "B_cpu_seconds_at_convergence": 3.89,
+      "GET_upper_ms": [
+        154.86,
+        103.524,
+        105.011
+      ],
+      "CURRENT_upper_ms": [
+        154.934,
+        103.584,
+        105.077
+      ],
+      "peak_partial_files": 15,
+      "idle": [
+        {
+          "second": 0,
+          "RSS_MiB": 605.711,
+          "anonymous_MiB": 596.766,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 3.89,
+          "heap_alloc_MiB": 380.976,
+          "heap_inuse_MiB": 382.633,
+          "heap_sys_MiB": 414.594,
+          "heap_released_MiB": 5.867,
+          "total_alloc_MiB": 683.003,
+          "heap_objects": 64322,
+          "num_gc": 16
+        },
+        {
+          "second": 5,
+          "RSS_MiB": 606.242,
+          "anonymous_MiB": 597.297,
+          "PSS_file_MiB": 2.381,
+          "B_cpu_seconds": 4.19,
+          "heap_alloc_MiB": 397.292,
+          "heap_inuse_MiB": 398.844,
+          "heap_sys_MiB": 414.625,
+          "heap_released_MiB": 5.773,
+          "total_alloc_MiB": 699.319,
+          "heap_objects": 164730,
+          "num_gc": 16
+        },
+        {
+          "second": 15,
+          "RSS_MiB": 611.953,
+          "anonymous_MiB": 603.008,
+          "PSS_file_MiB": 2.381,
+          "B_cpu_seconds": 4.73,
+          "heap_alloc_MiB": 301.566,
+          "heap_inuse_MiB": 303.289,
+          "heap_sys_MiB": 422.656,
+          "heap_released_MiB": 8.477,
+          "total_alloc_MiB": 732.038,
+          "heap_objects": 157752,
+          "num_gc": 17
+        },
+        {
+          "second": 30,
+          "RSS_MiB": 612.414,
+          "anonymous_MiB": 603.469,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 5.46,
+          "heap_alloc_MiB": 350.573,
+          "heap_inuse_MiB": 353.055,
+          "heap_sys_MiB": 422.688,
+          "heap_released_MiB": 8.477,
+          "total_alloc_MiB": 781.044,
+          "heap_objects": 459200,
+          "num_gc": 17
+        },
+        {
+          "second": 60,
+          "RSS_MiB": 653.508,
+          "anonymous_MiB": 644.562,
+          "PSS_file_MiB": 2.384,
+          "B_cpu_seconds": 7.02,
+          "heap_alloc_MiB": 448.662,
+          "heap_inuse_MiB": 452.891,
+          "heap_sys_MiB": 458.719,
+          "heap_released_MiB": 5.609,
+          "total_alloc_MiB": 879.134,
+          "heap_objects": 1062752,
+          "num_gc": 17
+        }
+      ],
+      "stages": {
+        "intervals_with_snapshot_stage_Go_alloc_MiB": {
+          "other": 46.974,
+          "native_open_active_only": 0.351,
+          "export_and_go_view_active": 634.089
+        },
+        "intervals_duration_ms": {
+          "other": 38172.052,
+          "native_open_active_only": 209.633,
+          "export_and_go_view_active": 232.683
+        },
+        "export_stage_allocation_pct": 93.05,
+        "max_observed_event_RSS_MiB": 630.2,
+        "max_observed_event_stage": "old_generations_cleaned",
+        "last_db": 10,
+        "dbs_verified": 15,
+        "sha256_stage_timeline": "6cb078ce44cfe52d7dae8b5c327bdb4e5107b4e36180c62eb30062dd4b51a6c3"
+      },
+      "trace_sha256": "96d48e08bb4c2ce606bfd039d4f333e8bcca15598bbf56071b8b4d16a261b439",
+      "follower_B_sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682"
+    }
+  ],
+  "transfer_without_trace": [
+    {
+      "window": "ordinary-1-baseline-1-cap0",
+      "cap": 0,
+      "trace": false,
+      "elapsed_s": 38.769,
+      "peak_MiB": 615.285,
+      "GET_upper_ms": [
+        103.737,
+        154.161,
+        154.049
+      ],
+      "CURRENT_upper_ms": [
+        103.792,
+        103.71,
+        154.106
+      ],
+      "raw_sha256": "12359a7526f266f03d1c766c25beaca9ce06fb9720ae02204d42e3a71a800313",
+      "follower_B_sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+      "B_cpu_seconds_at_convergence": null
+    },
+    {
+      "window": "ordinary-2-candidate-1-cap0",
+      "cap": 0,
+      "trace": false,
+      "elapsed_s": 38.728,
+      "peak_MiB": 497.211,
+      "GET_upper_ms": [
+        103.65,
+        205.859,
+        104.381
+      ],
+      "CURRENT_upper_ms": [
+        103.713,
+        205.918,
+        104.433
+      ],
+      "raw_sha256": "62a8d624b4cdf5e8caa0b2c770c2235c05b1db7201f0a49811843b19ab236f71",
+      "follower_B_sha256": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+      "B_cpu_seconds_at_convergence": null
+    },
+    {
+      "window": "ordinary-3-candidate-1-cap0",
+      "cap": 0,
+      "trace": false,
+      "elapsed_s": 38.918,
+      "peak_MiB": 486.777,
+      "GET_upper_ms": [
+        154.226,
+        103.624,
+        156.906
+      ],
+      "CURRENT_upper_ms": [
+        154.283,
+        103.921,
+        157.089
+      ],
+      "raw_sha256": "c9065ac2b55e1e78cc3a32e216d118982461b5e8f9e161a0aa036934c1ae7087",
+      "follower_B_sha256": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+      "B_cpu_seconds_at_convergence": null
+    },
+    {
+      "window": "ordinary-4-baseline-1-cap0",
+      "cap": 0,
+      "trace": false,
+      "elapsed_s": 39.056,
+      "peak_MiB": 643.191,
+      "GET_upper_ms": [
+        104.526,
+        205.576,
+        53.337
+      ],
+      "CURRENT_upper_ms": [
+        104.589,
+        205.718,
+        53.567
+      ],
+      "raw_sha256": "4f39936758f0d8304b22c1ef6162a4035ebe4391bb525ec466042ef15d39440a",
+      "follower_B_sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+      "B_cpu_seconds_at_convergence": null
+    }
+  ],
+  "disconnected_reopen": [
+    {
+      "window": "reopen-1-baseline",
+      "binary_sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+      "ready_ms": 960.298,
+      "peak_at_ready_MiB": 551.621,
+      "native_open_Go_alloc_MiB": 0.0614,
+      "iterate_Go_alloc_MiB": 633.2935,
+      "raw_sha256": "30a39f546735326c0c2b097f7eee3f71867ae01a5575f543f431902bca467d73"
+    },
+    {
+      "window": "reopen-2-candidate",
+      "binary_sha256": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+      "ready_ms": 808.113,
+      "peak_at_ready_MiB": 366.793,
+      "native_open_Go_alloc_MiB": 0.062,
+      "iterate_Go_alloc_MiB": 283.0778,
+      "raw_sha256": "7a4d41c28a13e29c91f9427fe2956f9d8848521d879d1fd2c987892a0ffb0506"
+    },
+    {
+      "window": "reopen-3-candidate",
+      "binary_sha256": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+      "ready_ms": 816.037,
+      "peak_at_ready_MiB": 408.973,
+      "native_open_Go_alloc_MiB": 0.0618,
+      "iterate_Go_alloc_MiB": 283.0727,
+      "raw_sha256": "febb125e05e5b5b642560acaa490a62b650a88e14b1e3e6f370eebdbc78137ce"
+    },
+    {
+      "window": "reopen-4-baseline",
+      "binary_sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+      "ready_ms": 1010.463,
+      "peak_at_ready_MiB": 520.02,
+      "native_open_Go_alloc_MiB": 0.0612,
+      "iterate_Go_alloc_MiB": 633.2786,
+      "raw_sha256": "4f7e1a1771d4bed62e65aaa9d816f6d44cd4989c30a60b5b34e67cf494644729"
+    }
+  ],
+  "offline_without_polling": [
+    {
+      "raw_sha256": "e97f2bcb1fba4ba5e94b602626ed1423651dcbda41b00d1d8a82ced92070dfa3",
+      "stages": [
+        {
+          "stage": "before_open",
+          "rss_MiB": 8.496,
+          "heap_alloc_MiB": 0.618,
+          "heap_released_MiB": 2.625
+        },
+        {
+          "stage": "view_opened",
+          "rss_MiB": 515.031,
+          "heap_alloc_MiB": 336.461,
+          "heap_released_MiB": 1.672
+        },
+        {
+          "stage": "after_forced_gc",
+          "rss_MiB": 515.168,
+          "heap_alloc_MiB": 281.798,
+          "heap_released_MiB": 1.578
+        },
+        {
+          "stage": "after_returning_go_pages",
+          "rss_MiB": 432.0,
+          "heap_alloc_MiB": 281.776,
+          "heap_released_MiB": 84.812
+        }
+      ]
+    },
+    {
+      "raw_sha256": "e20ec39d24b4d1aa6d79cabd4d4ae622a4a3750119da233f97a41e83cc448278",
+      "stages": [
+        {
+          "stage": "before_open",
+          "rss_MiB": 8.625,
+          "heap_alloc_MiB": 0.619,
+          "heap_released_MiB": 6.5
+        },
+        {
+          "stage": "view_opened",
+          "rss_MiB": 503.066,
+          "heap_alloc_MiB": 322.689,
+          "heap_released_MiB": 4.781
+        },
+        {
+          "stage": "after_forced_gc",
+          "rss_MiB": 503.105,
+          "heap_alloc_MiB": 281.814,
+          "heap_released_MiB": 4.781
+        },
+        {
+          "stage": "after_returning_go_pages",
+          "rss_MiB": 419.262,
+          "heap_alloc_MiB": 281.784,
+          "heap_released_MiB": 88.641
+        }
+      ]
+    }
+  ],
+  "interrupted_candidate": {
+    "raw_sha256": "26825707e53140b1ac58ec9666d124d5560c1e150ab46e3ade49fc41a2a9caca",
+    "window": "fault-candidate-1-cap4",
+    "fault_db": 1,
+    "old_cursor": 2,
+    "old_value": "old",
+    "failed_transfer": {
+      "rebases": 0,
+      "ready": true,
+      "source": "52615bc17058f9ae38a0e53736c0f96d",
+      "sequence": 2,
+      "snapshot": 0,
+      "installs": 0,
+      "bootstraps": 0,
+      "last_error": "receive snapshot-00000000000000000260.bin: unexpected EOF"
+    },
+    "new_sequence": 261,
+    "discarded_bytes": 524288,
+    "retry_bytes": 8400792,
+    "offline_dbs": 16,
+    "relay_expected_interruptions": 1
+  },
+  "direct_idle_polling": {
+    "request_counts_available": false,
+    "warmup_seconds": 1,
+    "checked_dbs_per_boundary": 16,
+    "windows": [
+      {
+        "window": "1-100ms",
+        "actual_seconds": 15.000549672,
+        "B_cpu_ticks_at_100_Hz": 54,
+        "Go_allocation_delta_bytes": 46012832,
+        "Go_allocation_MiB_per_second": 2.925309876172358,
+        "GC_counts": [
+          7,
+          7
+        ],
+        "raw_sha256": "a55480b4969bbe2c16f1071117653d75d711f7bb3373bc281012b7ab6908e6da"
+      },
+      {
+        "window": "2-1s",
+        "actual_seconds": 15.000449413,
+        "B_cpu_ticks_at_100_Hz": 8,
+        "Go_allocation_delta_bytes": 4672592,
+        "Go_allocation_MiB_per_second": 0.2970664983932713,
+        "GC_counts": [
+          7,
+          7
+        ],
+        "raw_sha256": "5b7bbf8eef2c378ab540dcbcfd6cb04c197b00a639cd1c5964918138a0aabf53"
+      },
+      {
+        "window": "3-1s",
+        "actual_seconds": 15.000475622,
+        "B_cpu_ticks_at_100_Hz": 5,
+        "Go_allocation_delta_bytes": 4734272,
+        "Go_allocation_MiB_per_second": 0.30098736380462016,
+        "GC_counts": [
+          7,
+          7
+        ],
+        "raw_sha256": "a25daea3400a5b387cf7e1bb78aa37ca0f1e6fd76f6f5fdc50161a1234c95e3a"
+      },
+      {
+        "window": "4-100ms",
+        "actual_seconds": 15.000843216,
+        "B_cpu_ticks_at_100_Hz": 69,
+        "Go_allocation_delta_bytes": 44291776,
+        "Go_allocation_MiB_per_second": 2.815836989361062,
+        "GC_counts": [
+          7,
+          7
+        ],
+        "raw_sha256": "b291d6f67b744211fe643f13179c1c6099a014414ac677ca32c46a59dc087592"
+      }
+    ],
+    "reproduction_with_repository_script": [
+      {
+        "window": "1-100ms",
+        "Go_allocation_MiB_per_second": 2.844163726978299,
+        "actual_seconds": 15.000760695,
+        "raw_sha256": "3204f881574b0ce2f5927cec156d6d46eb232d6ea6462764c2e9276db453e57c"
+      },
+      {
+        "window": "2-1s",
+        "Go_allocation_MiB_per_second": 0.2981873225533656,
+        "actual_seconds": 15.000585121,
+        "raw_sha256": "e96d37e5bc2cb94ca7c9d1948d119cf3964aba3f951396c21169596d5517ac51"
+      },
+      {
+        "window": "3-1s",
+        "Go_allocation_MiB_per_second": 0.2987024582958644,
+        "actual_seconds": 15.000384935,
+        "raw_sha256": "b825f13432217f87a1f4fbcb75f0ff3cdd55a84fc52fed334e10e9264daadb53"
+      },
+      {
+        "window": "4-100ms",
+        "Go_allocation_MiB_per_second": 2.8226581499928383,
+        "actual_seconds": 15.000452101,
+        "raw_sha256": "e10fb52bfa350413252f03b81a0d400a2e77c14a4972f99c171916e83ffdd213"
+      }
+    ]
+  },
+  "code": {
+    "diagnostic_baseline": "b110c1a",
+    "candidate": "4655c70",
+    "experiment_tools": "328de2b"
+  },
+  "regression": {
+    "rust_tests_passed": 97,
+    "go_top_level_passed": 202,
+    "go_subtests_passed": 97,
+    "go_race_enabled": true,
+    "conditional_child_process_fixture_top_level_skips": 1,
+    "binary_comparison": "identical",
+    "log_sha256": "f34680831162d6c017350d75763296b43c1a1da9293b195df3d677ce033dec46"
+  }
+}

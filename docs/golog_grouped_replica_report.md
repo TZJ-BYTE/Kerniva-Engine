@@ -398,3 +398,7 @@ python3 -B scripts/golog_replica_snapshot_capacity.py --root "$run_dir" --bin ./
 另外用干净构建的主库、源与副本从头生成夹具，复跑限 4 份的窗口并通过。WSL 全套 Rust 测试及 Go 竞态回归通过。旧源配新副本、新源配旧副本都通过真实 gnet 主库的增量追赶、快照补齐和主库重启检验。
 
 每个窗口写出独立的 `result.json`。其中包含所有传输尝试、实际字节数、B 部分文件采样、序号、摘要和轻库四端见证。汇总中的 `get_ms` 和 `current_ms` 数组分别给出从源可取起计算的观测下界与上界。[实验脚本](../scripts/golog_replica_snapshot_capacity.py) · [逐轮指标和原始结果摘要](verification/replica-snapshot-concurrency.json)
+
+## 副本快照恢复的内存归因
+
+在同一份 280.4 MiB 快照和共享 8 MiB/s 链路下，副本全量恢复省去每行一次临时拷贝。默认并发下的两对常规窗口中，B 追齐前峰值 RSS 分别从 615.29 降至 497.21 MiB、643.19 降至 486.78 MiB。8 个前后对照窗口的 24 次轻库更新均在慢传输中发布并可读，单独的快照中断与 16 库离线恢复也通过。追齐后 60 秒的驻留量仍随窗口波动。[逐窗对照、内存曲线与复现](verification/replica-recovery-memory.md)

@@ -169,6 +169,7 @@ go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -n
 - [无人值守实施与对照计划](docs/golog_unattended_plan.md)
 - [Go 日志与 Rust 快照 WSL 实测](docs/golog_wsl_report.md)
 - [合并同步与复制 WSL 实测](docs/golog_grouped_replica_report.md)
+- [副本快照恢复的内存归因、峰值对照与断源重启](docs/verification/replica-recovery-memory.md)
 - [统一工作台验收](docs/verification/unified-workbench.md)
 - [现阶段验收计划](docs/golog_next_stage_plan.md)
 - [历史 Rust 主存内核实验记录](docs/rust_memory_wsl_report.md)
