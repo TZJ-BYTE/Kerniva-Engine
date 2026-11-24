@@ -90,11 +90,11 @@ if (-not $Command -or $Command -in @("help", "-h", "--help", "/?")) {
 
 switch ($Command.ToLowerInvariant()) {
   "shell" {
-    & python -B (Join-Path $root "scripts\kerniva-workbench.py") --shell @ArgsRest
+    & python -X utf8 -B (Join-Path $root "scripts\kerniva-workbench.py") --shell @ArgsRest
     exit $LASTEXITCODE
   }
   "workbench" {
-    & python -B (Join-Path $root "scripts\kerniva-workbench.py") @ArgsRest
+    & python -X utf8 -B (Join-Path $root "scripts\kerniva-workbench.py") @ArgsRest
     exit $LASTEXITCODE
   }
   "build" {
