@@ -38,6 +38,13 @@ var (
 // Callers must stage changes until recovery succeeds, then clear existing state
 // if reset is true before applying the recovered changes.
 func RecoverGoLogDelta(directory string, after uint64, ranges []GoLogRange, restore func(key, value []byte, deleted bool) error) (reset bool, err error) {
+	return RecoverGoLogDeltaWithHandleObserver(directory, after, ranges, restore, nil)
+}
+
+// RecoverGoLogDeltaWithHandleObserver calls handleReady after opening the native
+// iterator and before reading its first block. Native decoding can continue
+// during iteration.
+func RecoverGoLogDeltaWithHandleObserver(directory string, after uint64, ranges []GoLogRange, restore func(key, value []byte, deleted bool) error, handleReady func()) (reset bool, err error) {
 	if directory == "" || strings.ContainsRune(directory, 0) {
 		return false, errors.New("invalid Go-log delta recovery directory")
 	}
@@ -75,6 +82,9 @@ func RecoverGoLogDelta(directory string, after uint64, ranges []GoLogRange, rest
 	}
 	if nativeReset > 1 {
 		return false, errors.New("invalid Go-log delta reset flag")
+	}
+	if handleReady != nil {
+		handleReady()
 	}
 
 	for {

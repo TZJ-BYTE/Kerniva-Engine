@@ -50,6 +50,7 @@ type view struct {
 	installed
 	values  map[string]*datastruct.DataValue
 	changes map[string]*datastruct.DataValue // staged incremental view with nil tombstones
+	trace   recoveryTrace
 }
 
 type report struct {
@@ -77,6 +78,7 @@ type replicaDB struct {
 	result            atomic.Pointer[report]
 	pending           *view
 	onCurrentPublish  func(currentPublishStage) // set before polling to observe publication boundaries
+	trace             *memoryTrace
 }
 
 type Follower struct {
@@ -96,6 +98,7 @@ type Follower struct {
 	active        sync.WaitGroup
 	closeOnce     sync.Once
 	closed        bool
+	trace         *memoryTrace
 }
 
 // OpenFollower loads the last published generation of each configured database.
@@ -147,6 +150,7 @@ func OpenFollowerWithOptions(root, upstream string, databases []int, options Fol
 		byNumber: make(map[int]*replicaDB, len(databases)),
 		lease:    lease,
 		pullIdle: options.PullIdleTimeout,
+		trace:    openMemoryTrace(),
 		client: &http.Client{
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
@@ -182,7 +186,7 @@ func (f *Follower) openDatabase(root string, number int) error {
 	if _, duplicate := f.byNumber[number]; duplicate || number < 0 {
 		return errors.New("invalid or duplicate replica database")
 	}
-	db := &replicaDB{number: number, directory: filepath.Join(root, dbName(number)), minimumRebase: minimumRebaseBytes}
+	db := &replicaDB{number: number, directory: filepath.Join(root, dbName(number)), minimumRebase: minimumRebaseBytes, trace: f.trace}
 	if err := os.MkdirAll(db.directory, 0700); err != nil {
 		return err
 	}
@@ -196,10 +200,13 @@ func (f *Follower) openDatabase(root string, number int) error {
 			prior.Source != f.source || prior.Snapshot > prior.Sequence {
 			return errors.New("invalid persisted replica generation")
 		}
-		state.view, err = loadView(filepath.Join(db.directory, prior.Generation), prior)
+		trace := recoveryTrace{trace: db.trace, db: number, generation: prior.Generation, sequence: prior.Sequence, kind: "startup"}
+		state.view, err = loadView(filepath.Join(db.directory, prior.Generation), prior, trace)
 		if err != nil {
 			return err
 		}
+		state.view.trace = trace
+		trace.record("go_view_ready")
 		state.status = statusFor(state.view)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -211,8 +218,14 @@ func (f *Follower) openDatabase(root string, number int) error {
 	if err := syncDir(db.directory); err != nil {
 		return err
 	}
-	db.clean(keep)
+	cleaned := db.clean(keep)
+	if state.view != nil && cleaned {
+		state.view.trace.record("old_generations_cleaned")
+	}
 	db.result.Store(state)
+	if state.view != nil {
+		state.view.trace.record("read_view_switched")
+	}
 	f.byNumber[number] = db
 	f.databases = append(f.databases, db)
 	return nil
@@ -230,6 +243,7 @@ func (f *Follower) Close() error {
 		f.lifecycleMu.Unlock()
 
 		f.active.Wait()
+		f.trace.close()
 		if f.client != nil {
 			f.client.CloseIdleConnections()
 		}
@@ -344,7 +358,10 @@ func (f *Follower) pollDatabase(ctx context.Context, db *replicaDB) error {
 	}
 	if next != previous.view {
 		db.publishView(previous.view, next, status)
-		db.clean(next.Generation)
+		next.trace.record("read_view_switched")
+		if db.clean(next.Generation) {
+			next.trace.record("old_generations_cleaned")
+		}
 	} else if status != previous.status {
 		db.result.Store(&report{view: next, status: status})
 	}
@@ -379,6 +396,7 @@ func (f *Follower) fetch(ctx context.Context, db *replicaDB, previous *view) (*v
 		}
 		next := db.pending
 		db.pending = nil
+		next.trace.record("current_published")
 		return next, nil
 	}
 	next, err := f.pull(ctx, db, previous, false)
@@ -580,6 +598,11 @@ func (db *replicaDB) install(body *bufio.Reader, previous *view, info manifest, 
 	if err != nil {
 		return nil, err
 	}
+	trace := recoveryTrace{trace: db.trace, db: db.number, generation: filepath.Base(generation), sequence: info.Last, kind: "delta"}
+	if info.Snapshot != 0 {
+		trace.kind = "snapshot"
+	}
+	trace.record("install_start")
 	keep := false
 	defer func() {
 		if !keep {
@@ -622,27 +645,30 @@ func (db *replicaDB) install(body *bufio.Reader, previous *view, info manifest, 
 	if err := readEnd(body); err != nil {
 		return nil, err
 	}
+	trace.record("download_complete")
 	meta := installed{
-		Generation: filepath.Base(generation),
+		Generation: trace.generation,
 		Source:     info.Source,
 		Sequence:   info.Last,
 		Snapshot:   base,
 	}
 	var next *view
 	if previous != nil && info.Snapshot == 0 && len(info.Files) > 0 {
-		next, err = loadDeltaView(generation, meta, previous.Sequence, info.Files)
+		next, err = loadDeltaView(generation, meta, previous.Sequence, info.Files, trace)
 		if errors.Is(err, rustengine.ErrGoLogDeltaUnavailable) {
-			next, err = loadView(generation, meta)
+			next, err = loadView(generation, meta, trace)
 		}
 		if err != nil && info.Available != nil && info.Available.Sequence > previous.Sequence {
 			return nil, fmt.Errorf("%w: %w", errRetainedDeltaRecovery, err)
 		}
 	} else {
-		next, err = loadView(generation, meta)
+		next, err = loadView(generation, meta, trace)
 	}
 	if err != nil {
 		return nil, err
 	}
+	next.trace = trace
+	trace.record("go_view_ready")
 	if err := syncDir(generation); err != nil {
 		return nil, err
 	}
@@ -661,10 +687,11 @@ func (db *replicaDB) install(body *bufio.Reader, previous *view, info manifest, 
 		db.pending = next
 		return nil, err
 	}
+	trace.record("current_published")
 	return next, nil
 }
 
-func loadDeltaView(generation string, meta installed, after uint64, files []fileEntry) (*view, error) {
+func loadDeltaView(generation string, meta installed, after uint64, files []fileEntry, trace recoveryTrace) (*view, error) {
 	ranges := make([]rustengine.GoLogRange, 0, len(files))
 	for _, entry := range files {
 		first, last, err := segmentRange(entry.Name)
@@ -674,7 +701,9 @@ func loadDeltaView(generation string, meta installed, after uint64, files []file
 		ranges = append(ranges, rustengine.GoLogRange{First: first, Last: last})
 	}
 	changes := make(map[string]*datastruct.DataValue)
-	reset, err := rustengine.RecoverGoLogDelta(generation, after, ranges, func(key, raw []byte, deleted bool) error {
+	trace.recovery = "delta"
+	trace.record("rust_recovery_start")
+	reset, err := rustengine.RecoverGoLogDeltaWithHandleObserver(generation, after, ranges, func(key, raw []byte, deleted bool) error {
 		var value *datastruct.DataValue
 		if !deleted {
 			entry, err := datastruct.DeserializeDataValue(raw)
@@ -687,10 +716,11 @@ func loadDeltaView(generation string, meta installed, after uint64, files []file
 		}
 		changes[string(key)] = value
 		return nil
-	})
+	}, trace.handleObserver())
 	if err != nil {
 		return nil, err
 	}
+	trace.record("rust_rows_restored")
 	if reset {
 		for key, value := range changes {
 			if value == nil {
@@ -702,7 +732,7 @@ func loadDeltaView(generation string, meta installed, after uint64, files []file
 	return &view{installed: meta, changes: changes}, nil
 }
 
-func loadView(generation string, meta installed) (*view, error) {
+func loadView(generation string, meta installed, trace recoveryTrace) (*view, error) {
 	cutoff, err := readCutoff(generation)
 	if err != nil {
 		return nil, err
@@ -711,7 +741,9 @@ func loadView(generation string, meta installed) (*view, error) {
 		return nil, errors.New("replica snapshot disagrees with published cutoff")
 	}
 	values := make(map[string]*datastruct.DataValue)
-	recovered, err := rustengine.RecoverGoLog(generation, func(key, raw []byte) error {
+	trace.recovery = "full"
+	trace.record("rust_recovery_start")
+	recovered, err := rustengine.RecoverGoLogWithHandleObserver(generation, func(key, raw []byte) error {
 		entry, err := datastruct.DeserializeDataValue(raw)
 		if err != nil {
 			return err
@@ -720,10 +752,11 @@ func loadView(generation string, meta installed) (*view, error) {
 			values[string(key)] = entry
 		}
 		return nil
-	})
+	}, trace.handleObserver())
 	if err != nil {
 		return nil, err
 	}
+	trace.record("rust_rows_restored")
 	if recovered.LastSequence != meta.Sequence || recovered.ActiveEnd != 0 {
 		return nil, errors.New("recovered replica sequence disagrees with published generation")
 	}
@@ -798,17 +831,21 @@ func validGeneration(name string) bool {
 	return err == nil
 }
 
-func (db *replicaDB) clean(keep string) {
+func (db *replicaDB) clean(keep string) bool {
 	entries, err := os.ReadDir(db.directory)
 	if err != nil {
-		return
+		return false
 	}
+	cleaned := true
 	for _, entry := range entries {
 		name := entry.Name()
 		if name != keep && (validGeneration(name) || strings.HasPrefix(name, ".CURRENT-")) {
-			os.RemoveAll(filepath.Join(db.directory, name))
+			if err := os.RemoveAll(filepath.Join(db.directory, name)); err != nil {
+				cleaned = false
+			}
 		}
 	}
+	return cleaned
 }
 
 // Handler exposes read-only string lookups and independent database cursors.

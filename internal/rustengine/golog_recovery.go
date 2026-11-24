@@ -30,6 +30,12 @@ var (
 // RecoverGoLog replays the published snapshot and log before the caller begins
 // serving requests. The callback receives Go-owned copies and may retain them.
 func RecoverGoLog(directory string, restore func(key, value []byte) error) (GoLogRecovery, error) {
+	return RecoverGoLogWithHandleObserver(directory, restore, nil)
+}
+
+// RecoverGoLogWithHandleObserver calls handleReady after native recovery and
+// before the first row is transferred to Go.
+func RecoverGoLogWithHandleObserver(directory string, restore func(key, value []byte) error, handleReady func()) (GoLogRecovery, error) {
 	if directory == "" || strings.ContainsRune(directory, 0) {
 		return GoLogRecovery{}, errors.New("invalid Go log recovery directory")
 	}
@@ -51,6 +57,9 @@ func RecoverGoLog(directory string, restore func(key, value []byte) error) (GoLo
 		return GoLogRecovery{}, consumeErr("open Rust Go-log recovery", nativeErr)
 	}
 	defer procs.close.Call(handle)
+	if handleReady != nil {
+		handleReady()
+	}
 	if restore == nil {
 		return result, nil
 	}
