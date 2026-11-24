@@ -173,4 +173,4 @@ go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -n
 - [历史 Rust 主存内核实验记录](docs/rust_memory_wsl_report.md)
 - [历史 WSL 与 Redis 对照实验](docs/thesis_second_overnight_report.md)
 
-项目由 TZJ-BYTE 维护。问题可提交至 [项目 issue 页面](https://github.com/TZJ-BYTE/RediGo/issues)。
+项目由 TZJ-BYTE 维护。[提交或查看问题](https://github.com/TZJ-BYTE/Kerniva-Engine/issues)
