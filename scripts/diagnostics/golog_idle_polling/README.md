@@ -42,3 +42,7 @@ Set `KERNIVA_GOLOG_POLL_PHASE_TRACE` to a new JSONL path and `KERNIVA_GOLOG_POLL
 | `trace_closed` | The writer drained the queue at graceful shutdown. `dropped` gives the number of events discarded by the nonblocking queue. A complete measurement has a terminal row with zero drops. |
 
 The producer timestamps events and sends them through a bounded queue. A separate goroutine encodes and writes the rows for live observation. The same instrumentation is applied to both CLI builds, and `build.json` records the matching probe hashes.
+
+## Reader reuse measurements
+
+The footprint test inspects both versions between synchronous real HTTP polls. It records the size of the database struct, the capacity and identity of each backing array, and whether any reader still references an HTTP body. The direct-delta driver uses the same timing probes on both CLIs and measures request-to-durable and request-to-view rates over identical sealed files. The summary tool recomputes window metrics and hashes the supporting records. [Fixture, commands and acceptance results](../../../docs/verification/replica-reader-reuse.md)
