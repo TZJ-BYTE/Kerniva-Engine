@@ -25,6 +25,7 @@ bash kerniva shell
 - Lua 库白名单、超时、指令与采样分配预算。
 - Go 常驻分片内存、按库分段日志、原子写批次和绝对 TTL。
 - Rust 独立调度快照、清单原子发布、封存段回收与恢复。
+- 一主两从按逻辑库追赶封存日志，落后时用快照补齐。可通过 `kerniva-replica follow --snapshot-concurrency N` 限制单个副本的快照并发数，默认 `0`。[复制配置与恢复语义](docs/architecture/adr-0003-sealed-log-replication.md)
 - 同步持久化时的异分片热读并行与提交后缓存发布。
 - 配置校验、轮转日志、优雅停止，以及覆盖 Rust 和 Go 的测试脚本。
 

@@ -1,0 +1,329 @@
+{
+  "snapshot_bytes": 294023525,
+  "seed": 102437,
+  "source": "52615bc17058f9ae38a0e53736c0f96d",
+  "binary_sha256": {
+    "kerniva-replica": "352e16b2df0b0d05a03e56d7f4c0e4c45b3b118e90d5be82f071020097d79108",
+    "kerniva-server": "0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773",
+    "kerniva-maintainer": "a3454cc627c93be6a008f6be588635d506ac03a397056a5ac47b9351d456cd5a",
+    "libkerniva_engine.so": "f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65"
+  },
+  "windows": [
+    {
+      "window": "measured-1-cap0",
+      "limit": 0,
+      "convergence_s": 39.172,
+      "rss_mib": 592.488,
+      "observed_peak": 15,
+      "markers": [
+        {
+          "sequence": 2,
+          "get_ms": [
+            51.256,
+            155.964
+          ],
+          "current_ms": [
+            51.73,
+            156.034
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1599.637
+        },
+        {
+          "sequence": 3,
+          "get_ms": [
+            0.0,
+            52.707
+          ],
+          "current_ms": [
+            0.0,
+            52.806
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1132.066
+        },
+        {
+          "sequence": 4,
+          "get_ms": [
+            51.264,
+            154.095
+          ],
+          "current_ms": [
+            0.623,
+            103.638
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1245.168
+        }
+      ],
+      "raw_sha256": "2000e1a80959ffd98d372b4274ebddcf03ff03513642cbce8e0fbaaea7dbd6d6",
+      "final_rss_mib": 585.098,
+      "final_rss_percent_of_peak": 98.75,
+      "scheduled_payload_bytes": 294025013,
+      "script_sha256": "481b7bd37b64c1e9c3825053f4fb85932b2f57aed1e21874fbbda5214676a803",
+      "all_db_snapshots_mib": 280.403,
+      "effective_mib_s": 7.306
+    },
+    {
+      "window": "measured-2-cap4",
+      "limit": 4,
+      "convergence_s": 38.913,
+      "rss_mib": 612.695,
+      "observed_peak": 4,
+      "markers": [
+        {
+          "sequence": 2,
+          "get_ms": [
+            0.379,
+            104.271
+          ],
+          "current_ms": [
+            0.633,
+            104.406
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1237.772
+        },
+        {
+          "sequence": 3,
+          "get_ms": [
+            51.602,
+            194.428
+          ],
+          "current_ms": [
+            1.218,
+            143.831
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": false,
+          "commit_to_observed_get_ms": 1509.725
+        },
+        {
+          "sequence": 4,
+          "get_ms": [
+            0.347,
+            104.062
+          ],
+          "current_ms": [
+            0.687,
+            104.122
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1234.899
+        }
+      ],
+      "raw_sha256": "df9a9a55c1f053da5f08fd42eaafe4b2f62e3d6710911c4d9386351fda5c67e3",
+      "final_rss_mib": 591.387,
+      "final_rss_percent_of_peak": 96.52,
+      "scheduled_payload_bytes": 294025013,
+      "script_sha256": "481b7bd37b64c1e9c3825053f4fb85932b2f57aed1e21874fbbda5214676a803",
+      "all_db_snapshots_mib": 280.403,
+      "effective_mib_s": 7.297
+    },
+    {
+      "window": "measured-3-cap4",
+      "limit": 4,
+      "convergence_s": 38.686,
+      "rss_mib": 557.754,
+      "observed_peak": 4,
+      "markers": [
+        {
+          "sequence": 2,
+          "get_ms": [
+            0.426,
+            103.577
+          ],
+          "current_ms": [
+            0.797,
+            103.647
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1556.044
+        },
+        {
+          "sequence": 3,
+          "get_ms": [
+            51.636,
+            155.589
+          ],
+          "current_ms": [
+            51.986,
+            155.667
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1206.254
+        },
+        {
+          "sequence": 4,
+          "get_ms": [
+            0.365,
+            103.827
+          ],
+          "current_ms": [
+            0.668,
+            103.888
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1079.078
+        }
+      ],
+      "raw_sha256": "0f448990a222d41f9de6e50eee5f589da2f5caa64d591ef984ea4b2c17e9eb2e",
+      "final_rss_mib": 549.781,
+      "final_rss_percent_of_peak": 98.57,
+      "scheduled_payload_bytes": 294025013,
+      "script_sha256": "481b7bd37b64c1e9c3825053f4fb85932b2f57aed1e21874fbbda5214676a803",
+      "all_db_snapshots_mib": 280.403,
+      "effective_mib_s": 7.292
+    },
+    {
+      "window": "measured-4-cap0",
+      "limit": 0,
+      "convergence_s": 39.496,
+      "rss_mib": 640.18,
+      "observed_peak": 15,
+      "markers": [
+        {
+          "sequence": 2,
+          "get_ms": [
+            51.606,
+            155.337
+          ],
+          "current_ms": [
+            52.149,
+            155.403
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1184.805
+        },
+        {
+          "sequence": 3,
+          "get_ms": [
+            0.524,
+            103.541
+          ],
+          "current_ms": [
+            0.814,
+            103.631
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1287.132
+        },
+        {
+          "sequence": 4,
+          "get_ms": [
+            50.797,
+            154.293
+          ],
+          "current_ms": [
+            51.391,
+            154.372
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1389.542
+        }
+      ],
+      "raw_sha256": "fb0c8fd918533c86ae38c3bc9c6fbeabde85da332517d09c0f0069ec2fc02a54",
+      "final_rss_mib": 640.18,
+      "final_rss_percent_of_peak": 100.0,
+      "scheduled_payload_bytes": 294025013,
+      "script_sha256": "481b7bd37b64c1e9c3825053f4fb85932b2f57aed1e21874fbbda5214676a803",
+      "all_db_snapshots_mib": 280.403,
+      "effective_mib_s": 7.202
+    },
+    {
+      "window": "fault-restart-1-cap4",
+      "limit": 4,
+      "convergence_s": 38.748,
+      "rss_mib": 595.938,
+      "observed_peak": 4,
+      "markers": [
+        {
+          "sequence": 2,
+          "get_ms": [
+            0.418,
+            104.64
+          ],
+          "current_ms": [
+            0.743,
+            104.699
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1546.188
+        },
+        {
+          "sequence": 3,
+          "get_ms": [
+            0.335,
+            104.007
+          ],
+          "current_ms": [
+            0.674,
+            104.115
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1595.64
+        },
+        {
+          "sequence": 4,
+          "get_ms": [
+            51.565,
+            154.69
+          ],
+          "current_ms": [
+            51.891,
+            154.842
+          ],
+          "continuous_source_bracket": true,
+          "continuous_observed_source_to_b": true,
+          "continuous_write_to_b": true,
+          "commit_to_observed_get_ms": 1131.536
+        }
+      ],
+      "raw_sha256": "9373b2d387eaac011ea550eccd107aa1b992424785447b90b12debcdf3c688b9",
+      "final_rss_mib": 587.742,
+      "final_rss_percent_of_peak": 98.62,
+      "scheduled_payload_bytes": 294549301,
+      "script_sha256": "dae50c46f1f66a2302c8dccc3a04e724266b11f3ae72d46d17fc30b188ccc60d",
+      "fault": {
+        "db": 3,
+        "discarded_bytes": 524288,
+        "retry_bytes": 8400792,
+        "old_sequence": 2,
+        "offline_snapshot": 260,
+        "offline_sequence": 261,
+        "sampled_bulk_sha256": "693ead20fdd48d9062f36ab077be561e82040353c014ae2033284b06e52a8fc2",
+        "error": "receive snapshot-00000000000000000260.bin: unexpected EOF",
+        "recovered_offline_dbs": 16
+      },
+      "all_db_snapshots_mib": 280.403,
+      "effective_mib_s": 7.305
+    }
+  ]
+}
