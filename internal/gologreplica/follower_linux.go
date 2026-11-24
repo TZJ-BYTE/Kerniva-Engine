@@ -743,7 +743,8 @@ func loadView(generation string, meta installed, trace recoveryTrace) (*view, er
 	values := make(map[string]*datastruct.DataValue)
 	trace.recovery = "full"
 	trace.record("rust_recovery_start")
-	recovered, err := rustengine.RecoverGoLogWithHandleObserver(generation, func(key, raw []byte) error {
+	recovered, err := rustengine.RecoverGoLogBorrowed(generation, func(key, raw []byte) error {
+		// The decoded value and retained string key own their storage.
 		entry, err := datastruct.DeserializeDataValue(raw)
 		if err != nil {
 			return err

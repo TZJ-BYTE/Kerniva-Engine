@@ -30,12 +30,17 @@ var (
 // RecoverGoLog replays the published snapshot and log before the caller begins
 // serving requests. The callback receives Go-owned copies and may retain them.
 func RecoverGoLog(directory string, restore func(key, value []byte) error) (GoLogRecovery, error) {
-	return RecoverGoLogWithHandleObserver(directory, restore, nil)
+	return recoverGoLog(directory, restore, nil, restoreOwnedRecoveryRow)
 }
 
-// RecoverGoLogWithHandleObserver calls handleReady after native recovery and
-// before the first row is transferred to Go.
-func RecoverGoLogWithHandleObserver(directory string, restore func(key, value []byte) error, handleReady func()) (GoLogRecovery, error) {
+// RecoverGoLogBorrowed replays through a synchronous callback. The key and value
+// are read-only and valid only until the callback returns. The callback must copy
+// any bytes it needs to retain. handleReady runs before the first row is read.
+func RecoverGoLogBorrowed(directory string, restore func(key, value []byte) error, handleReady func()) (GoLogRecovery, error) {
+	return recoverGoLog(directory, restore, handleReady, restoreBorrowedRecoveryRow)
+}
+
+func recoverGoLog(directory string, restore func(key, value []byte) error, handleReady func(), restoreRow func(key, value kernivaBuf, restore func([]byte, []byte) error) error) (GoLogRecovery, error) {
 	if directory == "" || strings.ContainsRune(directory, 0) {
 		return GoLogRecovery{}, errors.New("invalid Go log recovery directory")
 	}
@@ -74,12 +79,8 @@ func RecoverGoLogWithHandleObserver(directory string, restore func(key, value []
 		)
 		switch int32(status) {
 		case 1:
-			keyCopy, valueCopy, err := copyRecoveryRow(key, value)
-			if err != nil {
+			if err := restoreRow(key, value, restore); err != nil {
 				return GoLogRecovery{}, err
-			}
-			if err := restore(keyCopy, valueCopy); err != nil {
-				return GoLogRecovery{}, fmt.Errorf("restore Go-log entry: %w", err)
 			}
 		case 0:
 			return result, nil
@@ -91,20 +92,56 @@ func RecoverGoLogWithHandleObserver(directory string, restore func(key, value []
 	}
 }
 
+func restoreOwnedRecoveryRow(key, value kernivaBuf, restore func([]byte, []byte) error) error {
+	keyCopy, valueCopy, err := copyRecoveryRow(key, value)
+	if err != nil {
+		return err
+	}
+	if err := restore(keyCopy, valueCopy); err != nil {
+		return fmt.Errorf("restore Go-log entry: %w", err)
+	}
+	return nil
+}
+
+func restoreBorrowedRecoveryRow(key, value kernivaBuf, restore func([]byte, []byte) error) error {
+	defer freeBuf(key)
+	defer freeBuf(value)
+	keyBytes, err := recoveryBufferBytes(key)
+	if err != nil {
+		return err
+	}
+	valueBytes, err := recoveryBufferBytes(value)
+	if err != nil {
+		return err
+	}
+	if err := restore(keyBytes, valueBytes); err != nil {
+		return fmt.Errorf("restore Go-log entry: %w", err)
+	}
+	return nil
+}
+
 func copyRecoveryRow(key, value kernivaBuf) ([]byte, []byte, error) {
 	defer freeBuf(key)
 	defer freeBuf(value)
 	copies := [2][]byte{}
 	for i, row := range [...]kernivaBuf{key, value} {
-		if row.Len == 0 {
-			continue
+		data, err := recoveryBufferBytes(row)
+		if err != nil {
+			return nil, nil, err
 		}
-		if row.Ptr == nil || row.Len > math.MaxInt {
-			return nil, nil, errors.New("invalid Go-log recovery buffer")
-		}
-		copies[i] = append([]byte(nil), unsafe.Slice((*byte)(row.Ptr), int(row.Len))...)
+		copies[i] = append([]byte(nil), data...)
 	}
 	return copies[0], copies[1], nil
+}
+
+func recoveryBufferBytes(buffer kernivaBuf) ([]byte, error) {
+	if buffer.Len == 0 {
+		return nil, nil
+	}
+	if buffer.Ptr == nil || buffer.Len > math.MaxInt {
+		return nil, errors.New("invalid Go-log recovery buffer")
+	}
+	return unsafe.Slice((*byte)(buffer.Ptr), int(buffer.Len)), nil
 }
 
 func ensureGoLogRecoveryAPI() (*goLogRecoveryAPI, error) {
