@@ -1,0 +1,126 @@
+//go:build linux
+
+package gologreplica
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"reflect"
+	"sync/atomic"
+	"testing"
+)
+
+type readerFootprint struct {
+	Stage              string  `json:"stage"`
+	Pulls              int64   `json:"pulls"`
+	DatabaseStructSize uintptr `json:"database_struct_bytes"`
+	ReaderFieldSize    uintptr `json:"reader_field_bytes"`
+	BackingStores      int     `json:"distinct_backing_stores"`
+	CapacityBytes      int     `json:"backing_capacity_bytes"`
+}
+
+// This diagnostic runs unchanged against the revisions before and after reuse.
+// Inspection happens between synchronous Poll calls, with no active workers.
+func TestReaderFootprint(t *testing.T) {
+	output := os.Getenv("KERNIVA_READER_FOOTPRINT")
+	if output == "" {
+		t.Skip("set KERNIVA_READER_FOOTPRINT for the retained-buffer measurement")
+	}
+	source, lease, err := OpenLeasedSource(os.Getenv("IDLE_DIAGNOSTIC_SOURCE_ROOT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	var pulls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/pull" {
+			pulls.Add(1)
+		}
+		source.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	var databases [16]int
+	for i := range databases {
+		databases[i] = i
+	}
+	follower, err := OpenFollower(os.Getenv("IDLE_DIAGNOSTIC_FOLLOWER_ROOT"), server.URL, databases[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer follower.Close()
+	before := make([]Status, len(databases))
+	for i, db := range follower.databases {
+		before[i] = db.result.Load().status
+		if !before[i].Ready {
+			t.Fatalf("db %d fixture has no published view", i)
+		}
+	}
+
+	var rows []readerFootprint
+	priorBacking := make(map[int]uintptr)
+	observe := func(stage string, wantedPulls int64) {
+		t.Helper()
+		row := readerFootprint{Stage: stage, Pulls: pulls.Load(), DatabaseStructSize: reflect.TypeFor[replicaDB]().Size()}
+		if row.Pulls != wantedPulls {
+			t.Fatalf("observed %d requests, want %d", row.Pulls, wantedPulls)
+		}
+		stores := make(map[uintptr]bool)
+		for i, db := range follower.databases {
+			if db.result.Load().status != before[i] {
+				t.Fatalf("db %d changed during empty polls", i)
+			}
+			reader := reflect.ValueOf(db).Elem().FieldByName("pullBuffer")
+			if !reader.IsValid() {
+				continue
+			}
+			if reader.Type() != reflect.TypeFor[bufio.Reader]() {
+				t.Fatalf("unexpected reader type %v", reader.Type())
+			}
+			row.ReaderFieldSize = reader.Type().Size()
+			buf, rd := reader.FieldByName("buf"), reader.FieldByName("rd")
+			if !buf.IsValid() || buf.Kind() != reflect.Slice || !rd.IsValid() || rd.Kind() != reflect.Interface {
+				t.Fatal("unknown Go bufio.Reader layout")
+			}
+			if !rd.IsNil() {
+				t.Fatalf("db %d retains a response between polls", i)
+			}
+			if buf.Cap() == 0 {
+				if wantedPulls > 0 {
+					t.Fatalf("db %d has no retained buffer after polling", i)
+				}
+				continue
+			}
+			pointer := buf.Pointer()
+			if wantedPulls == 0 || stores[pointer] || (priorBacking[i] != 0 && priorBacking[i] != pointer) {
+				t.Fatalf("unexpected buffer sharing, replacement or early allocation in db %d", i)
+			}
+			priorBacking[i] = pointer
+			stores[pointer] = true
+			row.CapacityBytes += buf.Cap()
+		}
+		row.BackingStores = len(stores)
+		rows = append(rows, row)
+	}
+	observe("open", 0)
+	for n := 1; n <= 3; n++ {
+		if err := follower.Poll(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		observe("after_poll", int64(n*len(databases)))
+	}
+	if err := follower.Close(); err != nil {
+		t.Fatal(err)
+	}
+	observe("closed_follower_still_referenced", int64(3*len(databases)))
+	data, err := json.MarshalIndent(rows, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(output, append(data, '\n'), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
