@@ -1,0 +1,113 @@
+//go:build linux
+
+package gologreplica
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"sync/atomic"
+
+	"golang.org/x/sys/unix"
+)
+
+type pollPhaseEvent struct {
+	DB          int    `json:"db"`
+	Stage       string `json:"stage"`
+	MonotonicNS int64  `json:"monotonic_ns"`
+	EmittedNS   int64  `json:"emitted_ns"`
+	After       uint64 `json:"after"`
+	Last        uint64 `json:"last"`
+	Files       int    `json:"files"`
+	Snapshot    uint64 `json:"snapshot"`
+	Rebase      bool   `json:"rebase"`
+	Error       string `json:"error,omitempty"`
+	Dropped     uint64 `json:"dropped"`
+}
+
+type pollPhaseTrace struct {
+	events  chan pollPhaseEvent
+	done    chan struct{}
+	dropped atomic.Uint64
+}
+
+func openPollPhaseTrace(databases map[int]*replicaDB) (*pollPhaseTrace, error) {
+	path := os.Getenv("KERNIVA_GOLOG_POLL_PHASE_TRACE")
+	if path == "" {
+		return nil, nil
+	}
+	var selected []*replicaDB
+	for _, entry := range strings.Split(os.Getenv("KERNIVA_GOLOG_POLL_PHASE_DBS"), ",") {
+		number, err := strconv.Atoi(entry)
+		if err != nil || databases[number] == nil {
+			return nil, fmt.Errorf("invalid traced database %q", entry)
+		}
+		selected = append(selected, databases[number])
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return nil, err
+	}
+	trace := &pollPhaseTrace{
+		events: make(chan pollPhaseEvent, 256),
+		done:   make(chan struct{}),
+	}
+	for _, db := range selected {
+		db.phaseTrace = trace
+	}
+	go trace.write(file)
+	return trace, nil
+}
+
+func pollPhaseNow() int64 {
+	var monotonic unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &monotonic); err != nil {
+		log.Fatalf("read poll phase clock: %v", err)
+	}
+	return monotonic.Nano()
+}
+
+func (db *replicaDB) recordPollPhase(event pollPhaseEvent) {
+	trace := db.phaseTrace
+	if trace == nil {
+		return
+	}
+	event.MonotonicNS = pollPhaseNow()
+	event.DB = db.number
+	select {
+	case trace.events <- event:
+	default:
+		trace.dropped.Add(1)
+	}
+}
+
+func (trace *pollPhaseTrace) write(file *os.File) {
+	defer close(trace.done)
+	defer file.Close()
+	encoder := json.NewEncoder(file)
+	for event := range trace.events {
+		event.EmittedNS = pollPhaseNow()
+		if err := encoder.Encode(event); err != nil {
+			log.Printf("write poll phase trace: %v", err)
+			return
+		}
+	}
+	closed := pollPhaseNow()
+	if err := encoder.Encode(pollPhaseEvent{
+		DB: -1, Stage: "trace_closed", MonotonicNS: closed, EmittedNS: closed,
+		Dropped: trace.dropped.Load(),
+	}); err != nil {
+		log.Printf("close poll phase trace: %v", err)
+	}
+}
+
+func (trace *pollPhaseTrace) close() {
+	if trace == nil {
+		return
+	}
+	close(trace.events)
+	<-trace.done
+}
