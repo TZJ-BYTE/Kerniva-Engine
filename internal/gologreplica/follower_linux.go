@@ -74,6 +74,7 @@ type replicaDB struct {
 	directory         string
 	pollGateOnce      sync.Once
 	pollGate          chan struct{}
+	pullBuffer        bufio.Reader // used only while holding pollGate
 	viewMu            sync.RWMutex // protects the published values across incremental installs
 	result            atomic.Pointer[report]
 	pending           *view
@@ -497,7 +498,9 @@ func (f *Follower) pullOnce(request *http.Request, db *replicaDB, previous *view
 	if probeSnapshot && response.StatusCode == http.StatusNoContent && response.Header.Get(snapshotRequiredHeader) == "1" {
 		return nil, errSnapshotRequired
 	}
-	body := bufio.NewReader(pullReader{ctx: ctx, body: response.Body, progress: progress})
+	body := &db.pullBuffer
+	body.Reset(pullReader{ctx: ctx, body: response.Body, progress: progress})
+	defer body.Reset(nil)
 	if response.StatusCode != http.StatusOK {
 		message, err := io.ReadAll(io.LimitReader(body, 512))
 		if errors.Is(err, errPullIdle) {

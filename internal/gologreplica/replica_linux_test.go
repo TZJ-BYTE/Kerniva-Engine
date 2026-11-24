@@ -54,6 +54,52 @@ func TestClosedFollowerCannotPollReopenedRoot(t *testing.T) {
 	}
 }
 
+func TestFollowerRetriesAfterTrailingResponseBytes(t *testing.T) {
+	requireNativeTools(t)
+	primary := t.TempDir()
+	advanceWorkerSource(t, primary, 0, "published")
+	source, err := NewSource(primary)
+	check(t, err)
+	var trailing atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !trailing.Load() {
+			source.ServeHTTP(w, r)
+			return
+		}
+		capture := httptest.NewRecorder()
+		source.ServeHTTP(capture, r)
+		w.WriteHeader(capture.Code)
+		w.Write(append(capture.Body.Bytes(), "unread trailing marker"...))
+	}))
+	defer server.Close()
+	root := t.TempDir()
+	follower, err := OpenFollower(root, server.URL, []int{0})
+	check(t, err)
+	defer follower.Close()
+	poll(t, follower)
+	current := workerCurrent(t, root, 0)
+	expectWorkerCurrent(t, current, 1)
+
+	advanceWorkerSource(t, primary, 0, "rejected")
+	trailing.Store(true)
+	if err := follower.Poll(t.Context()); err == nil || !strings.Contains(err.Error(), "trailing bytes in replication response") {
+		t.Fatalf("poll with trailing bytes = %v", err)
+	}
+	if buffered := follower.byNumber[0].pullBuffer.Buffered(); buffered != 0 {
+		t.Fatalf("reader retained %d buffered bytes after response failure", buffered)
+	}
+	if !bytes.Equal(workerCurrent(t, root, 0), current) {
+		t.Fatal("trailing response changed CURRENT")
+	}
+	expectGet(t, follower, 0, "key", http.StatusOK, "published")
+
+	advanceWorkerSource(t, primary, 0, "retried")
+	trailing.Store(false)
+	poll(t, follower)
+	expectWorkerCurrent(t, workerCurrent(t, root, 0), 3)
+	expectGet(t, follower, 0, "key", http.StatusOK, "retried")
+}
+
 func TestFollowersPreservePublishedDataAcrossFaultsAndCompaction(t *testing.T) {
 	maintainer := requireNativeTools(t)
 	primary := t.TempDir()
