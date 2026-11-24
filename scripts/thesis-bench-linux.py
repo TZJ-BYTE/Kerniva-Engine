@@ -118,8 +118,6 @@ def load_manifest(path, selected):
         raise ValueError("Manifest must contain distinct selected variants")
     if selected and set(selected) != set(names):
         raise ValueError("A selected variant is missing from the manifest")
-    if len(names) > 4:
-        raise ValueError("At most four variants are supported per suite")
     if selected:
         variants.sort(key=lambda variant: selected.index(variant["name"]))
     return benchmark, variants
@@ -365,6 +363,9 @@ def validate_measurement(measurement, case, options):
     for key, value in expected.items():
         if measurement[key] != value:
             raise ValueError(f"Client result {key} does not match the planned configuration")
+    for key in ("insert_writes", "missing_reads"):
+        if measurement.get(key, False) != options.get(key, False):
+            raise ValueError(f"Client result {key} does not match the planned configuration")
     if measurement["offered"] != case["rate"] * options["duration_ns"] // 1_000_000_000:
         raise ValueError("Client offered count does not match the fixed arrival plan")
 
@@ -501,6 +502,10 @@ def run_case(case_directory, variant, case, plan, benchmark, options, args, atte
                      "-network", case["network"], "-durability", case["durability"],
                      "-histogram-out", str(attempt / "histogram.json"),
                      "-ready-file", str(ready_file), "-start-file", str(start_file)]
+        if options.get("insert_writes"):
+            arguments.append("-insert-writes")
+        if options.get("missing_reads"):
+            arguments.append("-missing-reads")
         write_json(attempt / "commands.json", {"server": server_arguments, "client": arguments,
                                                "engine_environment": {key: environment[key] for key in variant["environment"]}})
         client = subprocess.Popen(arguments, cwd=attempt, stdout=client_out, stderr=client_err, start_new_session=True)
@@ -508,6 +513,7 @@ def run_case(case_directory, variant, case, plan, benchmark, options, args, atte
         write_json(state_path, state)
         bounded_wait(ready_file.exists, client, server, args.preload_timeout,
                      args.deadline_epoch, "Client preload and warmup")
+        keys_before = command(port, "DBSIZE") if options.get("insert_writes") else None
         info_before = server_info(port)
         write_json(attempt / "info-before.json", info_before)
         validate_memory_backend(variant, info_before)
@@ -548,6 +554,11 @@ def run_case(case_directory, variant, case, plan, benchmark, options, args, atte
         write_json(attempt / "info-after.json", info_after)
         validate_memory_backend(variant, info_after)
         validate_wal_measurement(info_before, info_after, measurement)
+        if keys_before is not None:
+            keys_after = command(port, "DBSIZE")
+            write_json(attempt / "key-counts.json", {"before": keys_before, "after": keys_after})
+            if not measurement["failures"] and keys_after - keys_before != measurement["set"]["succeeded"]:
+                raise ValueError("The key count did not grow by the number of acknowledged inserts")
         write_json(attempt / "metadata-after.json", metadata_sample(data))
         result = {"status": "complete", "completed_utc": utc_now(), "plan_id": plan["plan_id"],
                   "case": case, "variant": variant, "client_sha256": plan["benchmark_sha256"],
@@ -638,6 +649,10 @@ def run_suite(args):
                "segment_size_bytes": args.segment_size_bytes, "checkpoint_after_ops": args.checkpoint_after_ops}
     options["duration_seconds"] = options["duration_ns"] / 1_000_000_000
     options["warmup_seconds"] = options["warmup_ns"] / 1_000_000_000
+    if args.insert_writes:
+        options["insert_writes"] = True
+    if args.missing_reads:
+        options["missing_reads"] = True
     groups = args.group or [parse_group("std:95:5000,10000,15000"), parse_group("gnet:80:1250,2500,3750")]
     if args.rates:
         rates = [int(value) for value in args.rates.split(",")]
@@ -765,6 +780,8 @@ def parse_arguments(argv=None):
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--hot-percent", type=int, default=0)
     parser.add_argument("--hot-keys", type=int, default=1000)
+    parser.add_argument("--insert-writes", action="store_true", help="SET uses fresh keys outside the prefilled read set")
+    parser.add_argument("--missing-reads", action="store_true", help="GET reads only missing keys")
     parser.add_argument("--timeout-ms", type=int, default=2000)
     parser.add_argument("--queue-per-client", type=int, default=4096)
     parser.add_argument("--reconnect-backoff-ms", type=int, default=1000)

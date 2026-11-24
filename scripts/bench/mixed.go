@@ -32,6 +32,9 @@ type mixedOptions struct {
 	queue            int64
 	seed             uint64
 	prefill          bool
+	insertWrites     bool
+	insertWindow     int
+	missingReads     bool
 	preloadBatch     int
 	reconnectBackoff time.Duration
 	histogramPath    string
@@ -53,6 +56,8 @@ func mixedFlags() *mixedOptions {
 	flag.Int64Var(&o.queue, "queue-per-client", 4096, "virtual pending requests per connection, 0 uses only the deadline bound")
 	flag.Uint64Var(&o.seed, "seed", 42, "deterministic operation and key seed")
 	flag.BoolVar(&o.prefill, "prefill", true, "preload the mixed working set using verified MSET batches")
+	flag.BoolVar(&o.insertWrites, "insert-writes", false, "send SET to a distinct new key for every scheduled write")
+	flag.BoolVar(&o.missingReads, "missing-reads", false, "send GET to keys that were never written")
 	flag.IntVar(&o.preloadBatch, "preload-batch", 256, "keys per unmeasured preload MSET")
 	flag.DurationVar(&o.reconnectBackoff, "reconnect-backoff", time.Second, "minimum per-connection delay after failure before another dial")
 	flag.StringVar(&o.histogramPath, "histogram-out", "", "optional sparse histogram JSON file")
@@ -178,6 +183,8 @@ type mixedResult struct {
 	ReadPercent             int                  `json:"read_percent"`
 	HotPercent              int                  `json:"hot_percent"`
 	HotKeys                 uint64               `json:"hot_keys"`
+	InsertWrites            bool                 `json:"insert_writes,omitempty"`
+	MissingReads            bool                 `json:"missing_reads,omitempty"`
 	Seed                    uint64               `json:"seed"`
 	TargetRate              int64                `json:"target_rate"`
 	DurationSeconds         float64              `json:"duration_seconds"`
@@ -262,6 +269,13 @@ func appendKey(dst []byte, key uint64) []byte {
 	return strconv.AppendUint(dst, key, 10)
 }
 
+func appendInsertKey(dst []byte, window int, index int64) []byte {
+	dst = append(dst, "kerniva:thesis:new:"...)
+	dst = strconv.AppendInt(dst, int64(window), 10)
+	dst = append(dst, ':')
+	return strconv.AppendInt(dst, index, 10)
+}
+
 func appendBulk(dst, value []byte) []byte {
 	dst = append(dst, '$')
 	dst = strconv.AppendInt(dst, int64(len(value)), 10)
@@ -306,6 +320,12 @@ func mixedExchange(conn net.Conn, reader *bufio.Reader, request, expected, paylo
 	if write {
 		if !bytes.Equal(header, []byte("+OK\r\n")) {
 			return &unexpectedReply{message: fmt.Sprintf("unexpected SET reply %q", header)}
+		}
+		return nil
+	}
+	if expected == nil {
+		if !bytes.Equal(header, []byte("$-1\r\n")) {
+			return &unexpectedReply{message: fmt.Sprintf("expected missing GET reply, got %q", header)}
 		}
 		return nil
 	}
@@ -367,19 +387,22 @@ func runMixed(address, concurrency, network, durability string, o *mixedOptions)
 	if len(clientCounts) != 1 && o.readyFile != "" {
 		return fmt.Errorf("controller handshake requires one client count")
 	}
-	for _, raw := range clientCounts {
+	for run, raw := range clientCounts {
 		clients, err := strconv.Atoi(raw)
 		if err != nil || clients <= 0 {
 			return fmt.Errorf("invalid clients %q", raw)
 		}
-		if o.warmup > 0 {
-			warmupOptions := *o
+		window := *o
+		window.insertWindow = 2*run + 1
+		if window.warmup > 0 {
+			warmupOptions := window
+			warmupOptions.insertWindow--
 			warmupOptions.readyFile, warmupOptions.startFile = "", ""
-			if _, err := measureRate(address, clients, o.warmup, &warmupOptions); err != nil {
+			if _, err := measureRate(address, clients, window.warmup, &warmupOptions); err != nil {
 				return fmt.Errorf("warmup: %w", err)
 			}
 		}
-		output, err := measureRate(address, clients, o.duration, o)
+		output, err := measureRate(address, clients, window.duration, &window)
 		if err != nil {
 			return err
 		}
@@ -486,6 +509,8 @@ func measureRate(address string, clients int, duration time.Duration, o *mixedOp
 	r.SchemaVersion, r.Mode, r.StartedUTC = 2, "mixed", started
 	r.Clients, r.Keys, r.ValueBytes = clients, o.keys, 32
 	r.ReadPercent, r.HotPercent, r.HotKeys, r.Seed = o.readPercent, o.hotPercent, o.hotKeys, o.seed
+	r.InsertWrites = o.insertWrites
+	r.MissingReads = o.missingReads
 	r.TargetRate, r.DurationSeconds, r.ElapsedSeconds = o.rate, duration.Seconds(), elapsed.Seconds()
 	r.DrainSeconds = max(0, elapsed.Seconds()-duration.Seconds())
 	r.TimeoutSeconds, r.QueuePerClient = o.timeout.Seconds(), o.queue
@@ -564,7 +589,17 @@ func runRateWorker(worker, clients int, total int64, duration time.Duration, add
 			operation.observed.record(queueDelay)
 			continue
 		}
-		key = appendKey(key[:0], keyIndex)
+		replyValue := expected[:]
+		if write && o.insertWrites {
+			key = appendInsertKey(key[:0], o.insertWindow, index)
+			keyIndex = uint64(index)
+		} else {
+			key = appendKey(key[:0], keyIndex)
+			if !write && o.missingReads {
+				key = append(key, ":absent"...)
+				replyValue = nil
+			}
+		}
 		keyValue(keyIndex, o.seed, expected[:])
 		request = mixedRequest(request, key, expected[:], write)
 		remaining := o.timeout - (clockElapsed(*epoch) - planned)
@@ -589,7 +624,7 @@ func runRateWorker(worker, clients int, total int64, duration time.Duration, add
 			if clockElapsed(*epoch) < duration {
 				operation.counts.SentInWindow++
 			}
-			err = mixedExchange(conn, reader, request, expected[:], payload[:], write)
+			err = mixedExchange(conn, reader, request, replyValue, payload[:], write)
 		}
 		latency := clockElapsed(*epoch) - planned
 		operation.observed.record(latency)
