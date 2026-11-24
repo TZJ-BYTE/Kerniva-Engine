@@ -2,6 +2,7 @@ package command
 
 import (
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -660,6 +661,8 @@ func (c *ScanCommand) Execute(db *database.Database, args [][]byte) *protocol.Re
 	}
 
 	keys := db.Keys()
+	// The cursor is an offset, so each page needs the same order for an unchanged keyspace.
+	sort.Strings(keys)
 	result := make([]string, 0, count)
 	idx := cursor
 	for idx < len(keys) && len(result) < count {
