@@ -12,6 +12,10 @@
 
 Linux 和 WSL 上可以创建由工作台所有的演示实例。Windows 可原生运行工作台，通过 WSL 子进程管理 Linux 复制服务。退出工作台时结束由它创建的服务；通过 `--demo-url` 附着的实例保留原控制器的生命周期。操作记录按复制来源隔离，记录经统一管理接口确认的操作。旧浏览器的历史保留在原面板存储中。[统一工作台用法](../database_workbench.md) · [复制演示](../golog_replica_demo.md)
 
+### 终端交互待办
+
+后续为终端增加类似 Codex 的可点击文本界面（TUI）。用户可以用鼠标点选连接、库和操作，同时保留键盘导航与现有脚本入口。当前终端通过输入命令和编号操作。本项排在复制主线验收之后。
+
 ## 拟议桌面方案
 
 采用 **Wails v3 + Go** 作为桌面客户端。沿用当前 HTML、CSS 和 JavaScript。Go 负责连接本地管理服务并把操作结果传回界面。Windows 使用 WebView2，macOS 使用系统 WebKit，Linux 使用 WebKitGTK。每个平台都要在对应的 WebView 上验收中文排版、键盘操作和剪贴板。桌面端采用独立 Go 模块，Wails v3.1.0 要求 Go 1.26，仓库主模块当前声明 Go 1.25。 [Wails 技术架构](https://wails.io/contributing/overview/) · [v3.1.0 发布记录](https://github.com/wailsapp/wails/releases/tag/v3.1.0) · [桌面模块工具链要求](https://raw.githubusercontent.com/wailsapp/wails/v3.1.0/v3/go.mod)
