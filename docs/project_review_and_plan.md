@@ -1,5 +1,7 @@
 # 项目评审与改进记录
 
+本文记录旧架构的评审和改进过程。当前开发按 [Go 增量日志与 Rust 快照无人值守计划](golog_unattended_plan.md) 执行。
+
 ## 当前定位
 
 Kerniva 当前为 Redis 协议兼容服务与自研 Rust KV 内核组成的原型，已经完成一轮工程化改造。主要链路为 TCP 请求、RESP 解析、有界连接队列、命令执行、逻辑数据库、C ABI、Rust segment log。
