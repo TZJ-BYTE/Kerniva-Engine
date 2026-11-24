@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from random import Random
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -171,9 +172,10 @@ class Experiment:
         self.primary, self.source, self.a, self.b = check.ports(4)
         self.ports = {"primary": self.primary, "source": self.source, "a": self.a, "b": self.b}
 
-    def start(self, label, *cmd):
+    def start(self, label, *cmd, env=None):
         with (self.root / f"{label}.log").open("w") as log:
-            child = subprocess.Popen(cmd, cwd=self.root, env=self.env, stdin=subprocess.DEVNULL,
+            child = subprocess.Popen(cmd, cwd=self.root, env=self.env if env is None else env,
+                                     stdin=subprocess.DEVNULL,
                                      stdout=log, stderr=subprocess.STDOUT)
         self.context.callback(check.stop, child)
         return child
@@ -197,10 +199,12 @@ class Experiment:
         self.start("source", self.replica, "serve", "--root", self.storage,
                    "--listen", f"127.0.0.1:{self.source}")
 
-    def follow(self, label, folder, source, port, flags=()):
-        return self.start(label, self.replica, "follow", "--root", self.root / folder,
+    def follow(self, label, folder, source, port, flags=(), env=None, executable=None):
+        return self.start(label, self.replica if executable is None else executable,
+                          "follow", "--root", self.root / folder,
                           "--source", f"http://127.0.0.1:{source}", "--listen", f"127.0.0.1:{port}",
-                          "--dbs", DBS, "--interval", "100ms", "--pull-idle-timeout", TIMEOUT, *flags)
+                          "--dbs", DBS, "--interval", "100ms", "--pull-idle-timeout", TIMEOUT, *flags,
+                          env=env)
 
     def write(self, db, operations):
         with socket.create_connection(("127.0.0.1", self.primary), timeout=30) as sock:
@@ -381,7 +385,21 @@ def save_result(root, data):
         check.RUNNER.write_json(root / "result.json", data)
 
 
-def trial(root, fixture, binary, replica, limit, fault):
+def rollup(pid):
+    values = {}
+    for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines()[1:]:
+        name, value = line.split(":", 1)
+        values[name] = int(value.split()[0])
+    return values
+
+
+def memory_process(pid):
+    counters = proc(pid)
+    fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+    return {**counters, "cpu_ticks": int(fields[11]) + int(fields[12])}
+
+
+def trial(root, fixture, binary, replica, limit, fault, memory=False, trace=False, follower=None):
     metadata = json.loads((fixture / "fixture.json").read_bytes())
     clone_fixture(fixture, root, metadata)
     mount, fs = config(["findmnt", "-n", "-o", "SOURCE,FSTYPE", "-T", root]).split()
@@ -389,14 +407,19 @@ def trial(root, fixture, binary, replica, limit, fault):
     ev = Evidence()
     rows = metadata["dbs"]
     expected = {**{row["db"]: row["tail"] for row in rows}, LIGHT: 4}
+    follower = replica if follower is None else follower
+    artifacts = (replica, follower, binary / "kerniva-server", binary / "kerniva-maintainer",
+                 binary / "libkerniva_engine.so", Path(__file__).resolve(),
+                 Path(__file__).with_name("golog_replica_shared_link.py").resolve())
     data = {"fixture": metadata, "limit": limit, "fault_enabled": fault, "root": str(root),
             "filesystem": [mount, fs], "interval_ms": 100, "sample_target_ms": INTERVAL * 1000,
             "pull_idle_timeout": TIMEOUT, "os": list(os.uname()), "cpu_count": os.cpu_count(),
-            "artifacts_sha256": {str(path): digest(path) for path in
-                                 (replica, binary / "kerniva-server", binary / "kerniva-maintainer",
-                                  binary / "libkerniva_engine.so", Path(__file__).resolve(),
-                                  Path(__file__).with_name("golog_replica_shared_link.py").resolve())}}
+            "artifacts_sha256": {str(path): digest(path) for path in dict.fromkeys(artifacts)},
+            "replica_artifacts": {"source_and_a": str(replica), "b": str(follower)}}
     link = SharedLink(ev, root, None, RATE, None)
+    if memory:
+        data["memory"] = {"monotonic_origin_ns": ev.origin, "trace_enabled": trace,
+                          "cpu_ticks_per_second": os.sysconf("SC_CLK_TCK"), "idle_samples": []}
     with save_result(root, data), ExitStack() as context:
         run = Experiment(root, binary, replica, root / "primary-data/go-log-v1", context)
         relay = Relay(ev, link, run.source, fault)
@@ -415,17 +438,38 @@ def trial(root, fixture, binary, replica, limit, fault):
                     "B initial durable cursor")
         data["initial_b_current"] = initial
         start = ev.now()
-        b = run.follow("follower-b", "b", relay_port, run.b, ("--snapshot-concurrency", str(limit)))
+        trace_file = root / "b-memory.jsonl"
+        b_env = {**run.env, "KERNIVA_GOLOG_MEMORY_TRACE": str(trace_file)} if trace else None
+        b = run.follow("follower-b", "b", relay_port, run.b, ("--snapshot-concurrency", str(limit)),
+                       env=b_env, executable=follower)
         context.callback(relay.stopping.set)
         done = Event()
         samples = []
+        sample_errors = []
+
+        def read_sample(with_rollup=False):
+            stamp = ev.now()
+            counters = memory_process(b.pid) if memory else proc(b.pid)
+            sample = {"ns": stamp, **counters, "partial": staged(root, rows)}
+            if with_rollup:
+                sample["smaps_start_ns"] = ev.now()
+                sample["smaps_rollup_kib"] = rollup(b.pid)
+                sample["smaps_end_ns"] = ev.now()
+            return sample
 
         def measure():
+            next_rollup = 0
             while not done.is_set():
                 try:
-                    samples.append({"ns": ev.now(), **proc(b.pid), "partial": staged(root, rows)})
+                    sample = read_sample(memory and ev.now() >= next_rollup)
+                    if "smaps_rollup_kib" in sample:
+                        next_rollup = sample["ns"] + 1_000_000_000
+                    samples.append(sample)
                 except (FileNotFoundError, ProcessLookupError, KeyError):
                     pass
+                except Exception as error:
+                    sample_errors.append(error)
+                    return
                 done.wait(INTERVAL)
 
         thread = Thread(target=measure, daemon=True)
@@ -442,6 +486,8 @@ def trial(root, fixture, binary, replica, limit, fault):
             def guarded():
                 if relay.errors:
                     raise RuntimeError(relay.errors[0])
+                if sample_errors:
+                    raise sample_errors[0]
                 return fn()
             return run.wait(label, guarded, timeout)
 
@@ -493,12 +539,38 @@ def trial(root, fixture, binary, replica, limit, fault):
                   "b": wait("B converged", lambda: run.ready(run.b, expected))}
         finish = ev.now()
         stop_samples()
-        last_proc = proc(b.pid)
+        if sample_errors:
+            raise sample_errors[0]
+        last_proc = memory_process(b.pid) if memory else proc(b.pid)
         data["measurement"] = {"start_ns": start, "finish_ns": finish,
                                "convergence_ms": (finish - start) / 1e6,
                                "rss_hwm_kib": max(sample["hwm_kib"] for sample in [*samples, last_proc]),
                                "final_proc": last_proc,
                                "peak_partial_on_disk": max(len(sample["partial"]) for sample in samples)}
+        if memory:
+            for delay in (0, 5, 15, 30, 60):
+                time.sleep(max(0, (finish + delay * 1_000_000_000 - ev.now()) / 1e9))
+                sample = read_sample(with_rollup=True)
+                sample["target_seconds_after_convergence"] = delay
+                if trace:
+                    sample["heap_signal_ns"] = ev.now()
+                    b.send_signal(signal.SIGUSR1)
+                data["memory"]["idle_samples"].append(sample)
+            if trace:
+                def idle_heap_samples():
+                    try:
+                        lines = trace_file.read_text().split("\n")[:-1]
+                    except FileNotFoundError:
+                        return None
+                    events = [json.loads(line) for line in lines]
+                    sampled = [event for event in events if event["stage"] == "sample"]
+                    return sampled if len(sampled) == len(data["memory"]["idle_samples"]) else None
+
+                sampled = wait("idle Go heap readings", idle_heap_samples, 5)
+                for sample, event in zip(data["memory"]["idle_samples"], sampled):
+                    require(event["monotonic_ns"] >= ev.origin + sample["heap_signal_ns"], True,
+                            "idle heap sample follows signal")
+                    sample["go_heap"] = event
         data["final"], data["sampled_bulk_sha256"] = verify_final(run, metadata, states)
         for label, port in (("a", run.a), ("b", run.b)):
             cursor = current(root / label, LIGHT)
@@ -584,9 +656,11 @@ def trial(root, fixture, binary, replica, limit, fault):
         if fault:
             relay.stopping.set()
             check.stop(b)
+            require(b.returncode, 0, "B graceful exit before offline restart")
+            data["fault"]["b_exit_status"] = b.returncode
             unavailable_source = check.ports(1)[0]
             offline = run.follow("follower-b-offline", "b", unavailable_source, run.b,
-                                 ("--snapshot-concurrency", str(limit)))
+                                 ("--snapshot-concurrency", str(limit)), executable=follower)
             reloaded = wait("offline B reloaded final cursors",
                             lambda: run.ready(run.b, expected, allow_poll_error=True))
             for db, cursor in initial.items():
@@ -602,6 +676,14 @@ def trial(root, fixture, binary, replica, limit, fault):
             data["fault"]["offline_restart"] = {"pid": offline.pid, "source_port": unavailable_source,
                                                 "b_status": reloaded, "sampled_bulk_sha256": offline_digest,
                                                 "verified_ns": ev.now()}
+            check.stop(offline)
+            require(offline.returncode, 0, "offline B graceful exit")
+            data["fault"]["offline_restart"]["b_exit_status"] = offline.returncode
+        if memory:
+            relay.stopping.set()
+            check.stop(b)
+            data["memory"]["b_exit_status"] = b.returncode
+            require(b.returncode, 0, "B graceful exit")
         data["passed"] = True
 
 
@@ -610,25 +692,46 @@ def main():
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--bin", type=Path, required=True)
     parser.add_argument("--replica", type=Path, help="override --bin/kerniva-replica for measurements")
+    parser.add_argument("--follower", type=Path, help="use an alternate binary for follower B")
+    parser.add_argument("--compare-follower", type=Path,
+                        help="compare the alternate B against --replica at cap 0 in traced AB/BA order")
     parser.add_argument("--prepare", action="store_true")
+    parser.add_argument("--fixture", type=Path, help="reuse a prepared fixture directory")
     parser.add_argument("--name", default="paired")
     parser.add_argument("--limit", type=int, choices=(0, 4))
     parser.add_argument("--fault", action="store_true")
+    parser.add_argument("--memory", action="store_true", help="run two reversed traced and control pairs")
     args = parser.parse_args()
     root, binary = args.root.resolve(), args.bin.resolve()
     require(config(["findmnt", "-n", "-o", "FSTYPE", "-T", root]), "ext4", "experiment root")
-    fixture = root / "fixture"
+    fixture = args.fixture.resolve() if args.fixture else root / "fixture"
     if args.prepare:
         prepare(fixture, binary)
         return
     if args.fault and args.limit != 4:
         parser.error("--fault requires --limit 4")
-    order = [args.limit] if args.limit is not None else [0, 4, 4, 0]
-    for index, limit in enumerate(order, 1):
-        destination = root / f"{args.name}-{index}-cap{limit}"
+    if args.memory and (args.limit is not None or args.fault):
+        parser.error("--memory runs the full paired order without fault injection")
+    if args.compare_follower and (args.follower or args.memory or args.limit is not None or args.fault):
+        parser.error("--compare-follower selects the binaries, trace mode and cap 0")
+    replica = args.replica.resolve() if args.replica else binary / "kerniva-replica"
+    follower = args.follower.resolve() if args.follower else replica
+    memory = args.memory or args.compare_follower is not None
+    order = [(limit, False, follower, "") for limit in
+             ([args.limit] if args.limit is not None else [0, 4, 4, 0])]
+    if args.memory:
+        order = [(limit, trace, follower, "-trace" if trace else "-control")
+                 for limit, trace in ((0, False), (4, False), (0, True), (4, True),
+                                      (4, True), (0, True), (4, False), (0, False))]
+    if args.compare_follower:
+        candidate = args.compare_follower.resolve()
+        order = [(0, True, path, suffix) for path, suffix in
+                 ((replica, "-baseline"), (candidate, "-candidate"),
+                  (candidate, "-candidate"), (replica, "-baseline"))]
+    for index, (limit, trace, follower, suffix) in enumerate(order, 1):
+        destination = root / f"{args.name}-{index}-cap{limit}{suffix}"
         print(f"Running snapshot cap {limit} into {destination}", flush=True)
-        replica = args.replica.resolve() if args.replica else binary / "kerniva-replica"
-        trial(destination, fixture, binary, replica, limit, args.fault)
+        trial(destination, fixture, binary, replica, limit, args.fault, memory, trace, follower)
         print(f"Passed {destination}", flush=True)
 
 
