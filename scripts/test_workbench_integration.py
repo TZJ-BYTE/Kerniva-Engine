@@ -1,4 +1,4 @@
-"""End-to-end verification of the local Workbench API and the interactive shell."""
+"""Exercise the local Workbench API, interactive shell, and optional Chromium UI."""
 
 import argparse
 from contextlib import contextmanager
@@ -130,11 +130,11 @@ class API:
 
 
 def shell(origin, *commands):
+    launcher = ["cmd.exe", "/d", "/c", "kerniva.cmd"] if os.name == "nt" else ["bash", "kerniva"]
     result = subprocess.run(
-        [sys.executable, "-B", str(WORKBENCH), "--shell", "--url", origin],
+        [*launcher, "shell", "--url", origin], cwd=WORKBENCH.parents[1],
         input="\n".join((*commands, "/exit", "")),
         capture_output=True, text=True, encoding="utf-8", timeout=60,
-        env={**os.environ, "PYTHONUTF8": "1"},
     )
     require(result.returncode == 0, f"Interactive shell exited with status {result.returncode}")
     require(not any(line.startswith("错误 ") for line in result.stdout.splitlines()),
@@ -176,7 +176,23 @@ def ports_closed(ports, args=None):
     return True
 
 
-def exercise(origin):
+def browser_smoke(browser, origin, profile_id, marker, source):
+    helper = WORKBENCH.with_name("test_workbench_browser.mjs")
+    with tempfile.TemporaryDirectory(prefix="kerniva-browser-input-") as root:
+        config = Path(root) / "test.json"
+        config.write_text(json.dumps({"origin": origin, "profileId": profile_id, "marker": marker,
+                                      "source": source}), encoding="utf-8")
+        result = subprocess.run(
+            ["node", str(helper), str(Path(browser).expanduser().resolve()), str(config)],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8", timeout=120,
+        )
+    if result.returncode:
+        # The browser helper reports failed stages without endpoints or values.
+        raise RuntimeError(result.stderr.strip() or "Browser smoke check failed")
+    return json.loads(result.stdout)
+
+
+def exercise(origin, browser=None):
     api = API(origin)
     state = api("state")
     require(state["apiVersion"] == 2 and state["replicationAvailable"], "Managed API unavailable")
@@ -191,7 +207,7 @@ def exercise(origin):
     source = reading(initial, "source", "1")["source"]
     require(source and reading(initial, "source", "0")["source"] == source, "Expected a single log source")
     default_db0 = reading(initial, "primary", "0")
-    profile_name = "Workbench integration DB1"
+    profile_name = "工作台集成 DB1"
     profile = api("profile/save", {"profile": {
         "name": profile_name, "host": "127.0.0.1", "port": initial["primary"]["port"],
         "db": 1, "mode": "standalone", "timeout": 5,
@@ -216,7 +232,7 @@ def exercise(origin):
 
     require(api("replication/marker", {"db": 1, "value": first})["ok"], "API marker rejected")
     wait_for(lambda: caught_up(first), "API marker on both replicas")
-    output = shell(origin, "/profiles", f"/connect {profile['id']}", "/status",
+    output = shell(origin, "/profiles", f"/connect {profile_name}", "/status",
                    "/get demo:marker", "/replica status", "/replica activity", "/disconnect")
     require(profile_name in output and first in output.splitlines() and source in output
             and "go-log" in output, "Shell did not read the API profile, marker and topology")
@@ -257,8 +273,20 @@ def exercise(origin):
     require(len(records) == 16 and len({record["series"] for record in records}) == 2
             and all(re.fullmatch(r"[0-9a-f]{64}", record["source_sha256"]) for record in records),
             "Incorrect experiment archive")
+
+    if browser:
+        browser_result = browser_smoke(browser, origin, profile["id"], second, source)
+        require(api.topology()["replicas"]["b"]["paused"], "UI pause was not visible to the API")
+        output = shell(origin, "/replica status", "/replica resume b", "/replica activity")
+        require('"paused": true' in output and "恢复副本 B" in output and source in output,
+                "CLI failed to observe and resume the UI pause")
+        wait_for(lambda: caught_up(second), "B catch-up after browser smoke")
+        browser_result["cliResume"] = True
+    else:
+        browser_result = {}
     return node_ports(final), {"databases": 2, "replicas": 2, "activityRecords": len(history),
-                               "activityPages": first_page["pages"], "experimentRecords": len(records)}
+                               "activityPages": first_page["pages"], "experimentRecords": len(records),
+                               **browser_result}
 
 
 def main():
@@ -266,13 +294,14 @@ def main():
     parser.add_argument("--bin-dir", help="Build directory (Linux path in WSL on Windows)")
     parser.add_argument("--wsl-distro", help="Optional WSL distribution (Windows)")
     parser.add_argument("--wsl-user", help="Optional WSL user (Windows)")
+    parser.add_argument("--browser", help="Optional Chromium or Edge executable (requires Node.js 22+)")
     args = parser.parse_args()
     if os.name != "nt" and (args.wsl_distro or args.wsl_user):
         parser.error("WSL options apply on Windows")
     try:
         with tempfile.TemporaryDirectory(prefix="kerniva-workbench-test-") as tmp:
             with workbench(args, Path(tmp)) as origin:
-                ports, result = exercise(origin)
+                ports, result = exercise(origin, args.browser)
             web_port = int(origin.rsplit(":", 1)[1])
             require(ports_closed([web_port]), "Workbench HTTP listener remained open")
             wait_for(lambda: ports_closed(ports, args), "all replication listeners to close", seconds=12)
