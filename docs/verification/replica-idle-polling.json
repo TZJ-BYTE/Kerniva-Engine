@@ -1,0 +1,3241 @@
+{
+  "environment": {
+    "os": "WSL 2 Linux x86_64 ext4",
+    "go": "go version go1.26.8 linux/amd64",
+    "link": "HTTP/1.1 IPv4 loopback",
+    "databases": 16,
+    "baseline_revision": "93787a252e36a44766bc414105d8aaf685c3bcc0",
+    "default_interval_ms": 1000
+  },
+  "binaries_sha256": {
+    "old_B": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+    "new_B": "e2473a87b0be586830cc60d01fc7ecb34547255c4f8bbe835ec4da124e8c2093",
+    "rebuilt_B": "e2473a87b0be586830cc60d01fc7ecb34547255c4f8bbe835ec4da124e8c2093",
+    "diagnostic_source": "7ca3f1ada48cb84f6088a7f02c60aaf99c4a9a7564eaede95b33c38cc72b3f94",
+    "native_library": "f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65",
+    "origin_result": "62a8d624b4cdf5e8caa0b2c770c2235c05b1db7201f0a49811843b19ab236f71",
+    "ordinary_source": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+    "ordinary_primary": "0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773"
+  },
+  "exact": [
+    {
+      "build": "baseline-initial",
+      "interval": "100ms",
+      "completed_no_change": 2384,
+      "source_pulls": 2432,
+      "source_new_connections": 1665,
+      "total_alloc_bytes": 43907080,
+      "alloc_bytes_per_pull": 18417.39932885906,
+      "alloc_objects_per_pull": 119.64219798657719,
+      "elapsed_seconds": 15.084093019,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "bd46dc968f29dcf4da39437335e82ea43c353319ca888a6309611bedea10b66e",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/exact-100ms.json",
+        "sha256": "bd46dc968f29dcf4da39437335e82ea43c353319ca888a6309611bedea10b66e"
+      }
+    },
+    {
+      "build": "baseline-initial",
+      "interval": "1s",
+      "completed_no_change": 240,
+      "source_pulls": 288,
+      "source_new_connections": 204,
+      "total_alloc_bytes": 4488344,
+      "alloc_bytes_per_pull": 18701.433333333334,
+      "alloc_objects_per_pull": 120.90833333333333,
+      "elapsed_seconds": 15.017628337,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "381869e35cf6bab92055fc633871ff2ab964b1e8c80e2ce034c98ad358e57be6",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/exact-1s.json",
+        "sha256": "381869e35cf6bab92055fc633871ff2ab964b1e8c80e2ce034c98ad358e57be6"
+      }
+    },
+    {
+      "build": "candidate",
+      "interval": "100ms",
+      "completed_no_change": 2384,
+      "source_pulls": 2432,
+      "source_new_connections": 16,
+      "total_alloc_bytes": 25262032,
+      "alloc_bytes_per_pull": 10596.489932885906,
+      "alloc_objects_per_pull": 88.51090604026845,
+      "elapsed_seconds": 15.089699747,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "472da57d89590828e1d82ed25b16262b575aaf5f1e2671a340be2a026c87e84f",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/01-100ms-exact/result.json",
+        "sha256": "472da57d89590828e1d82ed25b16262b575aaf5f1e2671a340be2a026c87e84f"
+      }
+    },
+    {
+      "build": "candidate",
+      "interval": "1s",
+      "completed_no_change": 240,
+      "source_pulls": 288,
+      "source_new_connections": 16,
+      "total_alloc_bytes": 2572224,
+      "alloc_bytes_per_pull": 10717.6,
+      "alloc_objects_per_pull": 89.3875,
+      "elapsed_seconds": 15.021037564,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "9b8727f3e22c2e6843e4a48d50720d2c8ba550ee1e759b0ca32108e66acd2c61",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/02-1s-exact/result.json",
+        "sha256": "9b8727f3e22c2e6843e4a48d50720d2c8ba550ee1e759b0ca32108e66acd2c61"
+      }
+    },
+    {
+      "build": "candidate",
+      "interval": "1s",
+      "completed_no_change": 240,
+      "source_pulls": 288,
+      "source_new_connections": 16,
+      "total_alloc_bytes": 2574216,
+      "alloc_bytes_per_pull": 10725.9,
+      "alloc_objects_per_pull": 89.45416666666667,
+      "elapsed_seconds": 15.018710772,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "88232ca0ce6999f581bf5d947608b10adad2073c2c632022dea03229e8bd2eeb",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/03-1s-exact/result.json",
+        "sha256": "88232ca0ce6999f581bf5d947608b10adad2073c2c632022dea03229e8bd2eeb"
+      }
+    },
+    {
+      "build": "candidate",
+      "interval": "100ms",
+      "completed_no_change": 2384,
+      "source_pulls": 2432,
+      "source_new_connections": 16,
+      "total_alloc_bytes": 25305952,
+      "alloc_bytes_per_pull": 10614.912751677852,
+      "alloc_objects_per_pull": 88.58053691275168,
+      "elapsed_seconds": 15.09978963,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "b350a8858ab303fbbdd82ff88f7940f8f43eb9e73866e04fe98099d76d7690fa",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/04-100ms-exact/result.json",
+        "sha256": "b350a8858ab303fbbdd82ff88f7940f8f43eb9e73866e04fe98099d76d7690fa"
+      }
+    },
+    {
+      "build": "baseline-reverse",
+      "interval": "1s",
+      "completed_no_change": 240,
+      "source_pulls": 288,
+      "source_new_connections": 220,
+      "total_alloc_bytes": 4666776,
+      "alloc_bytes_per_pull": 19444.9,
+      "alloc_objects_per_pull": 123.73333333333333,
+      "elapsed_seconds": 15.017597885,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "fe8be87c6440391030169b469400799926345a1f8b86472fb332c2c3a13f6029",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/baseline-reverse/01-1s-exact/result.json",
+        "sha256": "fe8be87c6440391030169b469400799926345a1f8b86472fb332c2c3a13f6029"
+      }
+    },
+    {
+      "build": "baseline-reverse",
+      "interval": "100ms",
+      "completed_no_change": 2384,
+      "source_pulls": 2432,
+      "source_new_connections": 1532,
+      "total_alloc_bytes": 42391696,
+      "alloc_bytes_per_pull": 17781.75167785235,
+      "alloc_objects_per_pull": 117.19379194630872,
+      "elapsed_seconds": 15.070797915,
+      "automatic_gc_cycles": 0,
+      "raw_sha256": "032c408afd36dfb63ce5c95567219a905ff51186f868dfed2e79a44e4ea5f9a9",
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/baseline-reverse/02-100ms-exact/result.json",
+        "sha256": "032c408afd36dfb63ce5c95567219a905ff51186f868dfed2e79a44e4ea5f9a9"
+      }
+    }
+  ],
+  "alloc_profiles": [
+    {
+      "build": "baseline-initial",
+      "interval": "100ms",
+      "measured_pulls": 2384,
+      "sampled_alloc_space": {
+        "sampled_workload_alloc_space_bytes": 45326886,
+        "transport_dial_conn_cumulative_alloc_space_bytes": 19555149,
+        "follower_pull_once_bufio_reader_alloc_space_bytes": 9975270,
+        "transport_dial_conn_bufio_reader_alloc_space_bytes": 7287044,
+        "bufio_new_writer_size_flat_alloc_space_bytes": 7214487
+      },
+      "raw_sha256": "c3203518e8e4a402afad9bf946f6e93b265c173c85bd13c0139d82ae1de159de",
+      "profile_sha256": {
+        "before": "714d09322a0cdbec665a71bf4fb614a2124df141f5ffdabc75eb837e124a83fe",
+        "after": "eb2966a36d00cf8be4d41061a4a12471691c1aca96f2c02fa6f9760d811886ff",
+        "warm": "7596e2e429e3ffce6829843947bcf6659a2e760b0422bab57f92a9d766b2b468",
+        "filtered_workload_delta": "dd22e3e42325770b59a9a4fa458a9fccde5b52136828921ef599a2f7707bf6cc"
+      },
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-100ms.json",
+        "sha256": "c3203518e8e4a402afad9bf946f6e93b265c173c85bd13c0139d82ae1de159de"
+      },
+      "raw_profiles": {
+        "before": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-100ms.before.pprof",
+          "sha256": "714d09322a0cdbec665a71bf4fb614a2124df141f5ffdabc75eb837e124a83fe"
+        },
+        "after": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-100ms.after.pprof",
+          "sha256": "eb2966a36d00cf8be4d41061a4a12471691c1aca96f2c02fa6f9760d811886ff"
+        },
+        "warm": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-100ms.warm.pprof",
+          "sha256": "7596e2e429e3ffce6829843947bcf6659a2e760b0422bab57f92a9d766b2b468"
+        },
+        "filtered_workload_delta": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-100ms.workload.pprof",
+          "sha256": "dd22e3e42325770b59a9a4fa458a9fccde5b52136828921ef599a2f7707bf6cc"
+        }
+      }
+    },
+    {
+      "build": "baseline-initial",
+      "interval": "1s",
+      "measured_pulls": 240,
+      "sampled_alloc_space": {
+        "sampled_workload_alloc_space_bytes": 4555794,
+        "transport_dial_conn_cumulative_alloc_space_bytes": 1904066,
+        "follower_pull_once_bufio_reader_alloc_space_bytes": 991484,
+        "transport_dial_conn_bufio_reader_alloc_space_bytes": 704540,
+        "bufio_new_writer_size_flat_alloc_space_bytes": 700016
+      },
+      "raw_sha256": "2a0a4e1092b6a96f28aaf0bacecef6e6194230b883e5b1f08044bf909e4d7426",
+      "profile_sha256": {
+        "before": "7dfbc1c2034a08b395fed3908e7240665d3db096f37ea6d3e30cff64938424b3",
+        "after": "a75e12b33d779e27dfd15a65a341462c310d77f811532187ca71794c021f0da4",
+        "warm": "f75d946cbed4dcd5c8d991f7177b0b5f8eaa2d67f0d352f41d5160c9964a97a4",
+        "filtered_workload_delta": "b52b69df3456c50d8b8944869ee877fb09b8f9dbd3e2d6077828c660a421d743"
+      },
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-1s.json",
+        "sha256": "2a0a4e1092b6a96f28aaf0bacecef6e6194230b883e5b1f08044bf909e4d7426"
+      },
+      "raw_profiles": {
+        "before": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-1s.before.pprof",
+          "sha256": "7dfbc1c2034a08b395fed3908e7240665d3db096f37ea6d3e30cff64938424b3"
+        },
+        "after": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-1s.after.pprof",
+          "sha256": "a75e12b33d779e27dfd15a65a341462c310d77f811532187ca71794c021f0da4"
+        },
+        "warm": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-1s.warm.pprof",
+          "sha256": "f75d946cbed4dcd5c8d991f7177b0b5f8eaa2d67f0d352f41d5160c9964a97a4"
+        },
+        "filtered_workload_delta": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-1s.workload.pprof",
+          "sha256": "b52b69df3456c50d8b8944869ee877fb09b8f9dbd3e2d6077828c660a421d743"
+        }
+      }
+    },
+    {
+      "build": "candidate",
+      "interval": "100ms",
+      "measured_pulls": 2384,
+      "sampled_alloc_space": {
+        "sampled_workload_alloc_space_bytes": 25365907,
+        "transport_dial_conn_cumulative_alloc_space_bytes": 0,
+        "follower_pull_once_bufio_reader_alloc_space_bytes": 9998041,
+        "transport_dial_conn_bufio_reader_alloc_space_bytes": 0,
+        "bufio_new_writer_size_flat_alloc_space_bytes": 0
+      },
+      "raw_sha256": "f7ae79e90c5ba379187e24ddae0791d85f0f9d8da04e26aed5bedc370a06e507",
+      "profile_sha256": {
+        "before": "9e817d5754448b741809200c217c90e4c8f499ab882a2f73a0afcb8b8b3c46d2",
+        "after": "4ad7b8e8845770ee61fad74eae348eddc1b43218b74dc7401e353528bdba3cc8",
+        "warm": "ec464d0169ca9354c453d1f59830780cf3a51ddf6b18f25404e0f83d44688e4b",
+        "filtered_workload_delta": "2def5d5cb88d13170973833eaa61efaf254ee713074a89192733694ef0b2ee81"
+      },
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/05-100ms-profile/result.json",
+        "sha256": "f7ae79e90c5ba379187e24ddae0791d85f0f9d8da04e26aed5bedc370a06e507"
+      },
+      "raw_profiles": {
+        "before": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/05-100ms-profile/alloc.before.pprof",
+          "sha256": "9e817d5754448b741809200c217c90e4c8f499ab882a2f73a0afcb8b8b3c46d2"
+        },
+        "after": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/05-100ms-profile/alloc.after.pprof",
+          "sha256": "4ad7b8e8845770ee61fad74eae348eddc1b43218b74dc7401e353528bdba3cc8"
+        },
+        "warm": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/05-100ms-profile/alloc.warm.pprof",
+          "sha256": "ec464d0169ca9354c453d1f59830780cf3a51ddf6b18f25404e0f83d44688e4b"
+        },
+        "filtered_workload_delta": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/05-100ms-profile/alloc.workload.pprof",
+          "sha256": "2def5d5cb88d13170973833eaa61efaf254ee713074a89192733694ef0b2ee81"
+        }
+      }
+    },
+    {
+      "build": "candidate",
+      "interval": "1s",
+      "measured_pulls": 240,
+      "sampled_alloc_space": {
+        "sampled_workload_alloc_space_bytes": 2625991,
+        "transport_dial_conn_cumulative_alloc_space_bytes": 0,
+        "follower_pull_once_bufio_reader_alloc_space_bytes": 1028437,
+        "transport_dial_conn_bufio_reader_alloc_space_bytes": 0,
+        "bufio_new_writer_size_flat_alloc_space_bytes": 0
+      },
+      "raw_sha256": "37512e848cf3cd101c2b91c31b5b7f28952fd52448af0fe9db79c9e6514a4f4b",
+      "profile_sha256": {
+        "before": "5cb55bd5be5fb13b2ba6c79bd9ad9033d88b99bf0531250d9385fdaf104c9d17",
+        "after": "2313fbd38c6d7c78fd35e997c4441f7852cb320e2471824a7e10d09b6dce2b78",
+        "warm": "e6bf1d6bd16dc873063f946c1673ae339cb11e778b770ef2b376af380b08be6b",
+        "filtered_workload_delta": "d5fd877ebc01c63b43a38861fbe987dd5b0e3eeda9499beab83ee2e76343cfe9"
+      },
+      "raw": {
+        "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/06-1s-profile/result.json",
+        "sha256": "37512e848cf3cd101c2b91c31b5b7f28952fd52448af0fe9db79c9e6514a4f4b"
+      },
+      "raw_profiles": {
+        "before": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/06-1s-profile/alloc.before.pprof",
+          "sha256": "5cb55bd5be5fb13b2ba6c79bd9ad9033d88b99bf0531250d9385fdaf104c9d17"
+        },
+        "after": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/06-1s-profile/alloc.after.pprof",
+          "sha256": "2313fbd38c6d7c78fd35e997c4441f7852cb320e2471824a7e10d09b6dce2b78"
+        },
+        "warm": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/06-1s-profile/alloc.warm.pprof",
+          "sha256": "e6bf1d6bd16dc873063f946c1673ae339cb11e778b770ef2b376af380b08be6b"
+        },
+        "filtered_workload_delta": {
+          "path": "/home/lemon/kerniva-idle-profile-93787a2/candidate/06-1s-profile/alloc.workload.pprof",
+          "sha256": "d5fd877ebc01c63b43a38861fbe987dd5b0e3eeda9499beab83ee2e76343cfe9"
+        }
+      }
+    }
+  ],
+  "ordinary": {
+    "windows": [
+      {
+        "window": "01-100ms-baseline",
+        "arm": "baseline",
+        "interval_ms": 100,
+        "result_sha256": "070dbe9a16436850830cf5d6f465d2d354bb8c67d7812a99dea9eeed27630590",
+        "idle_seconds": 15.003,
+        "idle_alloc_MiB_per_second": 2.658,
+        "cpu_ms_per_second": 59.989,
+        "natural_gc": 0,
+        "source_connections": [
+          2,
+          2
+        ],
+        "fds": [
+          11,
+          11
+        ],
+        "rss_MiB": [
+          380.973,
+          421.441
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "e30c7bd4e1646b137476ad9925f27d054ffeacb1b4a43e19c84fc382adeaa50c",
+            "source_bound_width_ms": 12.153,
+            "ack_to_source_upper_ms": 1017.85,
+            "b_current_ms": [
+              95.917,
+              118.904
+            ],
+            "b_get_ms": [
+              96.004,
+              119.721
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "45398a84d8f16d866aab177c0b2875892ec2e5207d2d926b3e73f1ebb181adac",
+            "source_bound_width_ms": 11.657,
+            "ack_to_source_upper_ms": 1446.891,
+            "b_current_ms": [
+              95.16,
+              117.717
+            ],
+            "b_get_ms": [
+              106.06,
+              128.728
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "3b2c4751e31ed0e657c45eaf365bf859cc1283fe41126ba869a2987a0f31a7cd",
+            "source_bound_width_ms": 11.778,
+            "ack_to_source_upper_ms": 1027.717,
+            "b_current_ms": [
+              0.0,
+              21.952
+            ],
+            "b_get_ms": [
+              10.175,
+              32.852
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "6e0e0c65f2c9f740a85d529fd9f922c993804473db803deedcb19adf677bea06",
+            "source_bound_width_ms": 11.717,
+            "ack_to_source_upper_ms": 1266.923,
+            "b_current_ms": [
+              95.597,
+              117.99
+            ],
+            "b_get_ms": [
+              95.664,
+              118.404
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 34077,
+          "source": 53099,
+          "b": 33471
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/result.json",
+            "sha256": "070dbe9a16436850830cf5d6f465d2d354bb8c67d7812a99dea9eeed27630590"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/config.json",
+            "sha256": "33d3f90b88dc310754e254a0a10cfd3715c5d123887b327de29f0256d28ae0ea"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/primary.log",
+            "sha256": "f69caa9d694735f01bdce489735118829842b046d2a87beab3c32ada5cff8dcf"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/source.log",
+            "sha256": "873027962b8a9619c38e24e49478c73c22bcb0b7c31e33d6e6f72c828d8dea3c"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/b-idle.log",
+            "sha256": "6446aef5b4a3c51ae7228061a49380bb291cd32adc4672044627569cfd7d9377"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/b-writes.log",
+            "sha256": "2da3ece9b222e7e8304b12c3712523a829cf2c4620fbdd61dfd95e549d9f70a5"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/01-100ms-baseline/b-memory.jsonl",
+            "sha256": "c694ac82992e7ed951d81d4999ef75d3505cf04926bf97739912e807633f5f06"
+          }
+        }
+      },
+      {
+        "window": "02-100ms-candidate",
+        "arm": "candidate",
+        "interval_ms": 100,
+        "result_sha256": "c6eafea9f6ff3e8c42ca438c213c03cc192b295684b16dfa0c0b840c4713e255",
+        "idle_seconds": 15.004,
+        "idle_alloc_MiB_per_second": 1.592,
+        "cpu_ms_per_second": 23.994,
+        "natural_gc": 0,
+        "source_connections": [
+          16,
+          16
+        ],
+        "fds": [
+          25,
+          25
+        ],
+        "rss_MiB": [
+          400.312,
+          424.75
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "8e8b2dfb599da9dec77b3eef24b8478f1027cd0879534c95fce03cfacceda2b2",
+            "source_bound_width_ms": 11.71,
+            "ack_to_source_upper_ms": 1433.014,
+            "b_current_ms": [
+              52.682,
+              75.248
+            ],
+            "b_get_ms": [
+              52.759,
+              75.595
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "c071496eed33c69f9b37b810396f8fe4c41ce93e1ac7b165600216ecab8e715c",
+            "source_bound_width_ms": 12.251,
+            "ack_to_source_upper_ms": 1382.581,
+            "b_current_ms": [
+              20.632,
+              43.641
+            ],
+            "b_get_ms": [
+              20.702,
+              44.141
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "ceb88644da34223d69caecb94f59b26ab9cd7e2ed57c1aabac6cafd1cebf9d6f",
+            "source_bound_width_ms": 11.928,
+            "ack_to_source_upper_ms": 1440.344,
+            "b_current_ms": [
+              74.609,
+              97.28
+            ],
+            "b_get_ms": [
+              74.704,
+              97.625
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "ace532d89e95a2485bc4ae060cee3e30da8f0c79022dcee33126b394de9e4834",
+            "source_bound_width_ms": 13.475,
+            "ack_to_source_upper_ms": 1176.854,
+            "b_current_ms": [
+              74.301,
+              98.636
+            ],
+            "b_get_ms": [
+              85.162,
+              109.694
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 39313,
+          "source": 58235,
+          "b": 53155
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/result.json",
+            "sha256": "c6eafea9f6ff3e8c42ca438c213c03cc192b295684b16dfa0c0b840c4713e255"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/config.json",
+            "sha256": "1d71039fe3f894d7c9f71327644e313a04100f9c9fb0e6cc8ab2ee380446c507"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/primary.log",
+            "sha256": "d32990b59b571a60e9bcf50d8f8323c22848632989946702da9e5027a2b4e7c7"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/source.log",
+            "sha256": "05e0a9c201525b2fef6453f28aa47a496a8ee586496ea670e58a18fbac288ee5"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/b-idle.log",
+            "sha256": "81ab4625bd47a2150dec7d3cfdd703dd0c4d2c5b107e636f60d2f0cb47b3cbf1"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/b-writes.log",
+            "sha256": "07887d4803d92ff36fab3a55ca8d3d67cadac94809837154181bd346a3ff55c2"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/02-100ms-candidate/b-memory.jsonl",
+            "sha256": "091f35ba715dc0ac1cf6eed9f2261a500804b5f5868e348c49865cca99746d95"
+          }
+        }
+      },
+      {
+        "window": "03-100ms-candidate",
+        "arm": "candidate",
+        "interval_ms": 100,
+        "result_sha256": "7b434abb4cb460ac56f2c5112d8bd5a117633fddefc80b7726a4762f361946e0",
+        "idle_seconds": 15.007,
+        "idle_alloc_MiB_per_second": 1.592,
+        "cpu_ms_per_second": 19.99,
+        "natural_gc": 0,
+        "source_connections": [
+          16,
+          16
+        ],
+        "fds": [
+          25,
+          25
+        ],
+        "rss_MiB": [
+          406.863,
+          431.781
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "e3bfeec3e87818138172f4f397cf47095b301415ba1655943f9c5f45d3734593",
+            "source_bound_width_ms": 11.958,
+            "ack_to_source_upper_ms": 1066.967,
+            "b_current_ms": [
+              42.416,
+              65.158
+            ],
+            "b_get_ms": [
+              42.516,
+              65.655
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "97a55159bb3cd2197a075d9e4eb4eeecfabc1188accc1f40de9b4d2d931bb036",
+            "source_bound_width_ms": 12.013,
+            "ack_to_source_upper_ms": 1040.362,
+            "b_current_ms": [
+              95.646,
+              118.643
+            ],
+            "b_get_ms": [
+              95.736,
+              119.07
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "c26d85b13f224bf58c4626ce7d46dbccda90a0fb972481a1accaf33cf4e0842d",
+            "source_bound_width_ms": 12.217,
+            "ack_to_source_upper_ms": 1145.012,
+            "b_current_ms": [
+              0.0,
+              22.453
+            ],
+            "b_get_ms": [
+              10.237,
+              33.592
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "3db6a9770ee8913d71763f646e41460e4ba4ba354331250b0d9887d874633613",
+            "source_bound_width_ms": 11.819,
+            "ack_to_source_upper_ms": 1303.26,
+            "b_current_ms": [
+              85.949,
+              108.762
+            ],
+            "b_get_ms": [
+              86.066,
+              109.161
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 57789,
+          "source": 59169,
+          "b": 55503
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/result.json",
+            "sha256": "7b434abb4cb460ac56f2c5112d8bd5a117633fddefc80b7726a4762f361946e0"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/config.json",
+            "sha256": "72a2dc6087718091bfb4a1bcd0b188c06ff89c072012b01500fb400e5a888151"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/primary.log",
+            "sha256": "4dd81c12425079d15649c6c8e3898c398e3c600087e4336d7c29ae4f56cda4d9"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/source.log",
+            "sha256": "452d88323f97fa9d03741fa2cd499feed96d78d7edc1d91bdc8721b91e8f6a05"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/b-idle.log",
+            "sha256": "5a9cd545878ccbcbb760bf1d0b554e6b0a2728dec1611ac6277b49336e739729"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/b-writes.log",
+            "sha256": "e255cbf429cd357f6b4389528b2d35c274c820702d404108b91f234d638b1559"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/03-100ms-candidate/b-memory.jsonl",
+            "sha256": "9beb064ad25a45be20b0542e67d590033c213fadf76ef02ce26ff3721ff86a28"
+          }
+        }
+      },
+      {
+        "window": "04-100ms-baseline",
+        "arm": "baseline",
+        "interval_ms": 100,
+        "result_sha256": "1ebe39b999c1fae20cb620bdd44a2f315ea6a42d4d5d2dd7e7eb9800c99abb27",
+        "idle_seconds": 15.003,
+        "idle_alloc_MiB_per_second": 2.615,
+        "cpu_ms_per_second": 67.984,
+        "natural_gc": 0,
+        "source_connections": [
+          2,
+          2
+        ],
+        "fds": [
+          11,
+          11
+        ],
+        "rss_MiB": [
+          402.926,
+          442.211
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "aa654f99f185c3d312edd133118e40b03b9c7c53bae1ac886b254cdb707751bf",
+            "source_bound_width_ms": 11.899,
+            "ack_to_source_upper_ms": 1250.214,
+            "b_current_ms": [
+              31.385,
+              54.108
+            ],
+            "b_get_ms": [
+              31.58,
+              54.497
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "aa2ae8bc4cfd311e82809b97d781d7008b965168245ad0ffa0b6136bfe6f2237",
+            "source_bound_width_ms": 12.033,
+            "ack_to_source_upper_ms": 1126.396,
+            "b_current_ms": [
+              74.826,
+              97.656
+            ],
+            "b_get_ms": [
+              74.91,
+              98.008
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "bba2566b91f07d226b89e095de0583c61f844b49791bd07123d017845d6fa9e9",
+            "source_bound_width_ms": 12.223,
+            "ack_to_source_upper_ms": 1188.076,
+            "b_current_ms": [
+              20.851,
+              43.934
+            ],
+            "b_get_ms": [
+              20.962,
+              44.491
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "733f5e7515166a2f1294f10137c045bdc44a955451d92e06c02433bbf560f170",
+            "source_bound_width_ms": 12.141,
+            "ack_to_source_upper_ms": 1488.843,
+            "b_current_ms": [
+              52.531,
+              75.354
+            ],
+            "b_get_ms": [
+              52.603,
+              75.858
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 39301,
+          "source": 58525,
+          "b": 55157
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/result.json",
+            "sha256": "1ebe39b999c1fae20cb620bdd44a2f315ea6a42d4d5d2dd7e7eb9800c99abb27"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/config.json",
+            "sha256": "2d675f9a4cf47431058a6e5c52d8736fdf333d7c108b6b3609f09b0563093f56"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/primary.log",
+            "sha256": "2854575c4f9a19e13dca72bb84477056eab454e2ab89ee06c036d858ed6bda57"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/source.log",
+            "sha256": "2dc98067561fe7c7be3335cf313ae6d4e388227d3707a6ff5e2ee23205ea90c4"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/b-idle.log",
+            "sha256": "2a07f15e751b59e9cc036b8e5a3dece2ca6f221547e9122d2635bec446a032d6"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/b-writes.log",
+            "sha256": "b8a96b79de0d694f1980dcd46c721514eda9f188ed25ec2dc1cb2d10afab66ac"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/04-100ms-baseline/b-memory.jsonl",
+            "sha256": "a7e32e31acfda9f97b347abfca81fc461356e7632732bc17f44d62ba77a9aa45"
+          }
+        }
+      },
+      {
+        "window": "05-default-baseline",
+        "arm": "baseline",
+        "interval_ms": 1000,
+        "result_sha256": "97f5f0da96081fdd38d05f415b48d37c10a4b54eb6fc6f562dad2a029ddadfbd",
+        "idle_seconds": 15.004,
+        "idle_alloc_MiB_per_second": 0.291,
+        "cpu_ms_per_second": 5.332,
+        "natural_gc": 0,
+        "source_connections": [
+          2,
+          2
+        ],
+        "fds": [
+          11,
+          11
+        ],
+        "rss_MiB": [
+          372.945,
+          378.355
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "98a6dec3d883c5e73b4d565cf62b166e5f798b1c2ee2a544d8d9869cc38f8014",
+            "source_bound_width_ms": 11.7,
+            "ack_to_source_upper_ms": 1118.77,
+            "b_current_ms": [
+              560.411,
+              582.738
+            ],
+            "b_get_ms": [
+              560.503,
+              583.068
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "fc04ad3b2166fe477f0f084207613846aee4a01773fc52a6addd938de121dd36",
+            "source_bound_width_ms": 11.876,
+            "ack_to_source_upper_ms": 1137.717,
+            "b_current_ms": [
+              320.604,
+              343.525
+            ],
+            "b_get_ms": [
+              331.651,
+              354.554
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "ad365661fbfdc8580484eadc8f0d7a1de8d646b26a119883ba2c7cd7d5267eba",
+            "source_bound_width_ms": 11.829,
+            "ack_to_source_upper_ms": 1162.768,
+            "b_current_ms": [
+              63.883,
+              86.881
+            ],
+            "b_get_ms": [
+              63.942,
+              87.346
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "f0b1884b1438e7dd86bd46f9bf3bf55871d754cf96a87b62e793f58ff81014f5",
+            "source_bound_width_ms": 12.119,
+            "ack_to_source_upper_ms": 1366.804,
+            "b_current_ms": [
+              568.418,
+              591.444
+            ],
+            "b_get_ms": [
+              568.514,
+              591.903
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 59431,
+          "source": 40783,
+          "b": 56663
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/result.json",
+            "sha256": "97f5f0da96081fdd38d05f415b48d37c10a4b54eb6fc6f562dad2a029ddadfbd"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/config.json",
+            "sha256": "57bc80251e3216479d6e954be75276b8cfc028ff53493c1a86dd88a8bf5c5842"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/primary.log",
+            "sha256": "7112541f12c8645dbba1c7e1a35a99fb971e2b8ed6b01d56c6dc3b1d59fb590e"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/source.log",
+            "sha256": "0ff923db751f480cca731b3286a3bfeeb045f4a56e6da153c489f21d0e5301dc"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/b-idle.log",
+            "sha256": "15229adc892e37c2f6e1c5736b7836b161ad07791a6ebec57c49a1e1c89ceb87"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/b-writes.log",
+            "sha256": "dade78dd46396f1df83fe478b5d9c5eb7ede82137beac3440fc73a65b58e38ff"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/05-default-baseline/b-memory.jsonl",
+            "sha256": "5f6b6a20b0aeca8ae003b15d506d4e5481d7728c14e4ce2083beb7a495319df4"
+          }
+        }
+      },
+      {
+        "window": "06-default-candidate",
+        "arm": "candidate",
+        "interval_ms": 1000,
+        "result_sha256": "422ceea84496643441cd61bdbca74644d895636ad7200abe69e249edc4bb41e0",
+        "idle_seconds": 15.003,
+        "idle_alloc_MiB_per_second": 0.167,
+        "cpu_ms_per_second": 2.666,
+        "natural_gc": 0,
+        "source_connections": [
+          11,
+          16
+        ],
+        "fds": [
+          20,
+          25
+        ],
+        "rss_MiB": [
+          394.688,
+          397.0
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "8b3812f413729ad16468a37643dd7bef1a49e947e0f1ac72494c6f41707540b3",
+            "source_bound_width_ms": 12.086,
+            "ack_to_source_upper_ms": 1465.378,
+            "b_current_ms": [
+              215.65,
+              238.397
+            ],
+            "b_get_ms": [
+              215.73,
+              238.788
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "baf7b12caaa6b1b5f7dda126bf99f59c6c9b3c468fb6fc67687c632e2b0f9a4f",
+            "source_bound_width_ms": 11.705,
+            "ack_to_source_upper_ms": 1433.102,
+            "b_current_ms": [
+              42.088,
+              64.478
+            ],
+            "b_get_ms": [
+              42.155,
+              64.905
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "726c2a5a3b786b769840abe3333cba4f3e224497cf7897494bfdf5a7e2bfc706",
+            "source_bound_width_ms": 11.868,
+            "ack_to_source_upper_ms": 1464.441,
+            "b_current_ms": [
+              763.431,
+              786.823
+            ],
+            "b_get_ms": [
+              774.957,
+              797.903
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "432cbe6469fdea240ef9b65097e201b0ff5a41fc1007f52caf7d5553dca8dd1b",
+            "source_bound_width_ms": 13.117,
+            "ack_to_source_upper_ms": 1207.51,
+            "b_current_ms": [
+              731.386,
+              755.305
+            ],
+            "b_get_ms": [
+              731.495,
+              755.693
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 36473,
+          "source": 56441,
+          "b": 38209
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/result.json",
+            "sha256": "422ceea84496643441cd61bdbca74644d895636ad7200abe69e249edc4bb41e0"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/config.json",
+            "sha256": "fd489abe009c2ceecddf92bf0a1cc98c08fd9001547369cb25c685035da9d6c1"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/primary.log",
+            "sha256": "f12fef43721146fecbd0b297243498accb777a3f1fdbf350a2e69a6cfdcf6496"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/source.log",
+            "sha256": "f16a777d426d25ae828f85c808a1cf47f70fc2f4d743607b93c39f245ee1aba0"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/b-idle.log",
+            "sha256": "ce0c7ffa9902d73f11f762d3e15346667d136108455221b21a065cb99d330ffa"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/b-writes.log",
+            "sha256": "a618a59f96836d5c19d68939d40c90ac12f1008a392753fdbbb707dc693c59ff"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/06-default-candidate/b-memory.jsonl",
+            "sha256": "2a2934b1dec9be0e1200f82bba84d47a2fe284fd9b32ebd1fa2181009286f7ed"
+          }
+        }
+      },
+      {
+        "window": "07-default-candidate",
+        "arm": "candidate",
+        "interval_ms": 1000,
+        "result_sha256": "349f18b2c005400364045ed7f4ad987de945407842605dd8962e2c5625e60ce5",
+        "idle_seconds": 15.002,
+        "idle_alloc_MiB_per_second": 0.163,
+        "cpu_ms_per_second": 2.0,
+        "natural_gc": 0,
+        "source_connections": [
+          16,
+          16
+        ],
+        "fds": [
+          25,
+          25
+        ],
+        "rss_MiB": [
+          374.734,
+          376.824
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "2f422659d045ec3430ee535f821438685b51f29da24e0923808a95e1cdeb2ac9",
+            "source_bound_width_ms": 11.657,
+            "ack_to_source_upper_ms": 1491.655,
+            "b_current_ms": [
+              200.041,
+              222.405
+            ],
+            "b_get_ms": [
+              200.106,
+              222.775
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "de4cfed65df90f11f1653001ffa4a697f7315e6cbfd761ed3bcd2d6286c73fa7",
+            "source_bound_width_ms": 11.565,
+            "ack_to_source_upper_ms": 1486.572,
+            "b_current_ms": [
+              1001.311,
+              1023.912
+            ],
+            "b_get_ms": [
+              1001.389,
+              1024.629
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "267acd6840fbfc231bed73f074b6a44a0568900f60656399d35a999d59bd5b83",
+            "source_bound_width_ms": 11.777,
+            "ack_to_source_upper_ms": 1016.126,
+            "b_current_ms": [
+              223.632,
+              246.213
+            ],
+            "b_get_ms": [
+              223.719,
+              246.573
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "eae3254ef4c1430b193bfe87d467398850b1dd8c440604fb6d6b163fb549a6e1",
+            "source_bound_width_ms": 11.994,
+            "ack_to_source_upper_ms": 1232.894,
+            "b_current_ms": [
+              715.725,
+              738.61
+            ],
+            "b_get_ms": [
+              715.876,
+              739.061
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 53307,
+          "source": 49105,
+          "b": 51627
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/result.json",
+            "sha256": "349f18b2c005400364045ed7f4ad987de945407842605dd8962e2c5625e60ce5"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/config.json",
+            "sha256": "7a1958ed13abc3c3bdde1b1acfb4bdf8dd16c7b8837164d1dac2eaa759d07ed7"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/primary.log",
+            "sha256": "6eb43e09aeede7de3f8114487083ede03e3d1c3c92e067eb1775221b63df86fa"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/source.log",
+            "sha256": "643853f97359b2a1474148536c06fc204e5d9ac38d61195744b541ea646868dc"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/b-idle.log",
+            "sha256": "a548c6e02a317415cea8250f08db0202f73a875c3c4f808e27251c069fbe8908"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/b-writes.log",
+            "sha256": "cdec14c16ae250ba3a8a5445523b60aca218adba1bef49a56d4b00be5bac61b8"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/07-default-candidate/b-memory.jsonl",
+            "sha256": "6635cfad9b9cb4825797861e30fd8916e5feb7efab5bd3bdb124687fc8300685"
+          }
+        }
+      },
+      {
+        "window": "08-default-baseline",
+        "arm": "baseline",
+        "interval_ms": 1000,
+        "result_sha256": "c997481a3bf94903a1846c6035f4a9b53dd14c12500e4e0ac10241bfe34a9123",
+        "idle_seconds": 15.003,
+        "idle_alloc_MiB_per_second": 0.263,
+        "cpu_ms_per_second": 6.665,
+        "natural_gc": 0,
+        "source_connections": [
+          2,
+          2
+        ],
+        "fds": [
+          11,
+          11
+        ],
+        "rss_MiB": [
+          428.742,
+          432.02
+        ],
+        "markers": [
+          {
+            "db": 15,
+            "sequence": 5,
+            "window": 1,
+            "source_file_sha256": "ae32063ba987f9572f83fc61074b89b15e9393692d79d6c7ed594f89d65e2d53",
+            "source_bound_width_ms": 12.766,
+            "ack_to_source_upper_ms": 1160.965,
+            "b_current_ms": [
+              525.664,
+              549.174
+            ],
+            "b_get_ms": [
+              536.41,
+              560.161
+            ]
+          },
+          {
+            "db": 0,
+            "sequence": 518,
+            "window": 2,
+            "source_file_sha256": "830e0f847a3a48f314397f204fa8b16549a7f6e97fa6821ce9b595c98a5c42c3",
+            "source_bound_width_ms": 11.702,
+            "ack_to_source_upper_ms": 1122.681,
+            "b_current_ms": [
+              342.637,
+              365.158
+            ],
+            "b_get_ms": [
+              342.742,
+              365.522
+            ]
+          },
+          {
+            "db": 7,
+            "sequence": 518,
+            "window": 3,
+            "source_file_sha256": "59b5b306303c0d50e09c0fe7a11d724fbb01b685d1613c2d9e00941f8fa208fe",
+            "source_bound_width_ms": 12.034,
+            "ack_to_source_upper_ms": 1169.45,
+            "b_current_ms": [
+              64.518,
+              87.181
+            ],
+            "b_get_ms": [
+              75.148,
+              98.176
+            ]
+          },
+          {
+            "db": 14,
+            "sequence": 518,
+            "window": 4,
+            "source_file_sha256": "7878ae66e1c19552d887c8999260284e23e08ed3b1c341c3e836fa2a3ac2975d",
+            "source_bound_width_ms": 11.781,
+            "ack_to_source_upper_ms": 1397.886,
+            "b_current_ms": [
+              541.624,
+              564.146
+            ],
+            "b_get_ms": [
+              541.707,
+              564.468
+            ]
+          }
+        ],
+        "process_ports": {
+          "primary": 48061,
+          "source": 50159,
+          "b": 40013
+        },
+        "raw": {
+          "result.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/result.json",
+            "sha256": "c997481a3bf94903a1846c6035f4a9b53dd14c12500e4e0ac10241bfe34a9123"
+          },
+          "config.json": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/config.json",
+            "sha256": "48a57fc7cb3db2c0b4693310dfd007256dba6953d87fe3892d744dfb0ccfc7e2"
+          },
+          "primary.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/primary.log",
+            "sha256": "54b557c0955a52b94ea3e41b4e8b39eb0962fe2e75400ab5202c176887bb6801"
+          },
+          "source.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/source.log",
+            "sha256": "731ae7e719cc9c9312f776b0fa6b8612030ac847129012e9ddf90a8f110acca6"
+          },
+          "b-idle.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/b-idle.log",
+            "sha256": "3722a9a42ae29d23a9c0186dbd78cb0aca15d95ab6f4f7b985b8bd097edaf650"
+          },
+          "b-writes.log": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/b-writes.log",
+            "sha256": "7558a4d0e7616bfba57f9e6eee07fe6a2d82e74e15ad860adb43b10a21b4cf8c"
+          },
+          "b-memory.jsonl": {
+            "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/08-default-baseline/b-memory.jsonl",
+            "sha256": "f5efab6b47bcf9552de52d71af4fdf6589f911ffb48e0f4a22bcace7050d434c"
+          }
+        }
+      }
+    ],
+    "groups": [
+      {
+        "interval_ms": 100,
+        "arm": "baseline",
+        "windows": 2,
+        "b_current_ms_upper": {
+          "min": 21.952,
+          "median": 86.505,
+          "max": 118.904
+        },
+        "b_get_ms_upper": {
+          "min": 32.852,
+          "median": 86.933,
+          "max": 128.728
+        }
+      },
+      {
+        "interval_ms": 100,
+        "arm": "candidate",
+        "windows": 2,
+        "b_current_ms_upper": {
+          "min": 22.453,
+          "median": 86.264,
+          "max": 118.643
+        },
+        "b_get_ms_upper": {
+          "min": 33.592,
+          "median": 86.61,
+          "max": 119.07
+        }
+      },
+      {
+        "interval_ms": 1000,
+        "arm": "baseline",
+        "windows": 2,
+        "b_current_ms_upper": {
+          "min": 86.881,
+          "median": 457.166,
+          "max": 591.444
+        },
+        "b_get_ms_upper": {
+          "min": 87.346,
+          "median": 462.841,
+          "max": 591.903
+        }
+      },
+      {
+        "interval_ms": 1000,
+        "arm": "candidate",
+        "windows": 2,
+        "b_current_ms_upper": {
+          "min": 64.478,
+          "median": 492.411,
+          "max": 1023.912
+        },
+        "b_get_ms_upper": {
+          "min": 64.905,
+          "median": 492.817,
+          "max": 1024.629
+        }
+      }
+    ],
+    "raw_index": {
+      "path": "/home/lemon/kerniva-poll-ordinary.SdrrfeU2/result.json",
+      "sha256": "ec88c7c33fcd39392037332520681314396daa750260063ab81a9739870d99ae"
+    },
+    "device": "/dev/sdd",
+    "artifacts_sha256": {
+      "/home/lemon/kerniva-memory-phases.apFiuiuT/evidence/optimized-replica": "8c25e6a33c60d55b5af919a89bc1417e11433f5fb7c9c744317d554890332a99",
+      "/home/lemon/kerniva-idle-acceptance.rHrfhDCo/evidence/candidate-replica": "e2473a87b0be586830cc60d01fc7ecb34547255c4f8bbe835ec4da124e8c2093",
+      "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/kerniva-replica": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682",
+      "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/kerniva-server": "0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773",
+      "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/libkerniva_engine.so": "f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65",
+      "/mnt/e/project/go/Kerniva Engine/scripts/golog_replica_poll_ordinary.py": "4b0e2e8fb72eadf4bf7a7c595f7abb0b027a6881b41ad50cad0c7ca39000a62e"
+    }
+  },
+  "ordinary_index_sha256": "ec88c7c33fcd39392037332520681314396daa750260063ab81a9739870d99ae",
+  "gates": {
+    "rust_tests_passed": 97,
+    "go_top_level_passed": 204,
+    "go_subtests_passed": 102,
+    "race": true,
+    "top_level_skips": [
+      "TestReplicaCurrentCrashFixture"
+    ],
+    "transport_tests_repetitions": 8,
+    "mixed_pairs": [
+      {
+        "pair": "new-source_old-follower",
+        "network": "gnet",
+        "events": [
+          "initial",
+          "a_incremental_while_b_offline",
+          "snapshot_and_reclamation",
+          "b_snapshot_plus_tail",
+          "primary_restart"
+        ],
+        "raw_sha256": "fce428a2ed611c64dec8b0fdd1ffd9b2dedb8b980e68c01af7ca361466ffa03b",
+        "raw": {
+          "path": "/home/lemon/kerniva-idle-acceptance.rHrfhDCo/compat/new-source_old-follower/golog-replica-up9wvczr/result.json",
+          "sha256": "fce428a2ed611c64dec8b0fdd1ffd9b2dedb8b980e68c01af7ca361466ffa03b"
+        }
+      },
+      {
+        "pair": "old-source_new-follower",
+        "network": "gnet",
+        "events": [
+          "initial",
+          "a_incremental_while_b_offline",
+          "snapshot_and_reclamation",
+          "b_snapshot_plus_tail",
+          "primary_restart"
+        ],
+        "raw_sha256": "a350681292e8198e0a6fb6742a079640eca5341990b2eccb11a31f157528b124",
+        "raw": {
+          "path": "/home/lemon/kerniva-idle-acceptance.rHrfhDCo/compat/old-source_new-follower/golog-replica-f63f2hk5/result.json",
+          "sha256": "a350681292e8198e0a6fb6742a079640eca5341990b2eccb11a31f157528b124"
+        }
+      }
+    ],
+    "full_log_sha256": "ef53385df6768976900884289138aedde30e13486b26409be29082fc06584335",
+    "full_log_raw": {
+      "path": "/home/lemon/kerniva-idle-acceptance.rHrfhDCo/evidence/full-regression.log",
+      "sha256": "ef53385df6768976900884289138aedde30e13486b26409be29082fc06584335"
+    }
+  },
+  "base_summary_raw": {
+    "path": "/home/lemon/kerniva-idle-acceptance.rHrfhDCo/evidence/ordinary-profile-summary.json",
+    "sha256": "ef72be187980c9777ed01d03c33c8038ab93a91fe80fcd4ad65bfcfaced764ea"
+  },
+  "profile_raw_index": {
+    "path": "/home/lemon/kerniva-idle-profile-93787a2/profile-summary.json",
+    "sha256": "f0353219d07ab1fc2aeea8f173a5282199cd277b3772df03853407a17dce4a87"
+  },
+  "fixed_phase": {
+    "abba": {
+      "raw_index": {
+        "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/result.json",
+        "sha256": "a40249331002940ae851119345326ca56bd97be3f4d5fb978d37c236d2b20224"
+      },
+      "interval_ms": 1000,
+      "ext4_devices": [
+        "/dev/sdd"
+      ],
+      "source_publication_bounds": "S lower is the start of the last local stat with the exact sealed name absent. S upper is the completion of a single verified HTTP source delta probe. GET is bounded by the last negative and first positive HTTP observations. CURRENT durable is measured after directory sync.",
+      "phase_match_tolerance_ms": 20,
+      "max_source_bound_width_ms": 15,
+      "historical_artifacts": [
+        {
+          "path": "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/kerniva-server",
+          "sha256": "0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773"
+        },
+        {
+          "path": "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/libkerniva_engine.so",
+          "sha256": "f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65"
+        },
+        {
+          "path": "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/kerniva-replica",
+          "sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682"
+        },
+        {
+          "path": "/home/lemon/kerniva-poll-phase-93787a2/baseline/bin/kerniva-replica",
+          "sha256": "12e6be87dc57e3c3537bdcfe8894a51594f662f252d5c81c1ac56e026ce102a1"
+        },
+        {
+          "path": "/home/lemon/kerniva-poll-phase-93787a2/candidate/bin/kerniva-replica",
+          "sha256": "2646cd56ad437e8ff35a8fa5234b0746f525d85e7b37d4b8de926f6bc425cc8c"
+        },
+        {
+          "path": "/mnt/e/project/go/Kerniva Engine/scripts/golog_replica_poll_phase.py",
+          "sha256": "0d81b70af18affce7390ac85b55ef164af65849b6c42ff62c8ad73bfa323cc19"
+        },
+        {
+          "path": "/home/lemon/kerniva-memory-compare.AwbOfm/ordinary-2-candidate-1-cap0/result.json",
+          "sha256": "62a8d624b4cdf5e8caa0b2c770c2235c05b1db7201f0a49811843b19ab236f71"
+        }
+      ],
+      "accepted_marks": 12,
+      "windows": [
+        {
+          "window": "01-baseline-attempt1",
+          "arm": "baseline",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/result.json",
+              "sha256": "c2d84489fb3dbd72b4b060b81c7caa39afcef44a1a899a9274fe82ca66be2511"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/config.json",
+              "sha256": "62ba265201944ffa2fd5c85239ee121a4058561f5bc7e68dfc8a282de8a4a56b"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/b-phase.jsonl",
+              "sha256": "cba60066c84242b81ddc1f7a4cea2727c2288ca236fc6f814f80663273a39a03"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/primary.log",
+              "sha256": "91e18ac6d7b222561566377fd0213398ccf09e7a74f5cf4e4f99fa84d53bca3a"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/source.log",
+              "sha256": "de5d41af7ba09267904c4a4fcc2e7c3724a767c576a0ed2d3646982e4b7c725b"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/b.log",
+              "sha256": "0c4c0ba76995b402a761bcacda91a2eaf331b974a3b61d240f19f2acb87ff042"
+            }
+          },
+          "markers": [
+            {
+              "db": 15,
+              "target_phase_ms": 25,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 4,
+              "sequence": 5,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14370153805338,
+                "after": 4,
+                "last": 4,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14371154396545,
+                  "after": 4,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14371154793389,
+                  "after": 4,
+                  "last": 5,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14371165649509,
+                  "after": 0,
+                  "last": 5,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14371165672358,
+                  "after": 4,
+                  "last": 5,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14370181642795,
+                14370183554848
+              ],
+              "get_bounds_ns": [
+                14371161762351,
+                14371168130320
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/primary-data/go-log-v1/db_15/log-00000000000000000005-00000000000000000005.seg",
+                "sha256": "b16785123111932a708133dd4347802b99ab8ae324c6cb92d86beaac35526a98"
+              },
+              "source_phase_bounds_ms": [
+                27.837457,
+                29.74951
+              ],
+              "source_phase_midpoint_ms": 28.7934835,
+              "source_bound_width_ms": 1.912053,
+              "schedule_ms": 1000.591207,
+              "source_to_request_bounds_ms": [
+                970.841697,
+                972.75375
+              ],
+              "request_to_durable_ms": 11.252964,
+              "request_to_view_ms": 11.275813,
+              "request_to_get_bounds_ms": [
+                7.365806,
+                13.733775
+              ],
+              "source_to_get_bounds_ms": [
+                978.207503,
+                986.487525
+              ]
+            },
+            {
+              "db": 0,
+              "target_phase_ms": 450,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14372155669209,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14373155860634,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14373156198791,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14373168130330,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14373168154575,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14372608375238,
+                14372610221654
+              ],
+              "get_bounds_ns": [
+                14373164467133,
+                14373170367974
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "216331e978caef2845f5ced17f9a5861a5db7e93019f9f76c8fd9e39d51fa88e"
+              },
+              "source_phase_bounds_ms": [
+                452.706029,
+                454.552445
+              ],
+              "source_phase_midpoint_ms": 453.629237,
+              "source_bound_width_ms": 1.846416,
+              "schedule_ms": 1000.191425,
+              "source_to_request_bounds_ms": [
+                545.63898,
+                547.485396
+              ],
+              "request_to_durable_ms": 12.269696,
+              "request_to_view_ms": 12.293941,
+              "request_to_get_bounds_ms": [
+                8.606499,
+                14.50734
+              ],
+              "source_to_get_bounds_ms": [
+                554.245479,
+                561.992736
+              ]
+            },
+            {
+              "db": 7,
+              "target_phase_ms": 850,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14374159129871,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14375160076513,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14375160460400,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14375171706755,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14375171717062,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14375012125332,
+                14375013853174
+              ],
+              "get_bounds_ns": [
+                14375165876731,
+                14375171916962
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/01-baseline-attempt1/primary-data/go-log-v1/db_7/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "2f788c6308a96b2b4ec4f72985c59e62a58d94ff9d1290b3c7215189bccf73e4"
+              },
+              "source_phase_bounds_ms": [
+                852.995461,
+                854.723303
+              ],
+              "source_phase_midpoint_ms": 853.859382,
+              "source_bound_width_ms": 1.727842,
+              "schedule_ms": 1000.946642,
+              "source_to_request_bounds_ms": [
+                146.223339,
+                147.951181
+              ],
+              "request_to_durable_ms": 11.630242,
+              "request_to_view_ms": 11.640549,
+              "request_to_get_bounds_ms": [
+                5.800218,
+                11.840449
+              ],
+              "source_to_get_bounds_ms": [
+                152.023557,
+                159.79163
+              ]
+            }
+          ]
+        },
+        {
+          "window": "02-candidate-attempt1",
+          "arm": "candidate",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/result.json",
+              "sha256": "7f7ea290866d04534fa3a7e91ac3389caf3357b14105483ce5b53a15cbe00630"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/config.json",
+              "sha256": "48c75e00e718a9065d5101c2b0f4680cd3a71b524543914753e9cfc7749a7b25"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/b-phase.jsonl",
+              "sha256": "bdca003842b4d0151ef3c87fbb91b11b559d18b5b83da77e5ab155f7ad5f91a3"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/primary.log",
+              "sha256": "d48577b7c56b749f0492080f3205cc3b63bbda1d2bfa8ef49df4d10d7cfa2d82"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/source.log",
+              "sha256": "e7426d989f341bc6e915d1134de053b8f8ec65a47d7e5a36396d1675443ee704"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/b.log",
+              "sha256": "5102457c7f8b5c9d5588342f885795f3529427d78b39ec05f30566adb430cdbc"
+            }
+          },
+          "markers": [
+            {
+              "db": 15,
+              "target_phase_ms": 25,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 4,
+              "sequence": 5,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14378730543424,
+                "after": 4,
+                "last": 4,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14379730885065,
+                  "after": 4,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14379731155548,
+                  "after": 4,
+                  "last": 5,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14379748202752,
+                  "after": 0,
+                  "last": 5,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14379748249285,
+                  "after": 4,
+                  "last": 5,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14378758475776,
+                14378760337896
+              ],
+              "get_bounds_ns": [
+                14379744758437,
+                14379750850972
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/primary-data/go-log-v1/db_15/log-00000000000000000005-00000000000000000005.seg",
+                "sha256": "de33dc3cc4c45f4769cdd46136f8cbdc53302092d3d224b8e34ad1c681b6cd09"
+              },
+              "source_phase_bounds_ms": [
+                27.932352,
+                29.794472
+              ],
+              "source_phase_midpoint_ms": 28.863412,
+              "source_bound_width_ms": 1.86212,
+              "schedule_ms": 1000.341641,
+              "source_to_request_bounds_ms": [
+                970.547169,
+                972.409289
+              ],
+              "request_to_durable_ms": 17.317687,
+              "request_to_view_ms": 17.36422,
+              "request_to_get_bounds_ms": [
+                13.873372,
+                19.965907
+              ],
+              "source_to_get_bounds_ms": [
+                984.420541,
+                992.375196
+              ]
+            },
+            {
+              "db": 0,
+              "target_phase_ms": 450,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14380731726121,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14381731975974,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14381733047480,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14381747004151,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14381747022891,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14381189029402,
+                14381191344319
+              ],
+              "get_bounds_ns": [
+                14381746094240,
+                14381752065702
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "fc966e33fe73b663a5e05518952781ed413122589a3fde25e5f7e4965750ad3d"
+              },
+              "source_phase_bounds_ms": [
+                457.303281,
+                459.618198
+              ],
+              "source_phase_midpoint_ms": 458.4607395,
+              "source_bound_width_ms": 2.314917,
+              "schedule_ms": 1000.249853,
+              "source_to_request_bounds_ms": [
+                540.631655,
+                542.946572
+              ],
+              "request_to_durable_ms": 15.028177,
+              "request_to_view_ms": 15.046917,
+              "request_to_get_bounds_ms": [
+                14.118266,
+                20.089728
+              ],
+              "source_to_get_bounds_ms": [
+                554.749921,
+                563.0363
+              ]
+            },
+            {
+              "db": 7,
+              "target_phase_ms": 850,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14382733818005,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14383734890678,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14383735657236,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14383750715106,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14383750741627,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14383590364487,
+                14383592311247
+              ],
+              "get_bounds_ns": [
+                14383747450122,
+                14383753441495
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/02-candidate-attempt1/primary-data/go-log-v1/db_7/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "b2f081844e5c5a552dd804279941558e4832407607bba7f6ba7d5cc3777a6c3f"
+              },
+              "source_phase_bounds_ms": [
+                856.546482,
+                858.493242
+              ],
+              "source_phase_midpoint_ms": 857.519862,
+              "source_bound_width_ms": 1.94676,
+              "schedule_ms": 1001.072673,
+              "source_to_request_bounds_ms": [
+                142.579431,
+                144.526191
+              ],
+              "request_to_durable_ms": 15.824428,
+              "request_to_view_ms": 15.850949,
+              "request_to_get_bounds_ms": [
+                12.559444,
+                18.550817
+              ],
+              "source_to_get_bounds_ms": [
+                155.138875,
+                163.077008
+              ]
+            }
+          ]
+        },
+        {
+          "window": "03-candidate-attempt1",
+          "arm": "candidate",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/result.json",
+              "sha256": "d9a5962f26cee1b52c618546ab2c75f6f823650197fe1419066aa259121b637b"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/config.json",
+              "sha256": "78034e58923aa9b0270b15b1bf71dc56c3e49ed552ffc57ea9614ebec24b567e"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/b-phase.jsonl",
+              "sha256": "6c2e47d8a807fbf6bb322365f176d80faedeb10cec4d802a02c7914bb4f7915c"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/primary.log",
+              "sha256": "ade9bb295eff2fdf36d614cae41b412f428a25789fd7f19751026df55a7398c8"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/source.log",
+              "sha256": "14a7ea457eeb05aba250eecca1283b4e338782ecddd7a88b24c4c44d720ead0b"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/b.log",
+              "sha256": "3edd3871e011b405e94cb8c4808bf3e6511370910aa33882b021ef2c05dc87a9"
+            }
+          },
+          "markers": [
+            {
+              "db": 15,
+              "target_phase_ms": 25,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 4,
+              "sequence": 5,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14387478247679,
+                "after": 4,
+                "last": 4,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14388478475842,
+                  "after": 4,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14388478775006,
+                  "after": 4,
+                  "last": 5,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14388493885882,
+                  "after": 0,
+                  "last": 5,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14388493933109,
+                  "after": 4,
+                  "last": 5,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14387505969464,
+                14387508037327
+              ],
+              "get_bounds_ns": [
+                14388490489480,
+                14388496330153
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/primary-data/go-log-v1/db_15/log-00000000000000000005-00000000000000000005.seg",
+                "sha256": "6f0a9270f0758964ab24947bfaac60836413716f3444619024a62b5586ace01e"
+              },
+              "source_phase_bounds_ms": [
+                27.721785,
+                29.789648
+              ],
+              "source_phase_midpoint_ms": 28.7557165,
+              "source_bound_width_ms": 2.067863,
+              "schedule_ms": 1000.228163,
+              "source_to_request_bounds_ms": [
+                970.438515,
+                972.506378
+              ],
+              "request_to_durable_ms": 15.41004,
+              "request_to_view_ms": 15.457267,
+              "request_to_get_bounds_ms": [
+                12.013638,
+                17.854311
+              ],
+              "source_to_get_bounds_ms": [
+                982.452153,
+                990.360689
+              ]
+            },
+            {
+              "db": 0,
+              "target_phase_ms": 450,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14389480782135,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14390481743915,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14390482186425,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14390495698492,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14390495757737,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14389932597399,
+                14389934428258
+              ],
+              "get_bounds_ns": [
+                14390490294418,
+                14390496882356
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "6b7496a6ceee7b2483aa8f0dae897be44a506a6c757d816d4427125c09d289ad"
+              },
+              "source_phase_bounds_ms": [
+                451.815264,
+                453.646123
+              ],
+              "source_phase_midpoint_ms": 452.7306935,
+              "source_bound_width_ms": 1.830859,
+              "schedule_ms": 1000.96178,
+              "source_to_request_bounds_ms": [
+                547.315657,
+                549.146516
+              ],
+              "request_to_durable_ms": 13.954577,
+              "request_to_view_ms": 14.013822,
+              "request_to_get_bounds_ms": [
+                8.550503,
+                15.138441
+              ],
+              "source_to_get_bounds_ms": [
+                555.86616,
+                564.284957
+              ]
+            },
+            {
+              "db": 7,
+              "target_phase_ms": 850,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14391483128024,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14392483321837,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14392483510274,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14392498976557,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14392499002669,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14392336132503,
+                14392337897855
+              ],
+              "get_bounds_ns": [
+                14392495556399,
+                14392501761570
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/03-candidate-attempt1/primary-data/go-log-v1/db_7/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "81d9d4c0506934266dc382f19ecaf9bb1b1bd3de68426dfbf3f31b08f64957ae"
+              },
+              "source_phase_bounds_ms": [
+                853.004479,
+                854.769831
+              ],
+              "source_phase_midpoint_ms": 853.887155,
+              "source_bound_width_ms": 1.765352,
+              "schedule_ms": 1000.193813,
+              "source_to_request_bounds_ms": [
+                145.423982,
+                147.189334
+              ],
+              "request_to_durable_ms": 15.65472,
+              "request_to_view_ms": 15.680832,
+              "request_to_get_bounds_ms": [
+                12.234562,
+                18.439733
+              ],
+              "source_to_get_bounds_ms": [
+                157.658544,
+                165.629067
+              ]
+            }
+          ]
+        },
+        {
+          "window": "04-baseline-attempt1",
+          "arm": "baseline",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/result.json",
+              "sha256": "7b8276100ed4735ceadcaeb25331594a2694b020b186963eb056e3b48149ef58"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/config.json",
+              "sha256": "951ab2ca07a728daed682462ac441e6dc638860a482200b231c7e0b6e77c9500"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/b-phase.jsonl",
+              "sha256": "fc0806a7dbdffee511ee5a87e07384ca8840497928f9f3db1e8e8d78c2c0f2df"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/primary.log",
+              "sha256": "2fbcd671f5c9c2ee8d244ac57abf895376f6ba78fc23f7144ae5a83ca5d9b9b3"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/source.log",
+              "sha256": "e6289805be0d51ed5f610ae852a31f5e5839f8a83e63ed19bab935046a4bcd35"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/b.log",
+              "sha256": "373b8845f3786f8c5319efab47ed429f232d04dfc984d7d4d005072b3d917fc2"
+            }
+          },
+          "markers": [
+            {
+              "db": 15,
+              "target_phase_ms": 25,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 4,
+              "sequence": 5,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14396335326402,
+                "after": 4,
+                "last": 4,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14397335817226,
+                  "after": 4,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14397336329495,
+                  "after": 4,
+                  "last": 5,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14397351571004,
+                  "after": 0,
+                  "last": 5,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14397351595231,
+                  "after": 4,
+                  "last": 5,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14396368829608,
+                14396373052943
+              ],
+              "get_bounds_ns": [
+                14397349584734,
+                14397355557538
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/primary-data/go-log-v1/db_15/log-00000000000000000005-00000000000000000005.seg",
+                "sha256": "0d66232048c8b16f5d4f8fe2b800d346ac0b9da1c64deeb3e1f7c516c496a752"
+              },
+              "source_phase_bounds_ms": [
+                33.503206,
+                37.726541
+              ],
+              "source_phase_midpoint_ms": 35.6148735,
+              "source_bound_width_ms": 4.223335,
+              "schedule_ms": 1000.490824,
+              "source_to_request_bounds_ms": [
+                962.764283,
+                966.987618
+              ],
+              "request_to_durable_ms": 15.753778,
+              "request_to_view_ms": 15.778005,
+              "request_to_get_bounds_ms": [
+                13.767508,
+                19.740312
+              ],
+              "source_to_get_bounds_ms": [
+                976.531791,
+                986.72793
+              ]
+            },
+            {
+              "db": 0,
+              "target_phase_ms": 450,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14398337700166,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14399338829075,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14399339048546,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14399354885777,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14399354907280,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14398791742570,
+                14398794295912
+              ],
+              "get_bounds_ns": [
+                14399350560465,
+                14399356293094
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "1e05dcc4f0f18db9d89af4e9df724b28d7f5c8215b1c225c11ffa6601bf62139"
+              },
+              "source_phase_bounds_ms": [
+                454.042404,
+                456.595746
+              ],
+              "source_phase_midpoint_ms": 455.319075,
+              "source_bound_width_ms": 2.553342,
+              "schedule_ms": 1001.128909,
+              "source_to_request_bounds_ms": [
+                544.533163,
+                547.086505
+              ],
+              "request_to_durable_ms": 16.056702,
+              "request_to_view_ms": 16.078205,
+              "request_to_get_bounds_ms": [
+                11.73139,
+                17.464019
+              ],
+              "source_to_get_bounds_ms": [
+                556.264553,
+                564.550524
+              ]
+            },
+            {
+              "db": 7,
+              "target_phase_ms": 850,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14400342816982,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14401343190764,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14401343423385,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14401356425945,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14401356447171,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14401195816249,
+                14401197711136
+              ],
+              "get_bounds_ns": [
+                14401352427057,
+                14401358509389
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/abba/04-baseline-attempt1/primary-data/go-log-v1/db_7/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "9ee68b0d86ec64a07e87d520a5f0f58958f88f07d77e431854b2e36c9b21dfc3"
+              },
+              "source_phase_bounds_ms": [
+                852.999267,
+                854.894154
+              ],
+              "source_phase_midpoint_ms": 853.9467105,
+              "source_bound_width_ms": 1.894887,
+              "schedule_ms": 1000.373782,
+              "source_to_request_bounds_ms": [
+                145.479628,
+                147.374515
+              ],
+              "request_to_durable_ms": 13.235181,
+              "request_to_view_ms": 13.256407,
+              "request_to_get_bounds_ms": [
+                9.236293,
+                15.318625
+              ],
+              "source_to_get_bounds_ms": [
+                154.715921,
+                162.69314
+              ]
+            }
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "db": 15,
+          "target_phase_ms": 25,
+          "source_phase_midpoint_spread_ms": 6.859157000000003,
+          "candidate_minus_baseline_median_view_install_ms": 2.883834499999999,
+          "extra_poll_rounds": 0
+        },
+        {
+          "db": 0,
+          "target_phase_ms": 450,
+          "source_phase_midpoint_spread_ms": 5.730046000000016,
+          "candidate_minus_baseline_median_view_install_ms": 0.3442964999999987,
+          "extra_poll_rounds": 0
+        },
+        {
+          "db": 7,
+          "target_phase_ms": 850,
+          "source_phase_midpoint_spread_ms": 3.660480000000007,
+          "candidate_minus_baseline_median_view_install_ms": 3.3174125000000014,
+          "extra_poll_rounds": 0
+        }
+      ],
+      "exclusions": []
+    },
+    "db0-immediate": {
+      "raw_index": {
+        "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/result.json",
+        "sha256": "8835ba2feb0f6abc813d175c650af16b86d653cadf64ac67cd27c80254a1d95c"
+      },
+      "interval_ms": 1000,
+      "ext4_devices": [
+        "/dev/sdd"
+      ],
+      "source_publication_bounds": "S lower is the start of the last local stat with the exact sealed name absent. S upper is the completion of a single verified HTTP source delta probe. GET is bounded by the last negative and first positive HTTP observations. CURRENT durable is measured after directory sync.",
+      "phase_match_tolerance_ms": 20,
+      "max_source_bound_width_ms": 15,
+      "historical_artifacts": [
+        {
+          "path": "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/kerniva-server",
+          "sha256": "0a86dc154895a6ca364fd8000bcf7117042ca629dff66caee1a893a561509773"
+        },
+        {
+          "path": "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/libkerniva_engine.so",
+          "sha256": "f92f95d1db788377ca50ae390faa18c4b25f85509d7e4efc65cf090a78d09e65"
+        },
+        {
+          "path": "/home/lemon/kerniva-memory-phases.apFiuiuT/src/bin/kerniva-replica",
+          "sha256": "dc90d97522157fe482c55af305d6723091806746b0a016ee9a853984108ea682"
+        },
+        {
+          "path": "/home/lemon/kerniva-poll-phase-93787a2/baseline/bin/kerniva-replica",
+          "sha256": "12e6be87dc57e3c3537bdcfe8894a51594f662f252d5c81c1ac56e026ce102a1"
+        },
+        {
+          "path": "/home/lemon/kerniva-poll-phase-93787a2/candidate/bin/kerniva-replica",
+          "sha256": "2646cd56ad437e8ff35a8fa5234b0746f525d85e7b37d4b8de926f6bc425cc8c"
+        },
+        {
+          "path": "/mnt/e/project/go/Kerniva Engine/scripts/golog_replica_poll_phase.py",
+          "sha256": "8468477c390af92b1803eb89a1c669c19a61cc82e2b325c8b88af7a469002bd5"
+        },
+        {
+          "path": "/home/lemon/kerniva-memory-compare.AwbOfm/ordinary-2-candidate-1-cap0/result.json",
+          "sha256": "62a8d624b4cdf5e8caa0b2c770c2235c05b1db7201f0a49811843b19ab236f71"
+        }
+      ],
+      "accepted_marks": 4,
+      "windows": [
+        {
+          "window": "01-baseline-attempt1",
+          "arm": "baseline",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/result.json",
+              "sha256": "f88f956fe6556da23bae6b27a51c14dae9b2b59218f7d15e6bd82cff469148c0"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/config.json",
+              "sha256": "479c95480e5b4e4fba899629d9c3591ff10e6cd19375d28836a237964842e7c5"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/b-phase.jsonl",
+              "sha256": "8c46f10a04bf53eca3c60aa598567837b8dfe51a28e60a93e4e4c35f9a0c80f2"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/primary.log",
+              "sha256": "5cade5d78668700aadca2467ff6d9a202b16e543789e2581665d6b6e8229e952"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/source.log",
+              "sha256": "3465b86f90d36c4f9aea20b0fae0d49d5b6214e413bc382236e9da78d8b5b2a9"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/b.log",
+              "sha256": "696708863c53d234ed248a92368afe9b94f752e67aef8f666f9eab57202e803f"
+            }
+          },
+          "markers": [
+            {
+              "db": 0,
+              "target_phase_ms": 5,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14471333977133,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14472335480305,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14472335727596,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14472348438837,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14472348465690,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14471341695805,
+                14471344127027
+              ],
+              "get_bounds_ns": [
+                14472347246986,
+                14472353160997
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/01-baseline-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "3ccb10471d1a2e2ad3c259a0f8b00c72d9014f614c6a43d0816c401b1296ff3a"
+              },
+              "source_phase_bounds_ms": [
+                7.718672,
+                10.149894
+              ],
+              "source_phase_midpoint_ms": 8.934283,
+              "source_bound_width_ms": 2.431222,
+              "schedule_ms": 1001.503172,
+              "source_to_request_bounds_ms": [
+                991.353278,
+                993.7845
+              ],
+              "request_to_durable_ms": 12.958532,
+              "request_to_view_ms": 12.985385,
+              "request_to_get_bounds_ms": [
+                11.766681,
+                17.680692
+              ],
+              "source_to_get_bounds_ms": [
+                1003.119959,
+                1011.465192
+              ]
+            }
+          ]
+        },
+        {
+          "window": "02-candidate-attempt1",
+          "arm": "candidate",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/result.json",
+              "sha256": "4bf815465aa7486f2dbd9903518a79bd65ecf4f4fdca7222516b6b0d6063d7c1"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/config.json",
+              "sha256": "6e433ebd464bb324c07426bbd257f9a496c92235f6c346e8d8776abefb79b0d5"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/b-phase.jsonl",
+              "sha256": "2914f15bfa8e77700ae4f8a518e56e38d2c0f69db889a130146419ca7bfac510"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/primary.log",
+              "sha256": "122752e912dd6d031c368bd6104f505eab6052d501c499b3770cff761595ea2d"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/source.log",
+              "sha256": "f7d121276310cdeda3e0e74daf4e61ff18a92bf20ebc23d52c26977297ed49fe"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/b.log",
+              "sha256": "68e3e32b72b001878741bc1709187d3fa07c13f6987e83e71628a33416ff4ca4"
+            }
+          },
+          "markers": [
+            {
+              "db": 0,
+              "target_phase_ms": 5,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14476142205367,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14477142858417,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14477143763488,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14477162867346,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14477162901061,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14476154128225,
+                14476157304693
+              ],
+              "get_bounds_ns": [
+                14477157834249,
+                14477164505608
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/02-candidate-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "21fef3b6dba5ffaf9138ca874cbe96efe2c52cd958eda7271074fc4ade6dc179"
+              },
+              "source_phase_bounds_ms": [
+                11.922858,
+                15.099326
+              ],
+              "source_phase_midpoint_ms": 13.511092,
+              "source_bound_width_ms": 3.176468,
+              "schedule_ms": 1000.65305,
+              "source_to_request_bounds_ms": [
+                985.553724,
+                988.730192
+              ],
+              "request_to_durable_ms": 20.008929,
+              "request_to_view_ms": 20.042644,
+              "request_to_get_bounds_ms": [
+                14.975832,
+                21.647191
+              ],
+              "source_to_get_bounds_ms": [
+                1000.529556,
+                1010.377383
+              ]
+            }
+          ]
+        },
+        {
+          "window": "03-candidate-attempt1",
+          "arm": "candidate",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/result.json",
+              "sha256": "f6766bfd215d45317323122d799e812db2f2e4a0e67f412708db67c8c8512741"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/config.json",
+              "sha256": "b7767998fedde3d25f7664852411af320e0f13818cddb64b2b0c13737a41bf5b"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/b-phase.jsonl",
+              "sha256": "95fdb7436b28e605b2eeec4f53d11c08eb7c67c04fcf0618962a4799ae2adee7"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/primary.log",
+              "sha256": "f19301f4c975b48fefe60c83332a8eaa351a43d6e9d87cd1fc81b9d6e51330db"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/source.log",
+              "sha256": "5a74e9f159cc46008942da4f2f086da08b9d49615885dc15e5ee7f37a39ab11a"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/b.log",
+              "sha256": "a01c661a2fb769849d83f8a87d1ba38607ca8d5e6ccc1bd00626692428d3e7d5"
+            }
+          },
+          "markers": [
+            {
+              "db": 0,
+              "target_phase_ms": 5,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14481139732434,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14482140820802,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14482141706696,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14482155477750,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14482155514546,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14481150262554,
+                14481152095532
+              ],
+              "get_bounds_ns": [
+                14482151736084,
+                14482158040513
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/03-candidate-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "ad9beec974f8b3683137a269fac3e6f5c037b0cdbce37685ace4685145cf707b"
+              },
+              "source_phase_bounds_ms": [
+                10.53012,
+                12.363098
+              ],
+              "source_phase_midpoint_ms": 11.446609,
+              "source_bound_width_ms": 1.832978,
+              "schedule_ms": 1001.088368,
+              "source_to_request_bounds_ms": [
+                988.72527,
+                990.558248
+              ],
+              "request_to_durable_ms": 14.656948,
+              "request_to_view_ms": 14.693744,
+              "request_to_get_bounds_ms": [
+                10.915282,
+                17.219711
+              ],
+              "source_to_get_bounds_ms": [
+                999.640552,
+                1007.777959
+              ]
+            }
+          ]
+        },
+        {
+          "window": "04-baseline-attempt2",
+          "arm": "baseline",
+          "passed": true,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/result.json",
+              "sha256": "e72b521ce81457af3c98b9537f915be8af3a52fe2bd437893344e1739f37b3b7"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/config.json",
+              "sha256": "2df9dd95bf199b45f8670ad84ca17e528f5a4d416610d3eca0b4f95e2d48b65a"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/b-phase.jsonl",
+              "sha256": "754c4e6ea52b6b5030ccac23b596b30d7622b5c7891c7f4c4a5f26852e87773c"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/primary.log",
+              "sha256": "811a313b941ed282c31598f8bdbb6ca2d3e1d2e078de419a779c69738f4d0cb6"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/source.log",
+              "sha256": "11f2a06ee8937f8091639c3b2dd0c9590edb91ddfa4ce755bc459a4d93dfccdd"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/b.log",
+              "sha256": "5c74a9f877d53dde7ddf5451077e005bc110cbf7fcfb8b71f09384a13074e428"
+            }
+          },
+          "markers": [
+            {
+              "db": 0,
+              "target_phase_ms": 5,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14492578137422,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14493578288744,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14493579912560,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14493597687734,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14493597725507,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14492586163885,
+                14492588680061
+              ],
+              "get_bounds_ns": [
+                14493592723211,
+                14493599930691
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt2/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "4aefd5cab9baf76932dc282b17004f8632c317003dc76cc5102e3c802a9de34f"
+              },
+              "source_phase_bounds_ms": [
+                8.026463,
+                10.542639
+              ],
+              "source_phase_midpoint_ms": 9.284551,
+              "source_bound_width_ms": 2.516176,
+              "schedule_ms": 1000.151322,
+              "source_to_request_bounds_ms": [
+                989.608683,
+                992.124859
+              ],
+              "request_to_durable_ms": 19.39899,
+              "request_to_view_ms": 19.436763,
+              "request_to_get_bounds_ms": [
+                14.434467,
+                21.641947
+              ],
+              "source_to_get_bounds_ms": [
+                1004.04315,
+                1013.766806
+              ]
+            }
+          ]
+        }
+      ],
+      "groups": [
+        {
+          "db": 0,
+          "target_phase_ms": 5,
+          "source_phase_midpoint_spread_ms": 4.576808999999999,
+          "candidate_minus_baseline_median_view_install_ms": 1.157119999999999,
+          "extra_poll_rounds": 0
+        }
+      ],
+      "exclusions": [
+        {
+          "window": "04-baseline-attempt1",
+          "arm": "baseline",
+          "passed": false,
+          "trace_events_dropped": 0,
+          "raw": {
+            "result.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/result.json",
+              "sha256": "ccf6539a5c6743db3e9249b811cc8eec36a66189b745a35564d05eb820458f69"
+            },
+            "config.json": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/config.json",
+              "sha256": "56a2f164ea166794520f9f834181ae0450238130562c3ccb2035eb1b933eb8b1"
+            },
+            "b-phase.jsonl": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/b-phase.jsonl",
+              "sha256": "c26600fdfb39e29161928535b6f774b2e501886d19e7179e5534f191ca315678"
+            },
+            "primary.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/primary.log",
+              "sha256": "1fb11ab14b5105ef10744ead7e08e7fbbb3ad38a53e2f45753691051719994f7"
+            },
+            "source.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/source.log",
+              "sha256": "a68ad30f8efb6d159031c8d042609b47f76e29b3b4b2b585fdfacee256ba8c07"
+            },
+            "b.log": {
+              "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/b.log",
+              "sha256": "55f8400a4ca603f9eee8e6f10e02c2ba2fcdcb551259346d80e8fc5dacc700b4"
+            }
+          },
+          "markers": [
+            {
+              "db": 0,
+              "target_phase_ms": 5,
+              "lineage": "52615bc17058f9ae38a0e53736c0f96d",
+              "starting_sequence": 517,
+              "sequence": 518,
+              "t0_no_change": {
+                "stage": "poll_no_change",
+                "monotonic_ns": 14486802575477,
+                "after": 517,
+                "last": 517,
+                "files": 0
+              },
+              "first_request_covered_marker": true,
+              "requests_before_view": 1,
+              "ordered_events": [
+                {
+                  "stage": "pull_request",
+                  "monotonic_ns": 14487802583629,
+                  "after": 517,
+                  "last": 0,
+                  "files": 0
+                },
+                {
+                  "stage": "manifest_validated",
+                  "monotonic_ns": 14487803173138,
+                  "after": 517,
+                  "last": 518,
+                  "files": 1
+                },
+                {
+                  "stage": "current_durable",
+                  "monotonic_ns": 14487820480297,
+                  "after": 0,
+                  "last": 518,
+                  "files": 0
+                },
+                {
+                  "stage": "view_published",
+                  "monotonic_ns": 14487820534055,
+                  "after": 517,
+                  "last": 518,
+                  "files": 0
+                }
+              ],
+              "source_bounds_ns": [
+                14486841002688,
+                14486864652040
+              ],
+              "get_bounds_ns": [
+                14487816482151,
+                14487822513061
+              ],
+              "sealed_delta_bytes": 112,
+              "sealed_delta": {
+                "path": "/home/lemon/kerniva-poll-phase.WSXc8q97/db0-immediate/04-baseline-attempt1/primary-data/go-log-v1/db_0/log-00000000000000000518-00000000000000000518.seg",
+                "sha256": "3cd51fefc44c10bfbdac1f1cc9704b3d2bab0f0f72c62282feaf60dabcc93011"
+              },
+              "source_phase_bounds_ms": [
+                38.427211,
+                62.076563
+              ],
+              "source_phase_midpoint_ms": 50.251887,
+              "source_bound_width_ms": 23.649352,
+              "schedule_ms": 1000.008152,
+              "source_to_request_bounds_ms": [
+                937.931589,
+                961.580941
+              ],
+              "request_to_durable_ms": 17.896668,
+              "request_to_view_ms": 17.950426,
+              "request_to_get_bounds_ms": [
+                13.898522,
+                19.929432
+              ],
+              "source_to_get_bounds_ms": [
+                951.830111,
+                981.510373
+              ]
+            }
+          ],
+          "reason": "DB 0 source bound wider than 15 ms"
+        }
+      ]
+    }
+  }
+}
