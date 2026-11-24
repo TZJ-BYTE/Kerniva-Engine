@@ -16,7 +16,7 @@ func (db *Database) getLiveValue(key string) (*datastruct.DataValue, bool, error
 		return dv, true, nil
 	}
 
-	if !db.hasPersistence() {
+	if db.rustEngine == nil {
 		return nil, false, nil
 	}
 
@@ -111,7 +111,7 @@ func (db *Database) loadLiveValueFromPersistence(key string) (*datastruct.DataVa
 }
 
 func (db *Database) scanPersistedValues() (map[string]*datastruct.DataValue, error) {
-	if db == nil || !db.hasPersistence() {
+	if db == nil || db.rustEngine == nil {
 		return map[string]*datastruct.DataValue{}, nil
 	}
 

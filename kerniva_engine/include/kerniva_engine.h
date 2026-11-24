@@ -3,6 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stddef.h>
 #include <stdint.h>
 typedef struct { uint8_t* ptr; uintptr_t len; } KernivaBuf;
 typedef struct {
@@ -33,6 +34,18 @@ int32_t kerniva_engine_maybe_compact(uintptr_t engine, uint64_t* rewritten, Kern
 int32_t kerniva_engine_maybe_checkpoint(uintptr_t engine, KernivaBuf* err);
 int32_t kerniva_engine_should_checkpoint(uintptr_t engine);
 int32_t kerniva_engine_stats(uintptr_t engine, KernivaStats* out, KernivaBuf* err);
+uintptr_t kerniva_golog_recover(const char* data_dir, uint64_t* last_sequence, uint64_t* active_end, KernivaBuf* err);
+int32_t kerniva_golog_recovery_next(uintptr_t handle, KernivaBuf* key, KernivaBuf* value, KernivaBuf* err);
+void kerniva_golog_recovery_close(uintptr_t handle);
+typedef struct { uint64_t first, last; } KernivaGoLogRange;
+/* Validates 1 to 128 contiguous sealed ranges after the published sequence.
+   reset is 1 if the current view must be cleared before applying the changes. */
+uintptr_t kerniva_golog_delta_open(const char* data_dir, uint64_t after, const KernivaGoLogRange* ranges, size_t range_count, uint8_t* reset, KernivaBuf* err);
+/* Returns 1 for a block, 0 at the end, or -1 on error. Free each block with
+   kerniva_buf_free. Records are kind (1 put, 2 delete), two little-endian
+   uint32_t key and value lengths, then the key and value bytes. */
+int32_t kerniva_golog_delta_next(uintptr_t handle, KernivaBuf* block, KernivaBuf* err);
+void kerniva_golog_delta_close(uintptr_t handle);
 const char* kerniva_engine_version(void);
 #ifdef __cplusplus
 }

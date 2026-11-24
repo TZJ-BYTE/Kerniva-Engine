@@ -37,7 +37,8 @@ func TestFailedCommitRestoresCacheAndVersions(t *testing.T) {
 	if err := db.SetStringBytes([]byte("a"), []byte("old")); err != nil {
 		t.Fatal(err)
 	}
-	version := db.KeyVersion("a")
+	version := watchKeyForTest(t, db, "a")
+	epoch := db.ModEpoch()
 	if err := db.rustEngine.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +54,9 @@ func TestFailedCommitRestoresCacheAndVersions(t *testing.T) {
 	}
 	if err := db.Clear(); err == nil {
 		t.Fatal("closed engine accepted clear")
+	}
+	if db.ModEpoch() != epoch || db.KeyVersion("a") != version {
+		t.Fatal("failed clear invalidated a watch")
 	}
 	requireString(t, db, "a", "old")
 }
@@ -254,6 +258,8 @@ func TestWatchVersionRetainsOwnedKeyAfterOverwrite(t *testing.T) {
 	db := NewDatabase(0)
 	defer db.Close()
 	key := []byte("watched")
+	db.WatchKeyVersion(bytesToString(key))
+	defer db.UnwatchKeyVersion("watched")
 	for i := 0; i < 3; i++ {
 		if err := db.SetStringBytes(key, []byte("value")); err != nil {
 			t.Fatal(err)

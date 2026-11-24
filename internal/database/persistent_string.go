@@ -19,13 +19,22 @@ func (db *Database) setPersistentString(key, value []byte) (handled bool, err er
 	sh.lock.RLock()
 	previous := sh.data[k]
 	sh.lock.RUnlock()
-	if previous == nil || previous.ExpireTime != 0 {
-		return false, nil
-	}
-	switch previous.Value.(type) {
-	case *datastruct.String, *datastruct.BytesString:
-	default:
-		return false, nil
+	var oldSize int64
+	if previous == nil {
+		// Go-log keeps all live keys resident, so a cache miss is safe to insert.
+		if db.goLog == nil || db.config.GoLogGroupMax <= 1 {
+			return false, nil
+		}
+	} else {
+		if previous.ExpireTime != 0 {
+			return false, nil
+		}
+		switch previous.Value.(type) {
+		case *datastruct.String, *datastruct.BytesString:
+		default:
+			return false, nil
+		}
+		oldSize = int64(len(key)) + previous.ApproximateSize()
 	}
 
 	cacheSize := int64(len(key)) + int64(len(value)) + 24
@@ -82,9 +91,12 @@ func (db *Database) setPersistentString(key, value []byte) (handled bool, err er
 	// Same-key waiters remain asleep until cache, WATCH and budget publication
 	// complete. The pending value was private throughout the durable write.
 	sh.lock.Lock()
+	if sh.data == nil {
+		sh.data = make(map[string]*datastruct.DataValue)
+	}
 	sh.data[stableKey] = next
 	sh.lock.Unlock()
-	memoryDelta += cacheSize - int64(len(key)) - previous.ApproximateSize()
+	memoryDelta += cacheSize - oldSize
 	db.BumpKeyVersions(stableKey)
 	return true, nil
 }

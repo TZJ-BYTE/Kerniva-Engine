@@ -9,6 +9,7 @@ import (
 
 const (
 	StorageLegacy         = "legacy"
+	StorageGoLog          = "go-log"
 	StorageRustMemory     = "rust-memory"
 	StorageRustMemorySync = "rust-memory-sync"
 )
@@ -61,6 +62,8 @@ type Config struct {
 	PersistenceDurability    string `yaml:"persistence_durability" json:"persistence_durability"` // "none", "flush", "sync"
 	EngineSegmentSize        int64  `yaml:"engine_segment_size" json:"engine_segment_size"`
 	EngineCheckpointAfterOps int    `yaml:"engine_checkpoint_after_ops" json:"engine_checkpoint_after_ops"`
+	GoLogSegmentAgeSeconds   int    `yaml:"go_log_segment_age_seconds" json:"go_log_segment_age_seconds"`
+	GoLogGroupMax            int    `yaml:"go_log_group_max" json:"go_log_group_max"`
 
 	// 日志配置
 	LogLevel      string `yaml:"log_level" json:"log_level"`
@@ -100,6 +103,8 @@ func (c *Config) applyEnvOverrides() {
 		"KERNIVA_RUST_MEMORY_GROUP_MAX": &c.RustMemoryGroupMax,
 		"KERNIVA_RESP_MAX_BULK_LEN":     &c.RespMaxBulkLen, "KERNIVA_RESP_MAX_ARRAY_LEN": &c.RespMaxArrayLen,
 		"KERNIVA_ENGINE_CHECKPOINT_AFTER_OPS": &c.EngineCheckpointAfterOps,
+		"KERNIVA_GO_LOG_SEGMENT_AGE_SECONDS":  &c.GoLogSegmentAgeSeconds,
+		"KERNIVA_GO_LOG_GROUP_MAX":            &c.GoLogGroupMax,
 		"KERNIVA_LOG_MAX_SIZE_MB":             &c.LogMaxSizeMB, "KERNIVA_LOG_MAX_BACKUPS": &c.LogMaxBackups, "KERNIVA_LOG_MAX_AGE_DAYS": &c.LogMaxAgeDays,
 	}
 	for name, target := range integersByName {
@@ -177,7 +182,7 @@ func (c *Config) Validate() error {
 	if err := validateChoice("max_memory_policy", c.MaxMemoryPolicy, "", "noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"); err != nil {
 		return err
 	}
-	if err := validateChoice("storage_backend", c.StorageBackend, "", StorageLegacy, StorageRustMemory, StorageRustMemorySync); err != nil {
+	if err := validateChoice("storage_backend", c.StorageBackend, "", StorageLegacy, StorageGoLog, StorageRustMemory, StorageRustMemorySync); err != nil {
 		return err
 	}
 	if c.RustMemoryGroupMax < 0 || c.RustMemoryGroupMax > 8 {
@@ -195,6 +200,29 @@ func (c *Config) Validate() error {
 		}
 		if c.RustMemoryShards <= 0 || c.RustMemoryShards&(c.RustMemoryShards-1) != 0 {
 			return fmt.Errorf("rust_memory_shards must be a positive power of two")
+		}
+	}
+	if c.GoLogSegmentAgeSeconds < 0 || c.GoLogSegmentAgeSeconds > 86400 {
+		return fmt.Errorf("go_log_segment_age_seconds must be from 0 to 86400")
+	}
+	if c.GoLogGroupMax < 0 || c.GoLogGroupMax > 16 {
+		return fmt.Errorf("go_log_group_max must be from 0 to 16")
+	}
+	if c.GoLogGroupMax > 1 && (c.StorageBackend != StorageGoLog || c.PersistenceDurability == "none") {
+		return fmt.Errorf("go_log_group_max above 1 requires go-log with sync durability")
+	}
+	if c.StorageBackend == StorageGoLog {
+		if !c.PersistenceEnabled || strings.TrimSpace(c.DataDir) == "" {
+			return fmt.Errorf("go-log requires persistence_enabled=true and data_dir")
+		}
+		if c.ColdStartStrategy != "load_all" || c.MaxMemoryPolicy != "noeviction" {
+			return fmt.Errorf("go-log requires cold_start_strategy=load_all and max_memory_policy=noeviction")
+		}
+		if c.PersistenceWriteMode != "" && c.PersistenceWriteMode != "strong" {
+			return fmt.Errorf("go-log requires the strong write mode")
+		}
+		if c.PersistenceDurability != "" && c.PersistenceDurability != "sync" && c.PersistenceDurability != "none" {
+			return fmt.Errorf("go-log supports sync or none durability")
 		}
 	}
 	if c.StorageBackend == StorageRustMemorySync {

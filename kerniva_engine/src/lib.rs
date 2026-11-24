@@ -4,6 +4,7 @@ mod directory_lock;
 mod engine;
 mod error;
 mod ffi;
+mod golog;
 mod iterator;
 mod memory;
 mod memory_ffi;
@@ -16,6 +17,7 @@ mod snapshot;
 pub use crate::batch::WriteOp;
 pub use crate::engine::{Engine, EngineStats};
 pub use crate::error::{EngineError, Result};
+pub use crate::golog::{Maintainer, MaintenanceOptions, MaintenanceOutcome};
 pub use crate::iterator::EngineIterator;
 pub use crate::memory::{
     DurableMemoryEngine, DurableMemoryError, DurableReadMode, DurableWalStats, MemoryBatchOp,

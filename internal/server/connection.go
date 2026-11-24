@@ -65,8 +65,10 @@ func (ctx *ConnectionContext) enqueueRequest(req *protocol.Request, parseErr err
 	return false
 }
 
+// A successful write has finished consuming its buffer before returning.
 func runConnectionCommands(ctx *ConnectionContext, manager *database.DBManager, registry *command.CommandRegistry, write func([]byte) error, closeConnection func()) {
 	defer closeConnection()
+	defer func() { ctx.Tx.ResetAll() }()
 	for {
 		var req connectionRequest
 		select {
@@ -74,7 +76,8 @@ func runConnectionCommands(ctx *ConnectionContext, manager *database.DBManager, 
 			return
 		case req = <-ctx.requests:
 		}
-		var out []byte
+		// Any growth beyond the connection buffer is local to this batch.
+		out := ctx.respBuf[:0]
 		closeAfter := false
 		for {
 			if ctx.requestContext().Err() != nil {
@@ -86,7 +89,7 @@ func runConnectionCommands(ctx *ConnectionContext, manager *database.DBManager, 
 				if write(out) != nil {
 					return
 				}
-				out = nil
+				out = ctx.respBuf[:0]
 			}
 			if req.err != nil {
 				out = protocol.AppendErrorString(out, req.err.Error())

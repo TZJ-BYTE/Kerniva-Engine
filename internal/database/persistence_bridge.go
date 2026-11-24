@@ -21,13 +21,15 @@ func rustSyncPolicy(durability string) rustengine.SyncPolicy {
 }
 
 func (db *Database) hasPersistence() bool {
-	return db != nil && db.rustEngine != nil
+	return db != nil && (db.rustEngine != nil || db.goLog != nil)
 }
 
 func (db *Database) persistenceMode() string {
 	switch {
 	case db == nil:
 		return "Memory"
+	case db.goLog != nil:
+		return "GoLog"
 	case db.rustEngine != nil:
 		return "Kerniva"
 	default:
@@ -55,6 +57,8 @@ func (db *Database) persistenceReset() error {
 	switch {
 	case db == nil:
 		return nil
+	case db.goLog != nil:
+		return db.goLog.Reset()
 	case db.rustEngine != nil:
 		return db.rustEngine.Reset()
 	default:
@@ -66,6 +70,8 @@ func (db *Database) persistenceClose() error {
 	switch {
 	case db == nil:
 		return nil
+	case db.goLog != nil:
+		return db.goLog.Close()
 	case db.rustEngine != nil:
 		return db.rustEngine.Close()
 	default:
@@ -77,6 +83,19 @@ func (db *Database) persistenceStats() map[string]interface{} {
 	switch {
 	case db == nil:
 		return map[string]interface{}{}
+	case db.goLog != nil:
+		stats := db.goLog.Stats()
+		return map[string]interface{}{
+			"last_sequence":      stats.LastSequence,
+			"active_bytes":       stats.ActiveBytes,
+			"sealed_segments":    stats.SealedSegments,
+			"sealed_bytes":       stats.SealedBytes,
+			"sync_count":         stats.SyncCount,
+			"log_group_max":      max(1, db.config.GoLogGroupMax),
+			"log_group_batches":  stats.GroupBatches,
+			"log_group_requests": stats.GroupRequests,
+			"log_fault":          stats.Fault,
+		}
 	case db.rustEngine != nil:
 		stats, err := db.rustEngine.Stats()
 		if err != nil {
@@ -134,23 +153,29 @@ func (db *Database) loadAllFromPersistence() error {
 }
 
 func (db *Database) persistencePut(key string, value []byte) error {
-	if db == nil || db.rustEngine == nil {
+	if !db.hasPersistence() {
 		return nil
 	}
 	if db.mutation != nil {
 		db.mutation.writes[key] = rustengine.WriteOp{Key: []byte(key), Value: value}
 		return nil
 	}
+	if db.goLog != nil {
+		return db.goLog.Put(stringToBytesRO(key), value)
+	}
 	return db.rustEngine.Put(stringToBytesRO(key), value)
 }
 
 func (db *Database) persistenceDelete(key string) error {
-	if db == nil || db.rustEngine == nil {
+	if !db.hasPersistence() {
 		return nil
 	}
 	if db.mutation != nil {
 		db.mutation.writes[key] = rustengine.WriteOp{Key: []byte(key), Delete: true}
 		return nil
+	}
+	if db.goLog != nil {
+		return db.goLog.Delete(stringToBytesRO(key))
 	}
 	return db.rustEngine.Delete(stringToBytesRO(key))
 }

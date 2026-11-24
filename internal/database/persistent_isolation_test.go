@@ -136,7 +136,7 @@ func TestPersistentCommitAllowsHotReadAndExpiryScan(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	version := db.KeyVersion(key)
+	version := watchKeyForTest(t, db, key)
 	changed := db.ChangeChannel()
 	barrier := blockPersistentKey(t, db, key, nil)
 	first := make(chan error, 1)
@@ -246,8 +246,8 @@ func TestPersistentFailedPendingWritePreservesConcurrentCommit(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	version := db.KeyVersion(key)
-	otherVersion := db.KeyVersion(other)
+	version := watchKeyForTest(t, db, key)
+	otherVersion := watchKeyForTest(t, db, other)
 	changed := db.ChangeChannel()
 	forced := errors.New("injected persistent commit failure")
 	barrier := blockPersistentKey(t, db, key, forced)
@@ -300,7 +300,7 @@ func TestPersistentFailedCommitWakesSameKeyReadersAndWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 	used := atomic.LoadInt64(&db.usedMemory)
-	version := db.KeyVersion(key)
+	version := watchKeyForTest(t, db, key)
 	// Admit one private value at a time. The waiting writer must reserve its
 	// budget after the failed writer releases its reservation.
 	value := []byte("committed")
@@ -396,7 +396,7 @@ func TestPersistentFailedPendingWriteDoesNotNotifyOrConsumeMemory(t *testing.T) 
 		t.Fatal(err)
 	}
 	used := atomic.LoadInt64(&db.usedMemory)
-	version := db.KeyVersion("key")
+	version := watchKeyForTest(t, db, "key")
 	changed := db.ChangeChannel()
 	if err := db.rustEngine.Close(); err != nil {
 		t.Fatal(err)

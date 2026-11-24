@@ -25,11 +25,12 @@ func (db *Database) beginKeyOperation(key string, write bool) bool {
 		sh := db.getShard(key)
 		sh.lock.RLock()
 		value := sh.data[key]
+		// Go-log keeps all live keys resident, so a missing key needs no disk lookup.
 		// TTL values can cross their deadline after this check. Their normal
 		// lookup may delete persistent state, so retain the exclusive path.
-		cached := value != nil && value.ExpireTime == 0
+		canReadShared := (value == nil && db.goLog != nil) || (value != nil && value.ExpireTime == 0)
 		sh.lock.RUnlock()
-		if !cached {
+		if !canReadShared {
 			lock := &db.hotLocks[getShardIndex(key)]
 			if strings.Contains(db.evictionPolicy, "lru") {
 				lock.Unlock()
@@ -242,7 +243,7 @@ func (db *Database) endReadOperation() {
 // Persistent values remain in the log when their decoded cache entries leave
 // memory. Cache removal does not modify logical keys or WATCH versions.
 func (db *Database) trimReadCache() {
-	if !db.hasPersistence() {
+	if db.rustEngine == nil {
 		return
 	}
 	for i := range db.shards {

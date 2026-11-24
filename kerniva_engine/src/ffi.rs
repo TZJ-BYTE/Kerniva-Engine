@@ -3,6 +3,7 @@ use std::ptr;
 
 use crate::batch::WriteOp;
 use crate::engine::{Engine, EngineStats};
+use crate::golog::{Delta, GoLogRange, MAX_DELTA_RANGES};
 use crate::iterator::EngineIterator;
 use crate::options::{Options, SyncPolicy};
 use crate::record::{MAX_BATCH_OPERATIONS, MAX_VALUE_BYTES, RECORD_HEADER_LEN, validate_lengths};
@@ -520,5 +521,141 @@ pub extern "C" fn kerniva_cstring_free(ptr: *mut c_char) {
     }
     unsafe {
         drop(CString::from_raw(ptr));
+    }
+}
+
+// Go-log recovery owns its iterator's buffers until each returned pair is
+// transferred to the caller. The caller frees both via kerniva_buf_free.
+#[unsafe(no_mangle)]
+pub extern "C" fn kerniva_golog_recover(
+    directory: *const c_char,
+    last_sequence: *mut u64,
+    active_end: *mut u64,
+    err: *mut KernivaBuf,
+) -> usize {
+    if directory.is_null() || last_sequence.is_null() || active_end.is_null() {
+        set_error(
+            err,
+            "directory and recovery outputs must not be null".into(),
+        );
+        return 0;
+    }
+    let Ok(directory) = (unsafe { CStr::from_ptr(directory) }).to_str() else {
+        set_error(err, "directory must be valid UTF-8".into());
+        return 0;
+    };
+    match crate::golog::recover(std::path::Path::new(directory)) {
+        Ok(recovered) => {
+            unsafe {
+                *last_sequence = recovered.last_sequence;
+                *active_end = recovered.active_end;
+            }
+            Box::into_raw(Box::new(recovered.state.into_iter())) as usize
+        }
+        Err(error) => {
+            set_error(err, error.to_string());
+            0
+        }
+    }
+}
+
+type GoLogIter = std::collections::btree_map::IntoIter<Vec<u8>, Vec<u8>>;
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kerniva_golog_recovery_next(
+    handle: usize,
+    key_out: *mut KernivaBuf,
+    value_out: *mut KernivaBuf,
+    err: *mut KernivaBuf,
+) -> i32 {
+    if handle == 0 || key_out.is_null() || value_out.is_null() || key_out == value_out {
+        set_error(err, "invalid recovery iterator or output buffers".into());
+        return -1;
+    }
+    let iter = unsafe { &mut *(handle as *mut GoLogIter) };
+    let Some((key, value)) = iter.next() else {
+        return 0;
+    };
+    unsafe {
+        *key_out = bytes_to_buf(key);
+        *value_out = bytes_to_buf(value);
+    }
+    1
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kerniva_golog_recovery_close(handle: usize) {
+    if handle != 0 {
+        drop(unsafe { Box::from_raw(handle as *mut GoLogIter) });
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kerniva_golog_delta_open(
+    directory: *const c_char,
+    after: u64,
+    ranges: *const GoLogRange,
+    range_count: usize,
+    reset: *mut u8,
+    err: *mut KernivaBuf,
+) -> usize {
+    if directory.is_null()
+        || ranges.is_null()
+        || !ranges.is_aligned()
+        || !(1..=MAX_DELTA_RANGES).contains(&range_count)
+        || reset.is_null()
+    {
+        set_error(err, "invalid Go-log delta inputs or reset output".into());
+        return 0;
+    }
+    let Ok(directory) = (unsafe { CStr::from_ptr(directory) }).to_str() else {
+        set_error(err, "directory must be valid UTF-8".into());
+        return 0;
+    };
+    if directory.is_empty() {
+        set_error(err, "Go-log delta directory must not be empty".into());
+        return 0;
+    }
+    let ranges = unsafe { std::slice::from_raw_parts(ranges, range_count) };
+    match Delta::load(std::path::Path::new(directory), after, ranges) {
+        Ok(delta) => {
+            unsafe { *reset = u8::from(delta.reset) };
+            Box::into_raw(Box::new(delta)) as usize
+        }
+        Err(error) => {
+            set_error(err, error.to_string());
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kerniva_golog_delta_next(
+    handle: usize,
+    block: *mut KernivaBuf,
+    err: *mut KernivaBuf,
+) -> i32 {
+    if handle == 0 || block.is_null() || block == err {
+        set_error(err, "invalid Go-log delta iterator or output buffer".into());
+        return -1;
+    }
+    let delta = unsafe { &mut *(handle as *mut Delta) };
+    match delta.next_block() {
+        Ok(Some(bytes)) => {
+            unsafe { *block = bytes_to_buf(bytes) };
+            1
+        }
+        Ok(None) => 0,
+        Err(error) => {
+            set_error(err, error.to_string());
+            -1
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kerniva_golog_delta_close(handle: usize) {
+    if handle != 0 {
+        drop(unsafe { Box::from_raw(handle as *mut Delta) });
     }
 }

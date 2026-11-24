@@ -17,7 +17,11 @@ impl Drop for DirectoryLock {
 }
 
 pub(crate) fn acquire(data_dir: &Path) -> Result<Arc<DirectoryLock>> {
-    let path = data_dir.join("LOCK");
+    acquire_named(data_dir, "LOCK")
+}
+
+pub(crate) fn acquire_named(data_dir: &Path, name: &str) -> Result<Arc<DirectoryLock>> {
+    let path = data_dir.join(name);
     let file = OpenOptions::new()
         .create(true)
         .truncate(false)

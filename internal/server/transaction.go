@@ -223,8 +223,8 @@ func handleWatch(ctx *ConnectionContext, args [][]byte) *protocol.Response {
 		}
 		ctx.Tx.Watched = append(ctx.Tx.Watched, WatchedKey{
 			DB:      ctx.DB,
-			Key:     strings.Clone(key),
-			Version: ctx.DB.KeyVersion(key),
+			Key:     key,
+			Version: ctx.DB.WatchKeyVersion(key),
 			Epoch:   ctx.DB.ModEpoch(),
 		})
 	}
@@ -235,9 +235,7 @@ func handleUnwatch(ctx *ConnectionContext, args [][]byte) *protocol.Response {
 	if len(args) != 0 {
 		return protocol.MakeError(errors.New("ERR wrong number of arguments for 'unwatch' command"))
 	}
-	if ctx.Tx != nil {
-		ctx.Tx.Watched = ctx.Tx.Watched[:0]
-	}
+	ctx.Tx.ResetWatches()
 	return protocol.MakeSimpleString("OK")
 }
 

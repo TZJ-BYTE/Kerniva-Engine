@@ -76,7 +76,7 @@ func TestReadGroupDeletedPendingPayloadIsNil(t *testing.T) {
 
 func TestGroupSetIDValidatesBeforeMutationAndResolvesDollar(t *testing.T) {
 	db, _ := coldStreamDatabase(t)
-	before := db.KeyVersion("stream")
+	before := watchKeyForTest(t, db, "stream")
 	for _, id := range []string{"", ">", "garbage", "1-2-3", "1-*", "18446744073709551616-0"} {
 		if err := db.XGroupSetID("stream", "group", id); err == nil {
 			t.Fatalf("SETID accepted %q", id)

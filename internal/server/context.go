@@ -78,11 +78,18 @@ func (tx *TransactionState) ResetQueue() {
 }
 
 func (tx *TransactionState) ResetAll() {
+	tx.ResetQueue()
+	tx.ResetWatches()
+}
+
+func (tx *TransactionState) ResetWatches() {
 	if tx == nil {
 		return
 	}
-	tx.ResetQueue()
-	tx.Watched = tx.Watched[:0]
+	for _, watched := range tx.Watched {
+		watched.DB.UnwatchKeyVersion(watched.Key)
+	}
+	tx.Watched = nil
 }
 
 func cloneQueuedCommand(db *database.Database, cmd string, args [][]byte) QueuedCommand {

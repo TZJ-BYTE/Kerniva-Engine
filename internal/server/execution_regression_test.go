@@ -53,6 +53,34 @@ func TestWatchIgnoresUnrelatedWrites(t *testing.T) {
 	}
 }
 
+func TestWatchAcrossFlushKeepsTheNewSubscription(t *testing.T) {
+	manager := newExecutionTestManager(t)
+	db := manager.GetDefaultDB()
+	old := NewConnectionContext(db, nil, nil)
+	fresh := NewConnectionContext(db, nil, nil)
+	peer := NewConnectionContext(db, nil, nil)
+	const key = "watched"
+	send := func(connection *ConnectionContext, want, command string, args ...string) {
+		t.Helper()
+		if got := dispatchTestCommand(connection, manager, command, args...); got != want {
+			t.Fatalf("%s returned %q, want %q", command, got, want)
+		}
+	}
+	send(old, "+OK\r\n", "WATCH", key)
+	send(peer, "+OK\r\n", "FLUSHDB")
+	send(fresh, "+OK\r\n", "WATCH", key)
+	send(old, "+OK\r\n", "MULTI")
+	send(old, "*-1\r\n", "EXEC")
+
+	// Releasing the pre-flush watch must leave the post-flush reference intact.
+	send(peer, "+OK\r\n", "SET", key, "updated")
+	send(fresh, "+OK\r\n", "MULTI")
+	send(fresh, "*-1\r\n", "EXEC")
+	if version := db.KeyVersion(key); version != 0 {
+		t.Fatalf("EXEC retained version %d after the final watch", version)
+	}
+}
+
 func TestCopyAndMoveAreQueuedUntilExec(t *testing.T) {
 	for _, name := range []string{"COPY", "MOVE"} {
 		t.Run(name, func(t *testing.T) {

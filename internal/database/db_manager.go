@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/TZJ-BYTE/Kerniva/config"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
@@ -62,7 +63,10 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 			engineOptions.CheckpointAfterOps = uint64(cfg.EngineCheckpointAfterOps)
 		}
 
-		logger.Info("启用 Rust 持久化引擎，数据目录：%s", dataDir)
+		if cfg.StorageBackend == config.StorageGoLog {
+			dataDir = filepath.Join(dataDir, "go-log-v1")
+		}
+		logger.Info("启用持久化，数据目录：%s", dataDir)
 	}
 
 	// 创建所有数据库
@@ -86,6 +90,9 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 				DataDir:           dbDataDir,
 				Options:           &dbOptions,
 				ColdStartStrategy: cfg.ColdStartStrategy,
+				StorageBackend:    cfg.StorageBackend,
+				GoLogSegmentAge:   time.Duration(cfg.GoLogSegmentAgeSeconds) * time.Second,
+				GoLogGroupMax:     cfg.GoLogGroupMax,
 				WriteMode:         cfg.PersistenceWriteMode,
 				Durability:        cfg.PersistenceDurability,
 				MaxMemory:         maxMemory,
@@ -109,7 +116,7 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	}
 
 	if persistenceEnabled {
-		logger.Info("初始化 %d 个数据库（Rust 持久化模式）", cfg.DBCount)
+		logger.Info("初始化 %d 个持久化数据库", cfg.DBCount)
 	} else {
 		logger.Info("初始化 %d 个数据库（纯内存模式）", cfg.DBCount)
 	}

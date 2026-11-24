@@ -9,6 +9,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot "build.ps1")
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $env:KERNIVA_ENGINE_LIBRARY = Join-Path $ProjectRoot "bin/kerniva_engine.dll"
+$env:KERNIVA_MAINTAINER = Join-Path $ProjectRoot "bin/kerniva-maintainer.exe"
 $testArgs = @("test", "./...", "-count=1", "-timeout=180s")
 if ($Race) { $testArgs += "-race" }
 & go @testArgs

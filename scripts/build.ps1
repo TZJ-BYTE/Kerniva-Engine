@@ -16,6 +16,14 @@ if (-not $SkipRust) {
     } | Select-Object -Last 1
     if (-not $library) { throw "Cargo did not produce the engine shared library" }
     Copy-Item -LiteralPath $library -Destination "bin" -Force
+    $maintainer = $messages | ForEach-Object {
+        $message = $_ | ConvertFrom-Json
+        if ($message.reason -eq "compiler-artifact" -and $message.target.name -eq "kerniva-maintainer") {
+            $message.executable
+        }
+    } | Select-Object -Last 1
+    if (-not $maintainer) { throw "Cargo did not produce the maintenance executable" }
+    Copy-Item -LiteralPath $maintainer -Destination "bin" -Force
 }
 & go build -trimpath -o bin/kerniva-server.exe ./cmd/server
 if ($LASTEXITCODE -ne 0) { throw "Server build failed" }

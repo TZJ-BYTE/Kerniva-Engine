@@ -34,13 +34,15 @@ data/
 # Temporary files
 tmp/
 temp/
+__pycache__/
+*.pyc
 
 # Build output
 build/
 dist/
 
 # Compiled binaries (Kerniva specific)
-bin/
+/bin/
 kerniva-server
 kerniva-client
 

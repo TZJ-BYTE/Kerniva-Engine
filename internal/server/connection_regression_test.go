@@ -18,11 +18,28 @@ func TestStdBlockedFullPipelineCancelsOnDisconnect(t *testing.T) {
 	srv := NewStdServer(cfg).(*StdServer)
 	t.Cleanup(func() { _ = srv.Stop() })
 	serverConn, clientConn := net.Pipe()
+	t.Cleanup(func() { _ = clientConn.Close() })
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		srv.handleConnection(serverConn)
 	}()
+	_ = clientConn.SetDeadline(time.Now().Add(time.Second))
+	if _, err := io.WriteString(clientConn, "*2\r\n$5\r\nWATCH\r\n$7\r\nwatched\r\n"); err != nil {
+		t.Fatal(err)
+	}
+	reply := make([]byte, len("+OK\r\n"))
+	if _, err := io.ReadFull(clientConn, reply); err != nil || string(reply) != "+OK\r\n" {
+		t.Fatalf("WATCH replied %q, %v", reply, err)
+	}
+	db := srv.dbManager.GetDefaultDB()
+	if err := db.SetStringBytes([]byte("watched"), []byte("changed")); err != nil {
+		t.Fatal(err)
+	}
+	if version := db.KeyVersion("watched"); version != 1 {
+		t.Fatalf("active WATCH version = %d, want 1", version)
+	}
+
 	payload := "*3\r\n$5\r\nBLPOP\r\n$7\r\nmissing\r\n$1\r\n0\r\n" + strings.Repeat("*1\r\n$4\r\nPING\r\n", 256)
 	_ = clientConn.SetWriteDeadline(time.Now().Add(time.Second))
 	_, _ = clientConn.Write([]byte(payload))
@@ -31,6 +48,9 @@ func TestStdBlockedFullPipelineCancelsOnDisconnect(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("full pipeline retained a blocked connection after disconnect")
+	}
+	if version := db.KeyVersion("watched"); version != 0 {
+		t.Fatalf("disconnect retained WATCH version %d", version)
 	}
 }
 
@@ -87,23 +107,58 @@ func TestNetworkPipelineRefillsAndBlockingClientsRemainIndependent(t *testing.T)
 				}
 			}
 			conn := dial()
-			if _, err := io.WriteString(conn, strings.Repeat("*1\r\n$4\r\nPING\r\n", 512)); err != nil {
+			if err := conn.(*net.TCPConn).SetReadBuffer(1024); err != nil {
 				t.Fatal(err)
 			}
-			got := make([]byte, 512*len("+PONG\r\n"))
-			if n, err := io.ReadFull(conn, got); err != nil {
-				t.Fatalf("read %d of %d response bytes: %v", n, len(got), err)
+			var requests, replies strings.Builder
+			for i := range 512 {
+				message := fmt.Sprintf("reply-%d", i)
+				if i == 256 {
+					// Force the response to outgrow the connection's 512-byte buffer.
+					message = strings.Repeat("large-reply-", 512)
+				}
+				fmt.Fprintf(&requests, "*2\r\n$4\r\nECHO\r\n$%d\r\n%s\r\n", len(message), message)
+				fmt.Fprintf(&replies, "$%d\r\n%s\r\n", len(message), message)
 			}
-			if !bytes.Equal(got, bytes.Repeat([]byte("+PONG\r\n"), 512)) {
+			if _, err := io.WriteString(conn, requests.String()); err != nil {
+				t.Fatal(err)
+			}
+			got := make([]byte, replies.Len())
+			for offset := 0; offset < len(got); {
+				end := min(offset+257, len(got))
+				if n, err := io.ReadFull(conn, got[offset:end]); err != nil {
+					t.Fatalf("read %d of %d response bytes: %v", offset+n, len(got), err)
+				}
+				offset = end
+			}
+			if !bytes.Equal(got, []byte(replies.String())) {
 				t.Fatal("pipeline replies were reordered or lost")
 			}
+			const blockingPipeline = "*2\r\n$4\r\nECHO\r\n$6\r\nbefore\r\n" +
+				"*3\r\n$5\r\nBLPOP\r\n$7\r\nrelease\r\n$1\r\n0\r\n" +
+				"*2\r\n$4\r\nECHO\r\n$5\r\nafter\r\n"
+			if _, err := io.WriteString(conn, blockingPipeline); err != nil {
+				t.Fatal(err)
+			}
+			expect := func(conn net.Conn, want string) {
+				t.Helper()
+				got := make([]byte, len(want))
+				if _, err := io.ReadFull(conn, got); err != nil || string(got) != want {
+					t.Fatalf("reply = %q, error = %v, want %q", got, err, want)
+				}
+			}
+			// The client must receive this reply while BLPOP is still blocked.
+			expect(conn, "$6\r\nbefore\r\n")
+			peer := dial()
+			if _, err := io.WriteString(peer, "*3\r\n$5\r\nLPUSH\r\n$7\r\nrelease\r\n$5\r\nvalue\r\n"); err != nil {
+				t.Fatal(err)
+			}
+			expect(peer, ":1\r\n")
+			expect(conn, "*2\r\n$7\r\nrelease\r\n$5\r\nvalue\r\n$5\r\nafter\r\n")
 			if _, err := io.WriteString(conn, "*1\r\n$4\r\nQUIT\r\n"); err != nil {
 				t.Fatal(err)
 			}
-			quit := make([]byte, len("+OK\r\n"))
-			if _, err := io.ReadFull(conn, quit); err != nil || string(quit) != "+OK\r\n" {
-				t.Fatalf("QUIT reply=%q err=%v", quit, err)
-			}
+			expect(conn, "+OK\r\n")
 		})
 	}
 }

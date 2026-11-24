@@ -12,6 +12,7 @@ import (
 
 	"github.com/TZJ-BYTE/Kerniva/config"
 	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/golog"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
 	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
@@ -41,6 +42,9 @@ type DatabaseConfig struct {
 	DataDir           string
 	Options           *EngineOptions
 	ColdStartStrategy string
+	StorageBackend    string
+	GoLogSegmentAge   time.Duration
+	GoLogGroupMax     int
 	WriteMode         string
 	Durability        string
 	MaxMemory         int64
@@ -83,6 +87,7 @@ type Database struct {
 
 	// Kerniva Engine（可选）
 	rustEngine    *rustengine.Engine
+	goLog         *golog.Writer
 	writeBatch    func([]rustengine.WriteOp) error
 	config        *DatabaseConfig
 	keyHeat       *KeyTopK
@@ -163,6 +168,13 @@ func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) 
 		options := dbConfig.Options
 		if options == nil {
 			options = DefaultEngineOptions()
+		}
+
+		if dbConfig.StorageBackend == config.StorageGoLog {
+			if err := db.openGoLog(options); err != nil {
+				return nil, err
+			}
+			return db, nil
 		}
 
 		var err error
@@ -335,7 +347,7 @@ func (db *Database) recordLSMError(err error) {
 
 // evictIfNeeded 检查内存是否超限并尝试淘汰
 func (db *Database) evictIfNeeded() bool {
-	if db.hasPersistence() {
+	if db.rustEngine != nil {
 		return true
 	}
 	if db.evictionPolicy == "noeviction" {
@@ -576,7 +588,7 @@ func (db *Database) keysLocked() []string {
 		shard.lock.RUnlock()
 	}
 
-	if db.hasPersistence() {
+	if db.rustEngine != nil {
 		persisted, err := db.scanPersistedValues()
 		if err != nil {
 			db.recordLSMError(err)
@@ -609,7 +621,7 @@ func (db *Database) sizeLocked() int {
 		shard.lock.RUnlock()
 	}
 
-	if db.hasPersistence() {
+	if db.rustEngine != nil {
 		persisted, err := db.scanPersistedValues()
 		if err != nil {
 			db.recordLSMError(err)
@@ -678,6 +690,10 @@ func (db *Database) GetStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	stats["db_id"] = db.id
+	stats["storage_backend"] = config.StorageLegacy
+	if db.goLog != nil {
+		stats["storage_backend"] = config.StorageGoLog
+	}
 	keyCount := 0
 	for i := 0; i < ShardCount; i++ {
 		shard := &db.shards[i]
