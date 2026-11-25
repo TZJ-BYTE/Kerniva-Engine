@@ -138,6 +138,8 @@ scripts/                    构建、清理、测试和 TCP benchmark
 
 ## 验证与性能
 
+2026-11-26 的 WSL gnet 五配置对照完成 40 个正式窗。50% 写、3,000 请求/s 和 95% 读、6,000 请求/s 共投递 540 万次，零失败。6 个窗的 SET p99 超过 100 ms，包含主库单跑时段。高读档随后复验的完整拓扑增量为 +0.442、+0.934 ms，未达到预登记的重复性阈值。[逐窗尾延迟、复制正确性与独立复算](docs/verification/replica-set-tail.md)
+
 ~~~powershell
 ./scripts/test.ps1 -Race
 ~~~
