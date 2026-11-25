@@ -172,11 +172,11 @@ class Experiment:
         self.primary, self.source, self.a, self.b = check.ports(4)
         self.ports = {"primary": self.primary, "source": self.source, "a": self.a, "b": self.b}
 
-    def start(self, label, *cmd, env=None):
+    def start(self, label, *cmd, env=None, **process_options):
         with (self.root / f"{label}.log").open("w") as log:
             child = subprocess.Popen(cmd, cwd=self.root, env=self.env if env is None else env,
                                      stdin=subprocess.DEVNULL,
-                                     stdout=log, stderr=subprocess.STDOUT)
+                                     stdout=log, stderr=subprocess.STDOUT, **process_options)
         self.context.callback(check.stop, child)
         return child
 

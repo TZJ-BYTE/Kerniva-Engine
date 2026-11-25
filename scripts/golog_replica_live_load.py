@@ -103,6 +103,9 @@ def primary_state(port):
 
 
 class Topology(Experiment):
+    def start(self, label, *cmd, env=None):
+        return super().start(label, *cmd, env=env, **getattr(self, "process_options", {}))
+
     def start_primary(self):
         settings = check.RECOVERY.configuration(
             self.storage.parent, self.root / "server.log", self.primary,
@@ -207,7 +210,7 @@ def observe_client(client, run, record, child_processes, snapshot_intervals, ini
     return client.returncode
 
 
-def terminal(run, final, followers):
+def terminal(run, final, followers, *, preserve_cursor_bytes=False):
     port_map = {"primary": run.primary, **followers}
     keys = [f"kerniva:thesis:{index * (KEYS - 1) // 31}" for index in range(32)]
     samples = {}
@@ -241,12 +244,18 @@ def terminal(run, final, followers):
         for db in DATABASES:
             code, value = check.http(port, "/get", db=db, key=SEED_KEY)
             check.require((code, value), (200, final[db]["seed"].encode("ascii")), f"{name} DB{db} seed")
-            position = read_json(run.root / name / "follower-v1" / f"db_{db}" / "CURRENT")
+            cursor_path = run.root / name / "follower-v1" / f"db_{db}" / "CURRENT"
+            cursor_bytes = cursor_path.read_bytes()
+            position = json.loads(cursor_bytes)
             status = states[name][db]
             check.require((position["source"], position["sequence"], position["snapshot"]),
                           (status["source"], final[db]["sequence"], status["snapshot"]),
                           f"{name} DB{db} durable cursor")
             disk[name][db] = position
+            if preserve_cursor_bytes:
+                retained = run.root / "terminal-evidence" / name / f"db_{db}" / "CURRENT"
+                retained.parent.mkdir(parents=True, exist_ok=True)
+                retained.write_bytes(cursor_bytes)
     source_end = {}
     for db in DATABASES:
         status = states["a"][db]
@@ -264,7 +273,8 @@ def terminal(run, final, followers):
     return {**result, "follower_status": states, "follower_current": disk, "source": source_end}
 
 
-def case(root, args, profile, arm, position, used_ports):
+def case(root, args, profile, arm, position, used_ports, *, components=None,
+         observer_factory=LiveObserver, before_release=None):
     read_percent, rate = profile
     label = f"{position:02d}-r{read_percent}-q{rate}-{arm}"
     path = root / label
@@ -277,6 +287,11 @@ def case(root, args, profile, arm, position, used_ports):
         check.RUNNER.write_json(path / "case.json", record)
 
     children = {}
+    maintenance_enabled, replication_enabled = (arm == "B", arm == "B") if components is None else (
+        components["maintenance"], components["replication"],
+    )
+    if components is not None:
+        record["components"] = components
 
     def event(name):
         entry = {"name": name, "utc": now().isoformat(), "monotonic_ns": time.monotonic_ns()}
@@ -288,15 +303,17 @@ def case(root, args, profile, arm, position, used_ports):
         with ExitStack() as processes:
             run = Topology(path, args.bin, args.bin / "kerniva-replica",
                            path / "primary-data" / "go-log-v1", processes)
+            process_options = getattr(args, "child_process_options", {})
+            run.process_options = process_options
             while used_ports.intersection(run.ports.values()):
                 run.primary, run.source, run.a, run.b = check.ports(4)
                 run.ports = dict(zip(("primary", "source", "a", "b"), (run.primary, run.source, run.a, run.b)))
             used_ports.update(run.ports.values())
-            record["ports"] = run.ports if arm == "B" else {"primary": run.primary}
+            record["ports"] = run.ports if replication_enabled else {"primary": run.primary}
             primary = record_process(record, "primary", run.start_primary())
             children["primary"] = primary
             followers = {}
-            if arm == "B":
+            if replication_enabled:
                 children["source"] = record_process(record, "source", run.start_source())
                 followers = {"a": run.a, "b": run.b}
                 for name, port in followers.items():
@@ -313,7 +330,7 @@ def case(root, args, profile, arm, position, used_ports):
             record["client_argv"] = bench
             with (path / "client.json").open("wb") as stdout, (path / "client.stderr.log").open("wb") as stderr:
                 client = subprocess.Popen(bench, cwd=path, env=run.env, stdout=stdout, stderr=stderr,
-                                          stdin=subprocess.DEVNULL)
+                                          stdin=subprocess.DEVNULL, **process_options)
             processes.callback(check.stop, client)
             record_process(record, "client", client)
 
@@ -330,17 +347,19 @@ def case(root, args, profile, arm, position, used_ports):
             initial_start = time.monotonic_ns()
             initial = checkpoints(run.storage)
             record["rust"]["before_cutoffs"] = initial
-            if followers:
+            if maintenance_enabled:
                 maintenance = [args.bin / "kerniva-maintainer", "--data-dir", run.storage, "--interval", "1",
                                "--max-age", "2", "--min-sealed-bytes", "32768", "--retain-covered-segments", "8"]
                 record["rust"]["argv"] = list(map(str, maintenance))
                 children["maintainer"] = record_process(record, "maintainer", run.start("maintainer", *maintenance))
-            with LiveObserver(path, run.storage, run.primary, followers, databases=DATABASES,
+            with observer_factory(path, run.storage, run.primary, followers, databases=DATABASES,
                               source_port=run.source if followers else None,
                               offsets=(0.35, args.duration / 2, args.duration - 1.5),
                               snapshot_intervals=record["rust"]["snapshot_intervals"]) as observer:
                 if now() >= args.stop_opening:
                     raise TimeoutError("window opening cutoff passed before client release")
+                if before_release is not None:
+                    before_release()
                 record["observation_anchor_ns"] = observer.start()
                 record["measurement_clock_bridges"] = [clock_bridge()]
                 record["client_release_interval"] = {"start_ns": time.monotonic_ns()}
@@ -357,11 +376,14 @@ def case(root, args, profile, arm, position, used_ports):
                 observation = observer.finish()
                 record["observations_file"] = "live-observer.json"
                 record["observer_returned"] = isinstance(observation, dict)
+                if components is not None:
+                    record["observations_file"] = observation["file"]
+                    record["window_observer"] = observation
 
             final = primary_state(run.primary)
             if followers:
                 await_followers(followers, final, "followers catch the last sealed writes", 20)
-            record["terminal"] = terminal(run, final, followers)
+            record["terminal"] = terminal(run, final, followers, preserve_cursor_bytes=components is not None)
             record["rust"]["after_cutoffs"] = checkpoints(run.storage)
             measurement = read_json(path / "client.json")
             record["measurement_alignment"] = measurement_alignment(measurement, record)
@@ -373,6 +395,8 @@ def case(root, args, profile, arm, position, used_ports):
             event("verified_terminal")
     except Exception as error:
         record.update(status="failed", error=f"{type(error).__name__}: {error}")
+        if components is not None:
+            record["failed_phase"] = record["events"][-1]["name"] if record["events"] else "startup"
         event("failed")
         print(f"{label}: {record['error']}", file=sys.stderr, flush=True)
     finally:
