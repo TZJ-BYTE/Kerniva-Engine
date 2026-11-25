@@ -1,0 +1,19 @@
+.instance-page { max-width: 850px; }
+.instance-page [role="status"]:not(:empty) { margin-block: .75rem; }
+.instance-toolbar, .instance-summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.instance-toolbar { margin-block: 1rem; }
+.instance-toolbar .actions { margin: 0; }
+.instance-card, .instance-form { padding: 1.2rem; margin-block: .8rem; }
+.instance-form { display: grid; gap: 1rem; max-width: 640px; }
+.instance-form details label, .instance-card details { margin-top: .8rem; }
+.instance-directory { display: flex; gap: .5rem; align-items: end; }
+.instance-directory label { flex: 1; }
+.instance-page summary { cursor: pointer; font-weight: 550; }
+.instance-state { font-size: 13px; color: var(--muted); }
+.instance-state.running { color: var(--success); }
+.instance-state.unhealthy { color: var(--error); }
+.instance-summary code { color: var(--muted); }
+.instance-paths { display: grid; grid-template-columns: auto minmax(0,1fr); gap: .3rem 1rem; margin-block: .7rem; }
+.instance-paths dt { color: var(--muted); }
+.instance-paths dd, .instance-logs { font: 12px/1.6 var(--mono); overflow-wrap: anywhere; }
+.instance-logs { max-height: 19rem; overflow: auto; background: var(--paper); padding: .8rem; margin-top: 1rem; white-space: pre-wrap; }

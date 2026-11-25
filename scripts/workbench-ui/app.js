@@ -8,7 +8,7 @@ const exactKeyForm = byId("exact-key-form");
 const settingsForm = byId("settings-form");
 const initialProfile = {name: "", mode: "standalone", host: "127.0.0.1", port: 6379, db: 0, username: "", tls: false, caFile: "", timeout: 5};
 const initialSettings = {pageSize: 50, previewBytes: 4096, formatJson: true, autoRefresh: false, refreshSeconds: 10};
-const viewNames = {connections: "连接", keys: "键浏览", status: "运行状况", replication: "复制控制台", settings: "设置"};
+const viewNames = {connections: "连接", keys: "数据浏览", status: "运行状况", replication: "复制控制台", settings: "设置"};
 const state = {
   profiles: [], settings: initialSettings, ready: false, active: null,
   route: null, editor: null, browser: null, connectionBusy: false, profileBusy: false,
@@ -103,8 +103,9 @@ function selectedProfile() {
   return findProfile(state.active?.id) || state.profiles[0] || null;
 }
 
-function profileLink(profile, sidebar = false) {
-  const link = element("a", undefined, sidebar ? undefined : "profile");
+function profileLink(profile) {
+  const link = element("a", undefined, "profile");
+  link.id = "profile-" + profile.id;
   const name = element("span", undefined, "profile-name");
   const active = state.active?.id === profile.id;
   name.append(element("i", undefined, "profile-dot"), document.createTextNode(profile.name));
@@ -112,36 +113,31 @@ function profileLink(profile, sidebar = false) {
   link.href = routeLink("connections", {id: profile.id});
   link.dataset.connected = active;
   setCurrent(link, state.route.view === "connections" && selectedProfile()?.id === profile.id);
-  link.append(name);
-  if (!sidebar) {
-    const endpoint = endpointLabel(profile) + " · " + (profile.mode === "cluster" ? "Redis Cluster" : "DB " + profile.db);
-    const meta = element("span", undefined, "profile-meta");
-    meta.append(element("code", endpoint), document.createTextNode(active ? " · 已连接" : ""));
-    link.append(meta);
-  }
+  const endpoint = endpointLabel(profile) + " · " + (profile.mode === "cluster" ? "Redis Cluster" : "默认 DB " + profile.db);
+  const meta = element("span", undefined, "profile-meta");
+  meta.append(element("code", endpoint), document.createTextNode(active ? " · 已连接" : ""));
+  link.append(name, meta);
   return link;
 }
 
 function renderProfiles() {
   byId("profile-count").textContent = state.ready ? state.profiles.length + " 项" : "";
-  const containers = [byId("profile-list"), byId("sidebar-profiles")];
-  for (const [index, container] of containers.entries()) {
-    const placeholder = state.ready ? "还没有保存的连接。" : "正在读取连接配置…";
-    const links = state.profiles.map((profile) => profileLink(profile, index === 1));
-    container.replaceChildren(...(links.length ? links : [element("p", placeholder, index ? "quiet" : "panel-body quiet")]));
-  }
+  const placeholder = state.ready ? "还没有保存的连接。" : "正在读取连接配置…";
+  const links = state.profiles.map(profileLink);
+  byId("profile-list").replaceChildren(...(links.length ? links : [element("p", placeholder, "panel-body quiet")]));
 }
 
 function renderConnection() {
   const status = byId("connection-status");
   status.dataset.connected = !!state.active;
   const displayName = findProfile(state.active?.id)?.name || state.active?.profile.name;
-  const label = state.connectionBusy ? "正在处理连接…" : (state.active ? "已连接 · " + displayName : "未连接");
+  const label = state.connectionBusy ? "正在处理连接…" : (state.active ? "已连接「" + displayName + "」 · 当前库 DB " + state.active.db : "未连接");
   if (status.lastElementChild.textContent !== label) status.lastElementChild.textContent = label;
   const editorId = state.editor?.id;
   const active = !!editorId && state.active?.id === editorId;
   const busy = state.connectionBusy || state.profileBusy;
   byId("connect-fields").disabled = busy || active;
+  byId("connect-fields").hidden = active;
   byId("connect-button").hidden = active;
   byId("connect-button").disabled = busy;
   byId("disconnect-button").hidden = !active;
@@ -178,6 +174,7 @@ function renderEditor() {
   const id = profile?.id || null;
   if (!state.editor || state.editor.id !== id) {
     state.editor = {id};
+    byId("profile-options").open = !profile;
     fillForm(profileForm, {...initialProfile, ...profile});
     field(connectForm, "password").value = "";
     modeChanged();
@@ -186,13 +183,63 @@ function renderEditor() {
     feedback("profile-feedback");
     feedback("connection-feedback");
   }
-  byId("profile-heading").textContent = profile ? "编辑配置" : "新建连接";
+  byId("profile-summary").hidden = !profile;
+  byId("profile-heading").textContent = profile?.name || "新建连接";
   byId("profile-fields").disabled = !state.ready || state.profileBusy;
   byId("save-profile").disabled = !state.ready || state.profileBusy || state.connectionBusy;
   byId("delete-profile").disabled = state.profileBusy || state.connectionBusy;
   byId("delete-profile").hidden = !profile;
   connectForm.hidden = !profile;
   renderConnection();
+}
+
+let mountedPanel = null;
+
+function isInstances(route) {
+  return route?.view === "connections" && route.params.get("tab") === "instances";
+}
+
+async function mountLocalPanel(id) {
+  if (mountedPanel?.id === id) return;
+  mountedPanel?.container.replaceChildren();
+  mountedPanel = null;
+  if (!id || !state.ready) return;
+  const container = byId(id);
+  const panel = element("div");
+  const mount = {id, container};
+  mountedPanel = mount;
+  container.replaceChildren(panel);
+  container.hidden = false;
+  panel.hidden = id === "desktop-startup";
+  try {
+    const {renderInstances, renderDesktopStartup} = await import("./instances.js");
+    if (mountedPanel !== mount) return;
+    const api = (path, body) => request(path.replace(/^\/api\//, ""), body);
+    if (id === "local-instances") await renderInstances(panel, {api, connect: openManagedConnection});
+    else await renderDesktopStartup(panel, {api});
+  } catch (error) {
+    if (mountedPanel !== mount) return;
+    panel.hidden = false;
+    const message = element("p", error.message, "inline-error");
+    message.setAttribute("role", "alert");
+    const retry = element("button", "重试", "button");
+    retry.type = "button";
+    retry.onclick = () => { mountedPanel = null; void mountLocalPanel(id); };
+    panel.replaceChildren(message, retry);
+  }
+}
+
+async function openManagedConnection(id) {
+  const result = await request("state");
+  if (!isInstances(state.route)) return;
+  state.profiles = result.profiles;
+  if (!findProfile(id)) throw new Error("未找到此实例的连接配置。");
+  if (state.active?.id === id) return go("keys", {id, db: state.active.db});
+  history.pushState(null, "", routeLink("connections", {id, browse: new URLSearchParams({id}).toString()}));
+  renderRoute(true);
+  field(connectForm, "password").value = "";
+  await connectProfile();
+  if (state.route.view === "connections" && state.editor?.id === id && state.active?.id !== id) field(connectForm, "password").focus();
 }
 
 function renderRoute(focus = false) {
@@ -203,10 +250,19 @@ function renderRoute(focus = false) {
   for (const link of document.querySelectorAll("[data-nav]")) setCurrent(link, link.dataset.nav === view);
   byId("view-name").textContent = viewNames[view];
   document.title = "Kerniva · " + viewNames[view];
+  const instances = isInstances(state.route);
+  byId("local-instances").hidden = !instances;
+  byId("new-profile").hidden = instances;
+  byId("saved-connections").hidden = instances;
+  setCurrent(byId("instances-tab"), instances);
+  setCurrent(byId("saved-tab"), !instances);
+  void mountLocalPanel(instances ? "local-instances" : (view === "settings" ? "desktop-startup" : null));
   if (view === "connections") {
-    renderProfiles();
-    renderEditor();
-    if (focus && state.route.params.has("new")) field(profileForm, "name").focus();
+    if (!instances) {
+      renderProfiles();
+      renderEditor();
+      if (focus && state.route.params.has("new")) field(profileForm, "name").focus();
+    }
   } else if (view === "keys") {
     renderBrowser();
   }
@@ -214,7 +270,7 @@ function renderRoute(focus = false) {
     invalidate(state.scan);
     invalidate(state.detail);
   }
-  if (oldRoute?.view === "connections" && view !== "connections") field(connectForm, "password").value = "";
+  if (oldRoute?.view === "connections" && (view !== "connections" || instances)) field(connectForm, "password").value = "";
   if (focus && oldRoute?.view !== view && !(view === "connections" && state.route.params.has("new"))) {
     document.querySelector("[data-view]:not([hidden]) h1")?.focus();
   }
@@ -243,7 +299,6 @@ async function bootstrap() {
     byId("settings-fields").disabled = false;
     byId("save-settings").disabled = false;
     state.replicationAvailable = result.replicationAvailable === true;
-    document.querySelector('[data-nav="replication"]').hidden = !state.replicationAvailable;
   } catch (error) {
     byId("bootstrap-message").textContent = error.message;
     byId("bootstrap-error").hidden = false;
@@ -382,8 +437,7 @@ function linkedBrowserRoute(profileId) {
   return {id: profileId};
 }
 
-connectForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+async function connectProfile() {
   const profile = findProfile(state.editor?.id);
   if (state.connectionBusy || state.profileBusy || !profile || state.active?.id === profile.id) return;
   const editor = state.editor;
@@ -396,10 +450,10 @@ connectForm.addEventListener("submit", async (event) => {
   try {
     const result = await connectRequest;
     const old = state.active;
-    state.active = {id: profile.id, profile, session: result.session, info: result.info};
+    state.active = {id: profile.id, profile, db: profile.db, session: result.session, info: result.info};
     if (old && old.session !== result.session) terminateSession(old.session).catch(() => {});
     if (state.route.view === "keys") renderBrowser();
-    if (state.editor === editor && state.route.view === "connections") {
+    if (state.editor === editor && state.route.view === "connections" && !isInstances(state.route)) {
       const params = linkedBrowserRoute(profile.id);
       byId("open-browser").href = routeLink("keys", params);
       feedback("connection-feedback", "连接成功。");
@@ -413,6 +467,11 @@ connectForm.addEventListener("submit", async (event) => {
     if (state.route.view === "connections") renderEditor();
     else renderConnection();
   }
+}
+
+connectForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void connectProfile();
 });
 
 byId("disconnect-button").addEventListener("click", async () => {
@@ -448,6 +507,44 @@ function browserParams() {
   return {id: params.get("id") || state.active?.id, pattern: params.get("pattern") || "*", node: params.get("node") || "", key: params.get("key")};
 }
 
+function databaseRoute(active, db) {
+  return routeLink("keys", {id: active.id, db, pattern: state.route.params.get("pattern"), node: state.route.params.get("node")});
+}
+
+async function selectDatabase(active, db, fromLink = false) {
+  if (active.switching) return;
+  const originalHash = location.hash;
+  active.switching = true;
+  invalidate(state.scan);
+  invalidate(state.detail);
+  byId("browser-results").hidden = true;
+  byId("session-db").disabled = true;
+  byId("switch-db").disabled = true;
+  feedback("database-feedback", "正在打开 DB " + db + "…");
+  try {
+    const result = await request("select-db", {session: active.session, db});
+    if (state.active !== active) return;
+    active.db = result.db;
+    active.info = result.info;
+    active.dbMessage = "";
+    if (!fromLink && location.hash === originalHash) history.pushState(null, "", databaseRoute(active, active.db));
+  } catch (error) {
+    if (state.active !== active) return;
+    if (error.status === 401 || error.status === 410) {
+      dropActive();
+      return;
+    }
+    active.dbMessage = "无法打开 DB " + db + "。 " + error.message;
+    if (fromLink && location.hash === originalHash) history.replaceState(null, "", databaseRoute(active, active.db));
+  } finally {
+    active.switching = false;
+    if (state.active === active) {
+      renderConnection();
+      if (state.route.view === "keys") renderRoute();
+    }
+  }
+}
+
 function keyLabel(item) {
   if (item.key === null || /[\x00-\x1f\x7f-\x9f]/.test(item.key) || (item.key && !item.key.trim())) {
     return "Base64 · " + item.key_b64;
@@ -473,14 +570,33 @@ function renderBrowser() {
   }
   const nodes = active.info?.nodes || [];
   const cluster = active.profile.mode === "cluster";
+  byId("database-form").hidden = cluster;
+  byId("database-cluster").hidden = !cluster;
+  byId("browser-results").hidden = Boolean(active.switching);
+  const input = byId("session-db");
+  input.disabled = Boolean(active.switching);
+  byId("switch-db").disabled = Boolean(active.switching);
+  const requested = state.route.params.get("db");
+  if (active.switching) return;
+  if (requested !== null && requested !== String(active.db)) {
+    if (/^\d{1,5}$/.test(requested) && Number(requested) <= 65535 && Number(requested) !== active.db) {
+      void selectDatabase(active, Number(requested), true);
+      return;
+    }
+    history.replaceState(null, "", databaseRoute(active, active.db));
+    renderRoute();
+    return;
+  }
+  if (state.browser?.db !== active.db || document.activeElement !== input) input.value = active.db;
+  feedback("database-feedback", active.dbMessage || "", Boolean(active.dbMessage));
   const node = cluster && nodes.some((item) => item.id === params.node) ? params.node : "";
   const browser = state.browser;
-  const changedSession = browser?.session !== active.session;
+  const changedSession = browser?.session !== active.session || browser.db !== active.db;
   const changedScan = changedSession || browser.pattern !== params.pattern || browser.node !== node;
   const changedKey = changedSession || browser.key !== params.key;
-  state.browser = {...params, node, session: active.session};
+  state.browser = {...params, node, session: active.session, db: active.db};
   const endpoint = endpointLabel(active.profile);
-  byId("browser-endpoint").textContent = endpoint + " · " + (cluster ? "Redis Cluster" : "DB " + active.profile.db);
+  byId("browser-endpoint").textContent = "连接「" + active.profile.name + "」 · " + endpoint + " · " + (cluster ? "Redis Cluster" : "单机");
   if (changedScan) {
     field(scanForm, "pattern").value = params.pattern;
     const list = field(scanForm, "node");
@@ -528,7 +644,7 @@ function renderScan() {
     const link = existing.get(item.key_b64) || element("a", keyLabel(item), "key-link");
     const params = state.browser;
     link.dataset.key = item.key_b64;
-    link.href = routeLink("keys", {id: params.id, pattern: params.pattern, node: params.node || null, key: item.key_b64});
+    link.href = routeLink("keys", {id: params.id, db: params.db, pattern: params.pattern, node: params.node || null, key: item.key_b64});
     setCurrent(link, params.key === item.key_b64);
     return link;
   });
@@ -682,7 +798,7 @@ function renderDetail() {
 }
 
 async function loadPage(kind, index, cursor) {
-  if (state.route.view !== "keys" || !state.browser) return;
+  if (state.route.view !== "keys" || !state.browser || state.active?.switching) return;
   const page = state[kind];
   if (page.busy) return;
   const browser = state.browser;
@@ -756,6 +872,13 @@ for (const kind of ["scan", "detail"]) {
   });
 }
 
+byId("database-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const active = state.active;
+  const db = byId("session-db").valueAsNumber;
+  if (active && active.db !== db) void selectDatabase(active, db);
+});
+
 scanForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const pattern = field(scanForm, "pattern").value || "*";
@@ -767,7 +890,7 @@ scanForm.addEventListener("submit", (event) => {
     state.scan = freshPage();
     void loadPage("scan", 0);
   } else {
-    go("keys", {id: current.id, pattern, node, key: current.key});
+    go("keys", {id: current.id, db: current.db, pattern, node});
   }
 });
 
@@ -792,7 +915,7 @@ exactKeyForm.addEventListener("submit", (event) => {
     highlightKey();
     return;
   }
-  go("keys", {id: browser.id, pattern: browser.pattern, node: browser.node || null, key});
+  go("keys", {id: browser.id, db: browser.db, pattern: browser.pattern, node: browser.node || null, key});
 });
 
 settingsForm.addEventListener("submit", async (event) => {

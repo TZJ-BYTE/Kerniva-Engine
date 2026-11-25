@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlsplit
 import uuid
 
 import workbench_redis as adapter
+from workbench_instances import Instances
 from workbench_operations import Attached, Journal, OnlineShell, Problem, action_from_path, controller_url, embedded, operation, source_id
 
 
@@ -27,6 +28,8 @@ ASSETS = {
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/ops.js": ("ops.js", "text/javascript; charset=utf-8"),
+    "/instances.js": ("instances.js", "text/javascript; charset=utf-8"),
+    "/instances.css": ("instances.css", "text/css; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
 }
 UI = Path(__file__).resolve().parent / "workbench-ui"
@@ -187,8 +190,9 @@ def lookup(data, pid):
 
 
 class Workbench:
-    def __init__(self, config, demo_url=None, managed=None):
+    def __init__(self, config, demo_url=None, managed=None, engine=None):
         self.config = config
+        self.instances = Instances(config, engine)
         self.config_id = hashlib.sha256(os.fsencode(os.path.normcase(config.path.resolve()))).hexdigest()
         with config.locked():
             data = config.read()
@@ -297,6 +301,24 @@ class Workbench:
         return {"session": token, "info": info}
 
     def perform(self, action, body):
+        if action == "desktop/startup":
+            return self.instances.startup(body)
+        if action == "instances/deploy":
+            return self.instances.deploy(body)
+        if action.startswith("instances/"):
+            result = self.instances.action(action[10:], body)
+            if action == "instances/connection":
+                with self.config.locked():
+                    data = self.config.read()
+                    item = profile({**result, "host": "127.0.0.1"})
+                    for saved in data["profiles"]:
+                        if all(saved[key] == value for key, value in item.items() if key != "name"):
+                            return {"id": saved["id"]}
+                    item["id"] = str(uuid.uuid4())
+                    data["profiles"].append(item)
+                    self.config.write(data)
+                    return {"id": item["id"]}
+            return result
         if action.startswith("replication/"):
             verb, args = action_from_path(action[len("replication/"):], body)
             return self.replication_action(verb, args)
@@ -401,6 +423,10 @@ class Handler(BaseHTTPRequestHandler):
                 payload = self.server.app.perform(self.path[5:], body)
             elif self.path == "/api/state":
                 payload = self.server.app.state()
+            elif self.path == "/api/instances":
+                payload = self.server.app.instances.list()
+            elif self.path == "/api/desktop/startup":
+                payload = self.server.app.instances.startup()
             elif self.path == "/api/replication/status":
                 payload = self.server.app.replication_status()
             elif self.path == "/api/replication/experiments":
@@ -459,6 +485,7 @@ def main():
     cli.add_argument("--url", help="Attach the terminal to an existing local workbench origin.")
     cli.add_argument("--port", type=int, default=18782, help="Local HTTP port (0 selects an available port).")
     cli.add_argument("--config", type=Path, default=default_path(), help="Location of editable workbench JSON.")
+    cli.add_argument("--engine-bundle", type=Path, help="Use this local engine/manifest.json directory for deployment.")
     controllers = cli.add_mutually_exclusive_group()
     controllers.add_argument("--demo-url", help="Attach an existing replication controller and remember its address.")
     controllers.add_argument("--with-demo", action="store_true", help="Own a new Linux replication environment in this process.")
@@ -519,7 +546,7 @@ def main():
                 else:
                     env = embedded(Path(args.bin_dir) if args.bin_dir else UI.parent.parent / "bin")
                 managed = stack.enter_context(env)
-            app = Workbench(config, args.demo_url, managed)
+            app = Workbench(config, args.demo_url, managed, args.engine_bundle)
             if terminal:
                 return run(app)
             server.app = app

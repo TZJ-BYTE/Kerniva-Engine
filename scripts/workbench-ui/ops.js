@@ -31,6 +31,7 @@ function sourceIdentity(snapshot) {
 export function createOperations({state, request, routeLink, setCurrent, element, feedback, endpointLabel}) {
   let visibleRoute = "";
   let session = null;
+  let sessionDb = null;
   let statusRequest;
   let statusTimer;
   let snapshot;
@@ -60,11 +61,12 @@ export function createOperations({state, request, routeLink, setCurrent, element
   }
 
   function connectionChanged() {
-    if (visibleRoute !== "status" || session === state.active?.session) return;
+    if (visibleRoute !== "status" || (session === state.active?.session && sessionDb === state.active?.db)) return;
     statusRequest?.abort();
     statusRequest = null;
     clearTimeout(statusTimer);
     session = state.active?.session;
+    sessionDb = state.active?.db;
     const source = byId("status-source");
     byId("status-offline").hidden = Boolean(session);
     byId("status-refresh").hidden = !session;
@@ -72,7 +74,7 @@ export function createOperations({state, request, routeLink, setCurrent, element
     byId("status-nodes").replaceChildren();
     source.textContent = state.active
       ? state.active.profile.name + " · " + endpointLabel(state.active.profile) + " · " +
-        (state.active.profile.mode === "cluster" ? "Redis Cluster · 主节点" : "DB " + state.active.profile.db)
+        (state.active.profile.mode === "cluster" ? "Redis Cluster · 主节点" : "DB " + state.active.db)
       : "当前连接的数据库节点";
     if (session) void refreshStatus();
   }

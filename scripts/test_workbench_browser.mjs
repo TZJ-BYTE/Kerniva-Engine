@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const [browserPath, configPath] = process.argv.slice(2);
-const {origin, profileId, marker, source} = JSON.parse(await readFile(configPath, "utf8"));
+const fixture = configPath === '-' ? (await Array.fromAsync(process.stdin)).join('') : await readFile(configPath, "utf8");
+const config = JSON.parse(fixture);
+const {origin, profileId, marker, source} = config;
 const profileDir = await mkdtemp(join(tmpdir(), 'kerniva-browser-'));
 const args = [
   '--headless=new', '--no-first-run', '--no-default-browser-check',
@@ -110,30 +112,38 @@ try {
     else pending.resolve(event.result);
   });
   await cdp('Runtime.enable');
-  await cdp('Page.navigate', {url: origin + '/#/connections?id=' + encodeURIComponent(profileId)});
-  await click('#connect-button');
-  await waitFor(() => contains('#connection-status', '已连接'), 'saved profile connection');
-  await click('[data-nav="status"]');
-  await waitFor(() => contains('#status-nodes', 'go-log'), 'live Go-log runtime status');
-  await click('[data-nav="replication"]');
-  await waitFor(() => dom(() => {
-    const selector = document.querySelector('#replication-db');
-    return selector?.checkVisibility();
-  }), 'replication topology');
-  await dom(() => {
-    const selector = document.querySelector('#replication-db');
-    selector.value = '1';
-    selector.dispatchEvent(new Event('change', {bubbles: true}));
-  });
-  await waitFor(async () => (await contains('#replication-source', source))
-    && (await contains('#replication-read-a', marker))
-    && (await contains('#replication-read-b', marker)), 'same-source CLI marker on both replicas');
-  await click('#control-b');
-  await waitFor(() => contains('#replication-read-b', '已暂停'), 'replica B paused by UI');
-  const samePage = await dom(origin => location.origin === origin && location.hash.startsWith('#/replication'), origin);
-  if (!samePage || (await listTargets()).length !== 1) throw new Error('Workbench navigation opened a separate page');
-  if (exceptions.length) throw new Error('Browser reported a JavaScript exception');
-  console.log(JSON.stringify({browser: true, singlePage: true, bothReplicas: true, uiPause: true}));
+  if (config.navigation || config.cluster) {
+    const {testNavigation, testCluster} = await import('./test_workbench_navigation.mjs');
+    const scenario = config.cluster ? testCluster : testNavigation;
+    const result = await scenario({config, cdp, dom, click, contains, waitFor});
+    if (exceptions.length) throw new Error('Browser reported a JavaScript exception');
+    console.log(JSON.stringify(result));
+  } else {
+    await cdp('Page.navigate', {url: origin + '/#/connections?id=' + encodeURIComponent(profileId)});
+    await click('#connect-button');
+    await waitFor(() => contains('#connection-status', '已连接'), 'saved profile connection');
+    await click('[data-nav="status"]');
+    await waitFor(() => contains('#status-nodes', 'go-log'), 'live Go-log runtime status');
+    await click('[data-nav="replication"]');
+    await waitFor(() => dom(() => {
+      const selector = document.querySelector('#replication-db');
+      return selector?.checkVisibility();
+    }), 'replication topology');
+    await dom(() => {
+      const selector = document.querySelector('#replication-db');
+      selector.value = '1';
+      selector.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+    await waitFor(async () => (await contains('#replication-source', source))
+      && (await contains('#replication-read-a', marker))
+      && (await contains('#replication-read-b', marker)), 'same-source CLI marker on both replicas');
+    await click('#control-b');
+    await waitFor(() => contains('#replication-read-b', '已暂停'), 'replica B paused by UI');
+    const samePage = await dom(origin => location.origin === origin && location.hash.startsWith('#/replication'), origin);
+    if (!samePage || (await listTargets()).length !== 1) throw new Error('Workbench navigation opened a separate page');
+    if (exceptions.length) throw new Error('Browser reported a JavaScript exception');
+    console.log(JSON.stringify({browser: true, singlePage: true, bothReplicas: true, uiPause: true}));
+  }
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
