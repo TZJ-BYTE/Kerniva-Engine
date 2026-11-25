@@ -140,7 +140,7 @@ PY
 
 ### 从账本和逐窗记录复算
 
-要从 Windows 镜像重建四个时段的逐窗 JSON，在项目根目录的 PowerShell 7 中运行以下命令。三个原定时段由 `--schedule` 读取，校准、第四时段与历史参照分别指定。命令使用已封存的 16 块账本创建隔离副本，并校验重建文件与仓库中发布的逐窗 JSON 字节一致。
+要从 Windows 镜像重建四个时段的逐窗 JSON，在项目根目录的 PowerShell 7 中运行以下命令。三个原定时段由 `--schedule` 读取，校准、第四时段与历史参照分别指定。命令使用已封存的 16 块账本创建隔离副本，并校验重建文件与仓库中发布的逐窗 JSON。公开 JSON 可按检出平台使用 CRLF 或 LF，比较时统一换行；原始证据仍按文件实际字节校验。
 
 ~~~powershell
 $mirror = (Resolve-Path 'logs/golog-replica-latency/kerniva-replica-latency.pIx8R4RG').Path
@@ -170,10 +170,11 @@ foreach ($id in 'direct-1','direct-2') {
 $out = Join-Path $copy 'four-periods.json'
 python @params --output $out
 if ($LASTEXITCODE) { throw '逐窗复算未通过' }
-$actual = (Get-FileHash -LiteralPath $out).Hash
-$expected = (Get-FileHash -LiteralPath 'docs/verification/replica-install-latency.json').Hash
-if ($actual -ne $expected) { throw "逐窗 JSON 摘要不一致，实际 $actual" }
-Get-FileHash -LiteralPath $out
+$file = (Resolve-Path 'docs/verification/replica-install-latency.json').Path
+$actual = [IO.File]::ReadAllText($out).Replace("`r`n", "`n")
+$expected = [IO.File]::ReadAllText($file).Replace("`r`n", "`n")
+if ($actual -cne $expected) { throw '逐窗 JSON 不一致' }
+[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($actual)))
 ~~~
 
 仓库版工具另加了逐窗断点。驱动在每窗完成后写入索引，调度器把索引摘要写入尝试账本。中断后，复算器单列能核对摘要的窗口和缺少完整证据的窗口。正式块、配置与补采放行规则仍按本轮预登记口径复算。Windows 上重新读取三时段和四组校准的全部 80 窗，两版复算逐窗一致。版本摘要与中断验证结果见镜像的 `reviews/checkpoint-audit-smoke.txt`。
@@ -212,7 +213,8 @@ flock -n "$lock" python3 -B "$run/build/probe-overlay/scripts/golog_replica_dire
 | 源端和镜像 `ledger.json` | `80ec210bd981d994988e594b972d1ad0605f37d7f310b059deb04595c635295b` |
 | 独立复算 `reviews/independent-final.json` | `d1b9dcd85813eb0b6dfdb4dab78de40d58840e00ef4ea8c377454c8c3d32aa67` |
 | Astra 裁决 `reviews/final-astra.json` | `26b5943444c56ea1365f0a5703fe03267137ef73024cf65d0eee7862437f431c` |
-| 仓库内的 `replica-install-latency.json` | `d773c27b45b7bb8ffa16b13451f32415ed15734151591779dd920e0e407306bf` |
+| Windows 交付工作树内的 `replica-install-latency.json`（CRLF） | `d773c27b45b7bb8ffa16b13451f32415ed15734151591779dd920e0e407306bf` |
+| Git 仓库中的同一逐窗 JSON（LF） | `8ebfe79f42b5267c096742a81b27f6872ed9b172573028e7f19cdd77e0f2a553` |
 
 在包含本地证据的项目根目录用 WSL 或 Linux 验证清单。这两次校验分别核对清单本身及清单列出的文件。
 
