@@ -37,6 +37,8 @@ type mixedOptions struct {
 	missingReads     bool
 	preloadBatch     int
 	reconnectBackoff time.Duration
+	tracePath        string
+	traceStride      uint64
 	histogramPath    string
 	readyFile        string
 	startFile        string
@@ -63,10 +65,15 @@ func mixedFlags() *mixedOptions {
 	flag.StringVar(&o.histogramPath, "histogram-out", "", "optional sparse histogram JSON file")
 	flag.StringVar(&o.readyFile, "ready-file", "", "optional ready marker after preload and warmup")
 	flag.StringVar(&o.startFile, "start-file", "", "optional start marker written by the measurement controller")
+	flag.StringVar(&o.tracePath, "request-trace-out", "", "optional measured request timing JSONL")
+	flag.Uint64Var(&o.traceStride, "request-trace-stride", 16, "include one in N requests plus all requests at least 100ms when tracing")
 	return o
 }
 
 func (o *mixedOptions) validate() error {
+	if o.tracePath != "" && o.traceStride == 0 {
+		return fmt.Errorf("request-trace-stride must be positive")
+	}
 	if o.rate <= 0 || o.duration <= 0 || o.timeout <= 0 || o.warmup < 0 {
 		return fmt.Errorf("rate, duration and timeout must be positive, warmup must be nonnegative")
 	}
@@ -393,9 +400,13 @@ func runMixed(address, concurrency, network, durability string, o *mixedOptions)
 			return fmt.Errorf("invalid clients %q", raw)
 		}
 		window := *o
+		if window.tracePath != "" && len(clientCounts) > 1 {
+			window.tracePath = fmt.Sprintf("%s.clients-%d.jsonl", window.tracePath, clients)
+		}
 		window.insertWindow = 2*run + 1
 		if window.warmup > 0 {
 			warmupOptions := window
+			warmupOptions.tracePath = ""
 			warmupOptions.insertWindow--
 			warmupOptions.readyFile, warmupOptions.startFile = "", ""
 			if _, err := measureRate(address, clients, window.warmup, &warmupOptions); err != nil {
@@ -461,10 +472,23 @@ func measureRate(address string, clients int, duration time.Duration, o *mixedOp
 	done.Add(clients)
 	start := make(chan struct{})
 	var epoch int64 = -1
+	var traces []workerTrace
+	if o.tracePath != "" {
+		traces = make([]workerTrace, clients)
+		for i := range traces {
+			capacity := min((total-1)/int64(clients)+1, maxTracePerWorker)
+			traces[i].coverage = make([][2]traceCoverage, 1+scheduledOffset(total-1, o.rate)/time.Second)
+			traces[i].rows = make([]requestTiming, 0, capacity)
+		}
+	}
 	for worker := 0; worker < clients; worker++ {
 		go func(worker int) {
 			defer done.Done()
-			runRateWorker(worker, clients, total, duration, address, o, connections[worker], &ready, start, &epoch, events)
+			var trace *workerTrace
+			if traces != nil {
+				trace = &traces[worker]
+			}
+			runRateWorker(trace, worker, clients, total, duration, address, o, connections[worker], &ready, start, &epoch, events)
 		}(worker)
 	}
 	ready.Wait()
@@ -527,10 +551,15 @@ func measureRate(address string, clients int, duration time.Duration, o *mixedOp
 	if r.Offered != uint64(total) || r.Succeeded+r.Failures != r.Offered {
 		return rateOutput{}, fmt.Errorf("measurement accounting mismatch: planned=%d offered=%d success=%d failures=%d", total, r.Offered, r.Succeeded, r.Failures)
 	}
+	if traces != nil {
+		if err := writeRequestTrace(o.tracePath, started, total, o, traces); err != nil {
+			return rateOutput{}, err
+		}
+	}
 	return output, nil
 }
 
-func runRateWorker(worker, clients int, total int64, duration time.Duration, address string, o *mixedOptions, conn net.Conn, ready *sync.WaitGroup, start <-chan struct{}, epoch *int64, events chan<- windowSnapshot) {
+func runRateWorker(trace *workerTrace, worker, clients int, total int64, duration time.Duration, address string, o *mixedOptions, conn net.Conn, ready *sync.WaitGroup, start <-chan struct{}, epoch *int64, events chan<- windowSnapshot) {
 	defer func() {
 		if conn != nil {
 			conn.Close()
@@ -582,11 +611,17 @@ func runRateWorker(worker, clients int, total int64, duration time.Duration, add
 		if queueDelay >= o.timeout {
 			operation.counts.QueueTimeouts++
 			operation.observed.record(o.timeout)
+			if trace != nil {
+				trace.add(index, write, planned, planned+queueDelay, -1, planned+queueDelay, "queue_timeout", o)
+			}
 			continue
 		}
 		if o.queue > 0 && float64(queueDelay)*float64(o.rate)/float64(time.Second)/float64(clients) >= float64(o.queue) {
 			operation.counts.QueueDrops++
 			operation.observed.record(queueDelay)
+			if trace != nil {
+				trace.add(index, write, planned, planned+queueDelay, -1, planned+queueDelay, "queue_drop", o)
+			}
 			continue
 		}
 		replyValue := expected[:]
@@ -619,9 +654,11 @@ func runRateWorker(worker, clients int, total int64, duration time.Duration, add
 				err = conn.SetDeadline(time.Now().Add(remaining))
 			}
 		}
+		sendStart := time.Duration(-1)
 		if err == nil {
 			operation.counts.Sent++
-			if clockElapsed(*epoch) < duration {
+			sendStart = clockElapsed(*epoch)
+			if sendStart < duration {
 				operation.counts.SentInWindow++
 			}
 			err = mixedExchange(conn, reader, request, replyValue, payload[:], write)
@@ -634,17 +671,26 @@ func runRateWorker(worker, clients int, total int64, duration time.Duration, add
 			if clockElapsed(*epoch) < duration {
 				operation.counts.SucceededInWindow++
 			}
+			if trace != nil {
+				trace.add(index, write, planned, planned+queueDelay, sendStart, planned+latency, "success", o)
+			}
 			continue
 		}
 		var replyError *unexpectedReply
 		var networkError net.Error
+		outcome := "network_error"
 		switch {
 		case errors.As(err, &replyError):
+			outcome = "reply_error"
 			operation.counts.ReplyErrors++
 		case errors.As(err, &networkError) && networkError.Timeout():
+			outcome = "request_timeout"
 			operation.counts.RequestTimeouts++
 		default:
 			operation.counts.NetworkErrors++
+		}
+		if trace != nil {
+			trace.add(index, write, planned, planned+queueDelay, sendStart, planned+latency, outcome, o)
 		}
 		if firstError == "" {
 			firstError = err.Error()
