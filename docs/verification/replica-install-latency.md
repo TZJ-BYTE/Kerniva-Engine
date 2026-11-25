@@ -85,13 +85,13 @@ python3 -B scripts/diagnostics/golog_install_latency/summarize.py \
   --block setup "$id" calibration "$run/blocks/$id/attempt-001/result"
 ~~~
 
-要重放相同夹具，可使用下例。输出目录由 `mktemp` 创建。普通臂对应历史验收过的 `candidate-B`，同一个细探针构建可通过参数切换 `coarse`、`fine` 或 `off`。
+以下命令用本轮冻结的驱动重放粗、细探针校准块。两臂运行同一个二进制。另两组外部对照使用 `/home/lemon/kerniva-reader.SQXPRb7E/candidate-B` 作为普通臂，分别对比诊断构建的 `coarse` 和 `off` 模式。各组的真实执行顺序和完整参数在对应的 `control/calibration-*.json`。
 
 ~~~bash
 lock=/home/lemon/kerniva-development-20261124/logs/golog-followup-bSuIKDwd/.cpu-exclusive.lock
 out=$(mktemp -d "$HOME/kerniva-install-replay.XXXXXXXX")
 diag="$run/build/fine/bin/kerniva-replica"
-flock -n "$lock" python3 -B scripts/golog_replica_direct_delta.py \
+flock -n "$lock" python3 -B "$run/build/probe-overlay/scripts/golog_replica_direct_delta.py" \
   --root "$out" --origin /home/lemon/kerniva-memory-compare.AwbOfm/ordinary-2-candidate-1-cap0 \
   --prepared "$frozen" --bin /home/lemon/kerniva-memory-phases.apFiuiuT/src/bin \
   --baseline "$diag" --candidate "$diag" --baseline-mode coarse --candidate-mode fine \
