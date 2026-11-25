@@ -10,6 +10,8 @@
 
 Windows 使用系统 WebView2，Linux 使用 GTK 4 和 WebKitGTK 6。解压时保留整个目录结构，两个入口旁边的 `backend` 目录包含管理服务。macOS 将服务放在应用包的 `Contents/Resources`。桌面默认自行启动管理服务，也支持 `--url http://127.0.0.1:18782` 附着到另一个工作台。连接远程数据库时，在界面的连接表单填数据库地址。[WebView2 运行时](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)
 
+0.1.3 增加桌面、鼠标终端及交互命令共享的常用键。新版包校验值、真实鼠标操作和安装后重读结果见[常用键验收](workbench-pinned-keys.md)。
+
 ## 0.1.2 交付与验收
 
 2026-11-25，Windows x64 完成离线安装、自选引擎和数据目录、数据库后台运行以及卸载留存验收。Linux x64 完成桌面和终端客户端验收。工作台的数据浏览、运行状况与复制演示各有独立入口。

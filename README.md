@@ -6,6 +6,8 @@ Kerniva 是 Go 实现的 Redis 协议兼容内存数据库，支持标准库 net
 
 数据库工作台提供原生桌面窗口、鼠标终端、浏览器和命令式终端。可连接本地或远程 Kerniva、Redis 单机和 Redis Cluster，在「数据浏览」切换当前逻辑库、分页查看键值。Windows x64 离线安装器自带工作台和单机引擎。在「连接 → 本机实例」选引擎和数据位置后即可部署，关掉桌面窗口仍能使用数据库。Windows 便携包的两个入口是 `Kerniva Workbench.exe` 和 `Kerniva-TUI.cmd`，Linux 包的两个入口是 `./kerniva-workbench` 和 `./kerniva-tui`。[工作台用法](docs/database_workbench.md) · [桌面打包与验收](docs/verification/native-workbench.md) · [Windows 安装与系统服务](packaging/desktop/windows-installation.md)
 
+0.1.3 可以在「数据浏览」固定常用键。分别固定 DB 0 和 DB 1 的 `demo:marker` 后，重开桌面或鼠标终端，点对应位置即可读取该库的最新值。交互终端支持 `/pins`、`/pin-open ID` 和 `/unpin ID`。[演示、截图与安装包校验值](docs/verification/workbench-pinned-keys.md)
+
 答辩演示使用受管的一主两从环境。选择 DB 0 或 DB 1 写入标记，暂停一台副本后继续写入，再恢复它并对照读值和应用序号。交互终端可用 `/help`、`/connect`、`/status`、`/get` 和 `/replica` 执行同一工作台的操作。[启动复制演示](docs/golog_replica_demo.md)
 
 ~~~powershell
