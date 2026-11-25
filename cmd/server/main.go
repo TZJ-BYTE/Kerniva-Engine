@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -20,20 +21,33 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "configuration file")
 	stopFile := flag.String("stop-file", "", "local stop request file used by the control script")
+	platform := platformFlags()
 	flag.Parse()
-	if err := run(*configPath, *stopFile); err != nil {
+	if err := platform(*configPath, *stopFile); err != nil {
 		fmt.Fprintf(os.Stderr, "Kerniva: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func run(configPath, stopFile string) error {
+	return serve(configPath, stopFile, nil, nil)
+}
+
+func serve(configPath, stopFile string, serviceStop <-chan struct{}, ready func()) error {
 	cfg, loadErr := config.LoadFromFile(configPath)
 	if loadErr != nil {
-		if !os.IsNotExist(loadErr) {
+		if ready != nil || !os.IsNotExist(loadErr) {
 			return loadErr
 		}
 		cfg = config.DefaultConfig()
+	}
+	if ready != nil {
+		if cfg.NetworkType != "std" || cfg.StorageBackend != config.StorageGoLog {
+			return errors.New("Windows service mode requires network_type: std and storage_backend: go-log")
+		}
+		if !filepath.IsAbs(cfg.DataDir) || !filepath.IsAbs(cfg.LogPath) {
+			return errors.New("Windows service mode requires absolute data_dir and log_path")
+		}
 	}
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -63,7 +77,13 @@ func run(configPath, stopFile string) error {
 	}
 	srv := server.NewServer(cfg)
 	stopped := make(chan error, 1)
-	go func() { stopped <- srv.Start() }()
+	go func() {
+		if ready != nil {
+			stopped <- srv.(*server.StdServer).StartWithReady(ready)
+		} else {
+			stopped <- srv.Start()
+		}
+	}()
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(signals)
@@ -81,6 +101,8 @@ func run(configPath, stopFile string) error {
 				return startErr
 			}
 			return closeErr
+		case <-serviceStop:
+			return srv.Stop()
 		case <-signals:
 			logger.Info("收到退出信号，正在关闭")
 			return srv.Stop()

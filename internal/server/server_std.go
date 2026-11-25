@@ -73,6 +73,11 @@ func NewStdServer(cfg *config.Config) network.Server {
 
 // Start 启动服务器
 func (s *StdServer) Start() error {
+	return s.StartWithReady(nil)
+}
+
+// StartWithReady calls ready after the initialized server has bound its listener.
+func (s *StdServer) StartWithReady(ready func()) error {
 	if s.initErr != nil {
 		return s.initErr
 	}
@@ -91,6 +96,9 @@ func (s *StdServer) Start() error {
 	}
 	s.listener = listener
 	s.connectionMu.Unlock()
+	if ready != nil {
+		ready()
+	}
 	logger.Info("Kerniva 服务器启动在 %s (Standard Net)", addr)
 
 	for {
