@@ -26,12 +26,23 @@ type pollPhaseEvent struct {
 	Rebase      bool   `json:"rebase"`
 	Error       string `json:"error,omitempty"`
 	Dropped     uint64 `json:"dropped"`
+	RequestID   uint64 `json:"request_id,omitempty"`
+	StartNS     int64  `json:"start_ns,omitempty"`
+	File        string `json:"file,omitempty"`
+	Bytes       int64  `json:"bytes,omitempty"`
+	Count       int64  `json:"count,omitempty"`
+	DurationNS  int64  `json:"duration_ns,omitempty"`
+	MaxNS       int64  `json:"max_ns,omitempty"`
+	Detail      string `json:"detail,omitempty"`
 }
+
+const pollPhaseDefaultDetail = "coarse"
 
 type pollPhaseTrace struct {
 	events  chan pollPhaseEvent
 	done    chan struct{}
 	dropped atomic.Uint64
+	detail  string
 }
 
 func openPollPhaseTrace(databases map[int]*replicaDB) (*pollPhaseTrace, error) {
@@ -47,6 +58,13 @@ func openPollPhaseTrace(databases map[int]*replicaDB) (*pollPhaseTrace, error) {
 		}
 		selected = append(selected, databases[number])
 	}
+	detail := os.Getenv("KERNIVA_GOLOG_POLL_PHASE_DETAIL")
+	if detail == "" {
+		detail = pollPhaseDefaultDetail
+	}
+	if detail != "coarse" && (pollPhaseDefaultDetail == "coarse" || (detail != "fine" && detail != "narrow")) {
+		return nil, fmt.Errorf("unsupported poll phase detail %q for %s build", detail, pollPhaseDefaultDetail)
+	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return nil, err
@@ -54,6 +72,7 @@ func openPollPhaseTrace(databases map[int]*replicaDB) (*pollPhaseTrace, error) {
 	trace := &pollPhaseTrace{
 		events: make(chan pollPhaseEvent, 256),
 		done:   make(chan struct{}),
+		detail: detail,
 	}
 	for _, db := range selected {
 		db.phaseTrace = trace
@@ -75,12 +94,57 @@ func (db *replicaDB) recordPollPhase(event pollPhaseEvent) {
 	if trace == nil {
 		return
 	}
-	event.MonotonicNS = pollPhaseNow()
+	if event.MonotonicNS == 0 {
+		event.MonotonicNS = pollPhaseNow()
+	}
 	event.DB = db.number
+	event.RequestID = db.phaseRequest
 	select {
 	case trace.events <- event:
 	default:
 		trace.dropped.Add(1)
+	}
+}
+
+func (db *replicaDB) beginPollPhase(after uint64) {
+	if db.phaseTrace == nil {
+		return
+	}
+	db.phaseRequest++
+	db.recordPollPhase(pollPhaseEvent{Stage: "pull_request", After: after})
+}
+
+func (db *replicaDB) pollPhaseStart(fineOnly bool) int64 {
+	trace := db.phaseTrace
+	if trace == nil || trace.detail == "coarse" || (fineOnly && trace.detail != "fine") {
+		return 0
+	}
+	return pollPhaseNow()
+}
+
+func (db *replicaDB) pollPhaseSpan(start int64, stage, file string, bytes int64) {
+	if start != 0 {
+		db.recordPollPhase(pollPhaseEvent{Stage: stage, StartNS: start, File: file, Bytes: bytes})
+	}
+}
+
+type pollPhaseAggregate struct {
+	count, bytes, duration, max int64
+}
+
+func (a *pollPhaseAggregate) add(start, bytes int64) {
+	if start != 0 {
+		elapsed := pollPhaseNow() - start
+		a.count++
+		a.bytes += bytes
+		a.duration += elapsed
+		a.max = max(a.max, elapsed)
+	}
+}
+
+func (db *replicaDB) pollPhaseAggregate(stage string, a pollPhaseAggregate) {
+	if a.count != 0 {
+		db.recordPollPhase(pollPhaseEvent{Stage: stage, Count: a.count, Bytes: a.bytes, DurationNS: a.duration, MaxNS: a.max})
 	}
 }
 
@@ -98,7 +162,7 @@ func (trace *pollPhaseTrace) write(file *os.File) {
 	closed := pollPhaseNow()
 	if err := encoder.Encode(pollPhaseEvent{
 		DB: -1, Stage: "trace_closed", MonotonicNS: closed, EmittedNS: closed,
-		Dropped: trace.dropped.Load(),
+		Dropped: trace.dropped.Load(), Detail: trace.detail,
 	}); err != nil {
 		log.Printf("close poll phase trace: %v", err)
 	}
