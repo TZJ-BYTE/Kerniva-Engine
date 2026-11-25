@@ -1,0 +1,11 @@
+Kerniva 工作台
+
+完整解压后启动应用。
+
+Windows   双击 Kerniva Workbench.exe 打开桌面窗口，或双击 Kerniva-TUI.cmd 打开可点击的终端。桌面窗口使用系统的 Microsoft Edge WebView2 Runtime。
+Linux     运行 ./kerniva-workbench 或 ./kerniva-tui。桌面窗口使用系统的 GTK 4 和 WebKitGTK 6。
+macOS     打开 Kerniva Workbench.app。要在终端操作，运行 "./Kerniva Workbench.app/Contents/MacOS/kerniva-tui"。
+
+首次使用时，在「连接」中添加数据库地址、端口和逻辑库。可以连接本机或网络上可访问的 Kerniva、Redis 单机和 Redis Cluster。数据库服务可运行在另一台电脑。
+
+桌面窗口与终端共用本机的连接配置。关闭窗口会释放本窗口启动的管理服务。通过 --url 附着到原有工作台时，原服务由启动者管理。

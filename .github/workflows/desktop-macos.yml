@@ -1,0 +1,65 @@
+name: Package and verify macOS workbench
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Native macOS ${{ matrix.goarch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            goarch: arm64
+            pythonarch: arm64
+          - runner: macos-15-intel
+            goarch: amd64
+            pythonarch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.pythonarch }}
+      - name: Build the native application and portable archive
+        run: |
+          test "$(go env GOHOSTARCH)" = "${{ matrix.goarch }}"
+          python -m venv "$RUNNER_TEMP/kerniva-packaging"
+          "$RUNNER_TEMP/kerniva-packaging/bin/python" -m pip install -r packaging/desktop/requirements.txt
+          "$RUNNER_TEMP/kerniva-packaging/bin/python" packaging/desktop/build.py --version 0.1.2
+      - name: Verify the unpacked application and terminal
+        run: |
+          archive="Kerniva-Workbench-0.1.2-macos-${{ matrix.goarch }}.zip"
+          (cd dist && shasum -a 256 -c "$archive.sha256")
+          unpack="$RUNNER_TEMP/Kerniva 解包"
+          mkdir -p "$unpack"
+          ditto -x -k "dist/$archive" "$unpack"
+          app="$unpack/Kerniva Workbench.app"
+          plutil -lint "$app/Contents/Info.plist"
+          codesign --verify --verbose=2 "$app"
+          lipo "$app/Contents/MacOS/kerniva-workbench" -verify_arch "$(uname -m)"
+          lipo "$app/Contents/Resources/backend/kerniva-workbench-service" -verify_arch "$(uname -m)"
+          go build -trimpath -o "$RUNNER_TEMP/kerniva-server" ./cmd/server
+          python packaging/desktop/verify.py --bundle-dir "$app" --server "$RUNNER_TEMP/kerniva-server" --report dist/macos-database.json
+          python packaging/desktop/verify_posix_tui.py "$app/Contents/MacOS/kerniva-tui" --report dist/macos-terminal.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kerniva-Workbench-macos-${{ matrix.goarch }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/macos-database.json
+            dist/macos-terminal.json
+          if-no-files-found: error
