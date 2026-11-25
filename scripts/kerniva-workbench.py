@@ -304,7 +304,7 @@ class Workbench:
             return self.update(action, body)
         if action == "connect":
             return self.connect(body)
-        if action not in ("scan", "key", "status", "disconnect"):
+        if action not in ("scan", "key", "status", "disconnect", "select-db"):
             raise Problem(404, "未知工作台操作")
         token = string(body.get("session"), 128, "会话")
         if action == "disconnect":
@@ -321,10 +321,20 @@ class Workbench:
                     self.sessions.pop(token, None)
                     raise Problem(401, "连接已断开或配置已变更，请重新连接。")
                 session["until"] = time.monotonic() + IDLE_SECONDS
+                active_profile = {**session["profile"], "db": session.get("db", session["profile"]["db"])}
+        if action == "select-db":
+            fields(body, {"session", "db"})
+            db = integer(body.get("db"), 0, 65535, "数据库编号")
+            require(active_profile["mode"] != "cluster" or db == 0, "Redis Cluster 只支持 DB 0")
+            info = database_call(adapter.probe, {**active_profile, "db": db}, session["password"])
+            with self.lock:
+                if self.sessions.get(token) is not session:
+                    raise Problem(401, "连接已断开，请重新连接。")
+                session["db"] = db
+            return {"db": db, "info": info}
         if action == "status":
             fields(body, {"session"})
-            result = database_call(adapter.status, session["profile"], session["password"])
-            return result
+            return database_call(adapter.status, active_profile, session["password"])
         fields(body, {"session", "cursor", "count", "node", "pattern"} if action == "scan"
                else {"session", "cursor", "count", "key_b64", "previewBytes"})
         req = {k: v for k, v in body.items() if k != "session"}
@@ -340,7 +350,7 @@ class Workbench:
         if req.get("cursor") is not None:
             string(req["cursor"], MAX_BODY, "游标", empty=True)
         return database_call(adapter.scan if action == "scan" else adapter.inspect_key,
-                             session["profile"], session["password"], req)
+                             active_profile, session["password"], req)
 
 
 def database_call(func, item, password, *args):
@@ -431,9 +441,21 @@ class Server(ThreadingHTTPServer):
         self.app.expire()
 
 
+def watch_parent(server):
+    try:
+        while sys.stdin.buffer.read(1024):
+            pass
+    except OSError:
+        pass
+    server.shutdown()
+
+
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument("--shell", action="store_true", help="Start the interactive workbench terminal.")
+    terminals = cli.add_mutually_exclusive_group()
+    terminals.add_argument("--shell", action="store_true", help="Start the line-oriented workbench terminal.")
+    terminals.add_argument("--tui", action="store_true", help="Open the mouse and keyboard terminal interface.")
+    cli.add_argument("--parent-stdin", action="store_true", help="Close the HTTP server when its parent closes stdin.")
     cli.add_argument("--url", help="Attach the terminal to an existing local workbench origin.")
     cli.add_argument("--port", type=int, default=18782, help="Local HTTP port (0 selects an available port).")
     cli.add_argument("--config", type=Path, default=default_path(), help="Location of editable workbench JSON.")
@@ -446,14 +468,28 @@ def main():
     args = cli.parse_args()
     if not 0 <= args.port <= 65535:
         cli.error("port must be between 0 and 65535")
-    if args.url and (not args.shell or args.with_demo or args.demo_url):
-        cli.error("--url attaches a shell to an existing workbench and takes no local controller options")
+    terminal = args.shell or args.tui
+    if args.parent_stdin and terminal:
+        cli.error("--parent-stdin applies only to the HTTP server")
+    if args.url and (not terminal or args.with_demo or args.demo_url):
+        cli.error("--url attaches a terminal to an existing workbench and takes no local controller options")
     if (args.wsl_distro or args.wsl_user) and (not args.with_demo or os.name != "nt"):
         cli.error("WSL options apply to --with-demo on Windows")
     try:
         with ExitStack() as stack:
-            if args.shell:
-                from workbench_shell import run
+            if terminal:
+                if args.tui:
+                    if not sys.stdin.isatty() or not sys.stdout.isatty():
+                        cli.error("TUI 需要交互式终端。管道输入和脚本请使用 shell。")
+                    try:
+                        from workbench_tui import run
+                    except ModuleNotFoundError as error:
+                        if error.name != "textual":
+                            raise
+                        cli.exit(1, "请在 Python 环境中安装终端组件：python -m pip install "
+                                 "-r scripts/requirements-workbench-tui.txt\n")
+                else:
+                    from workbench_shell import run
                 online = OnlineShell(args.url or f"http://127.0.0.1:{args.port}")
                 if args.url:
                     if online.state().get("apiVersion") != 2:
@@ -468,7 +504,7 @@ def main():
                     if remote.get("apiVersion") == 2 and remote.get("configId") == config_id:
                         return run(online)
             config = Config(args.config)
-            if not args.shell:
+            if not terminal:
                 server = stack.enter_context(Server(("127.0.0.1", args.port), Handler))
             if args.with_demo and sys.platform.startswith("linux"):
                 def terminate(_signum, _frame):
@@ -484,10 +520,12 @@ def main():
                     env = embedded(Path(args.bin_dir) if args.bin_dir else UI.parent.parent / "bin")
                 managed = stack.enter_context(env)
             app = Workbench(config, args.demo_url, managed)
-            if args.shell:
+            if terminal:
                 return run(app)
             server.app = app
             print(f"Open http://127.0.0.1:{server.server_port}/\nConfig: {config.path}", flush=True)
+            if args.parent_stdin:
+                threading.Thread(target=watch_parent, args=(server,), daemon=True).start()
             server.serve_forever()
     except KeyboardInterrupt:
         pass

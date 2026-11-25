@@ -23,26 +23,6 @@ OPENING_LINE = re.compile(r"Open (http://127\.0\.0\.1:\d+)/")
 READINESS_TIMEOUT = 75
 STOP_TIMEOUT = 35
 
-# EOF gives the parent a portable way to trigger KeyboardInterrupt on the
-# service's main thread and unwind both the native and WSL controller contexts.
-EOF_LAUNCHER = """
-import _thread
-import runpy
-import sys
-from pathlib import Path
-from threading import Thread
-
-def wait_for_eof():
-    sys.stdin.buffer.read()
-    _thread.interrupt_main()
-
-Thread(target=wait_for_eof, daemon=True).start()
-del sys.argv[0]
-sys.path.insert(0, str(Path(sys.argv[0]).parent))
-runpy.run_path(sys.argv[0], run_name="__main__")
-"""
-
-
 def require(condition, detail):
     if not condition:
         raise RuntimeError(detail)
@@ -60,7 +40,7 @@ def wait_for(probe, description, seconds=15):
 
 @contextmanager
 def workbench(args, root):
-    command = [sys.executable, "-u", "-B", "-c", EOF_LAUNCHER, str(WORKBENCH),
+    command = [sys.executable, "-u", "-B", str(WORKBENCH), "--parent-stdin",
                "--with-demo", "--config", str(root / "workbench.json"), "--port", "0"]
     for option in ("bin_dir", "wsl_distro", "wsl_user"):
         if value := getattr(args, option):
