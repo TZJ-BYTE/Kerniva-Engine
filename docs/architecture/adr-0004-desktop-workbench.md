@@ -1,6 +1,6 @@
 # ADR 0004 · Kerniva 桌面工作台与命令行
 
-状态为部分采纳。记录日期为 2026-11-24。统一浏览器工作台和交互终端已交付，Wails 桌面安装包仍是拟议方案。
+2026-11-24 记录，2026-11-25 更新。已采纳 Wails 桌面窗口、Textual 鼠标终端与统一管理服务。Windows 提供安装器和便携包，Linux 提供便携包，macOS 采用原生构建的应用包。各平台的实测范围见[桌面验收](../verification/native-workbench.md)。
 
 ## 使用方式与视觉方向
 
@@ -12,11 +12,11 @@
 
 Linux 和 WSL 上可以创建由工作台所有的演示实例。Windows 可原生运行工作台，通过 WSL 子进程管理 Linux 复制服务。退出工作台时结束由它创建的服务；通过 `--demo-url` 附着的实例保留原控制器的生命周期。操作记录按复制来源隔离，记录经统一管理接口确认的操作。旧浏览器的历史保留在原面板存储中。[统一工作台用法](../database_workbench.md) · [复制演示](../golog_replica_demo.md)
 
-### 终端交互待办
+### 鼠标终端
 
-后续为终端增加类似 Codex 的可点击文本界面（TUI）。用户可以用鼠标点选连接、库和操作，同时保留键盘导航与现有脚本入口。当前终端通过输入命令和编号操作。本项排在复制主线验收之后。
+Textual 界面可点选连接、逻辑库、键、分页、设置和复制操作，也支持键盘导航。它使用与命令式终端相同的会话接口，能直接使用本机配置或按 URL 附着到已有工作台。后端在建立新数据库连接成功后才切换当前会话。原有 `shell` 继续接受命令和管道输入。[终端实现](../../scripts/workbench_tui.py)
 
-## 拟议桌面方案
+## 桌面方案
 
 采用 **Wails v3 + Go** 作为桌面客户端。沿用当前 HTML、CSS 和 JavaScript。Go 负责连接本地管理服务并把操作结果传回界面。Windows 使用 WebView2，macOS 使用系统 WebKit，Linux 使用 WebKitGTK。每个平台都要在对应的 WebView 上验收中文排版、键盘操作和剪贴板。桌面端采用独立 Go 模块，Wails v3.1.0 要求 Go 1.26，仓库主模块当前声明 Go 1.25。 [Wails 技术架构](https://wails.io/contributing/overview/) · [v3.1.0 发布记录](https://github.com/wailsapp/wails/releases/tag/v3.1.0) · [桌面模块工具链要求](https://raw.githubusercontent.com/wailsapp/wails/v3.1.0/v3/go.mod)
 
@@ -24,14 +24,19 @@ Linux 和 WSL 上可以创建由工作台所有的演示实例。Windows 可原�
 flowchart LR
     B[浏览器工作台] -->|同源 HTTP| M[本地管理服务]
     S[交互终端 kerniva shell] -->|回环 HTTP| M
-    D[拟议的 Wails 桌面工作台] -->|Go 绑定| C[本地管理客户端]
+    U[鼠标终端 kerniva tui] -->|本机接口或回环 HTTP| M
+    D[Wails 桌面窗口] -->|同源页面和 API| C[Go 请求转发]
     C -->|回环 HTTP| M
     M -->|RESP| P[Kerniva 或 Redis 数据库]
+    M -->|匹配进程和配置| L[Windows 用户的持久单机]
+    SCM[Windows 服务控制管理器] -->|可选的管理员登记| W[独立系统服务实例]
     M -->|托管或附着| R[Go-log 演示拓扑]
     T[kerniva-client 或 redis-cli] -->|RESP| P
 ~~~
 
-第一版桌面封装可以先接入现有本地工作台服务。桌面静态页面通过 Go 绑定调用同一组状态、写标记、暂停和恢复操作，复用管理接口的字段、错误和来源检查。关闭附着的窗口时断开自己的连接，已有服务继续运行。macOS 可通过本地端口转发接入 Linux 测试实例，验证窗口和连接流程。[当前管理服务](../../scripts/kerniva-workbench.py) · [交互终端](../../scripts/workbench_shell.py) · [通用 RESP 客户端](../../cmd/client)
+桌面程序默认启动随包的本地服务，也可用 `--url` 附着到已有工作台。窗口内加载同一套页面和 JavaScript，Go 转发同源请求，复用原有分页、错误信息和复制操作。新建的管理服务监听动态回环端口，并通过标准输入管道感知桌面进程退出。附着的服务由原所有者管理。所有客户端在工作台中填写实际数据库地址。[桌面模块](../../desktop/main.go) · [当前管理服务](../../scripts/kerniva-workbench.py) · [通用 RESP 客户端](../../cmd/client)
+
+左栏按功能导航，已保存连接和本机实例在连接页管理。逻辑库和集群节点属于当前数据会话。切换逻辑库得到服务端确认后，客户端再替换当前视图和分页游标。实例部署会校验本地引擎与对应 DLL 的摘要；数据目录、控制文件和工作台安装目录分别管理。桌面关闭时释放自己的管理服务，已部署的数据库进程继续运行。管理员登记的系统服务使用单独的受保护位置和服务账户。[部署实现](../../scripts/workbench_instances.py) · [Windows 服务](../../packaging/desktop/windows-installation.md)
 
 ## 其他可行选择
 

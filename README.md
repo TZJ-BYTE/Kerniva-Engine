@@ -4,7 +4,7 @@ Kerniva 是 Go 实现的 Redis 协议兼容内存数据库，支持标准库 net
 
 当前处于原型工程化阶段。命令覆盖、故障恢复、跨语言生命周期和构建验证已经形成闭环，兼容性和负载规模仍需持续验证。
 
-数据库工作台在同一个浏览器窗口中提供连接、键浏览、运行状况和设置。可以保存本地或远程 Kerniva、Redis 单机及 Redis Cluster 的连接。启用复制演示后，侧栏会显示「复制控制台」。通用工作台和交互终端需要 Python 3.9 或更新版本。[数据库工作台](docs/database_workbench.md)
+数据库工作台提供原生桌面窗口、鼠标终端、浏览器和命令式终端。可连接本地或远程 Kerniva、Redis 单机和 Redis Cluster，在「数据浏览」切换当前逻辑库、分页查看键值。Windows x64 离线安装器自带工作台和单机引擎。在「连接 → 本机实例」选引擎和数据位置后即可部署，关掉桌面窗口仍能使用数据库。Windows 便携包的两个入口是 `Kerniva Workbench.exe` 和 `Kerniva-TUI.cmd`，Linux 包的两个入口是 `./kerniva-workbench` 和 `./kerniva-tui`。[工作台用法](docs/database_workbench.md) · [桌面打包与验收](docs/verification/native-workbench.md) · [Windows 安装与系统服务](packaging/desktop/windows-installation.md)
 
 答辩演示使用受管的一主两从环境。选择 DB 0 或 DB 1 写入标记，暂停一台副本后继续写入，再恢复它并对照读值和应用序号。交互终端可用 `/help`、`/connect`、`/status`、`/get` 和 `/replica` 执行同一工作台的操作。[启动复制演示](docs/golog_replica_demo.md)
 
@@ -167,6 +167,7 @@ go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -n
 - [毕设最终架构与验收方案](docs/architecture/adr-0002-thesis-go-cache-rust-segments.md)
 - [Go-log 主库、Rust 快照和只读副本架构图](docs/architecture/kerniva-current-architecture.svg)
 - [无人值守实施与对照计划](docs/golog_unattended_plan.md)
+- [副本大增量安装长尾的 24 小时无人值守计划](docs/golog_replica_24h_plan.md) 与 [实测记录](docs/verification/replica-install-latency.md)
 - [Go 日志与 Rust 快照 WSL 实测](docs/golog_wsl_report.md)
 - [合并同步与复制 WSL 实测](docs/golog_grouped_replica_report.md)
 - [副本快照恢复的内存归因、峰值对照与断源重启](docs/verification/replica-recovery-memory.md)
