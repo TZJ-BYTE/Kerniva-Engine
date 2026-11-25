@@ -34,3 +34,12 @@ class StallTraceTests(unittest.TestCase):
     def test_clock_fraction_and_zone(self):
         self.assertEqual(report.wall_ns("2020-01-01T00:00:00.123456789Z"), 1577836800123456789)
         self.assertEqual(report.wall_ns("2020-01-01T08:00:00.123456+08:00"), 1577836800123456000)
+
+    def test_external_controls_preserve_topology_and_occurrence(self):
+        cases = {"03-A": ("ON",500,[]), "01-A": ("ON",300,[2,4]),
+                 "07-A": ("ON",700,[3]), "02-A": ("OFF",499,[3]), "04-E": ("ON",501,[3])}
+        external, needed = report.external_controls(cases)
+        self.assertEqual(external["03-A"][3], {"case":"01-A","second":2})
+        self.assertEqual(needed["01-A"], {2,4})
+        missing, _ = report.external_controls({"03-A":cases["03-A"], "02-A":cases["02-A"]})
+        self.assertIsNone(missing["03-A"][3])

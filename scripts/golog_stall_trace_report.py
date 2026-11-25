@@ -242,7 +242,29 @@ def telemetry(folder, root, phase, client, seconds):
             "interpretation":"Intervals can overlap adjacent planned seconds. Shared cumulative counters cannot identify an individual disk sync."}
 
 
-def audit_case(folder, root, stage, mode):
+def external_controls(cases):
+    """Match an all-trigger window to normal seconds without crossing stage, arm or mode."""
+    external, needed = {}, defaultdict(set)
+    for name, (mode, start, normals) in cases.items():
+        if normals:
+            continue
+        donors = [(abs(other_start-start),other_start,other,usable)
+                  for other,(other_mode,other_start,usable) in cases.items()
+                  if other != name and other[-1] == name[-1] and other_mode == mode and usable]
+        if not donors:
+            external[name] = {sec: None for sec in range(30)}
+            continue
+        _, _, donor, usable = min(donors)
+        matches = {}
+        for sec in range(30):
+            nearest = min(usable, key=lambda i: (abs(i-sec),i))
+            matches[sec] = {"case":donor,"second":nearest}
+            needed[donor].add(nearest)
+        external[name] = matches
+    return external, needed
+
+
+def audit_case(folder, root, stage, mode, extra_controls=(), fallback=None):
     c, h = read(folder/"client.json"), read(folder/"client-hist.json")
     require(c["offered"] == c["sent"] == c["succeeded"] == 180000 and c["failures"] == 0, "workload failures/count")
     for op in OPS:
@@ -254,21 +276,22 @@ def audit_case(folder, root, stage, mode):
     normal = [s for s in range(30) if s not in triggers]
     pairs = {s:[max((i for i in normal if i<s), default=None),min((i for i in normal if i>s),default=None)]
              for s in triggers}
-    # Preregistered fallback matters only if every second in a window fires.
-    require(not triggers or normal, "all-trigger window requires cross-window control")
-    controls = {i for p in pairs.values() for i in p if i is not None}
+    controls = {i for p in pairs.values() for i in p if i is not None} | set(extra_controls)
     trace = folder/"client-trace.jsonl"
     require(trace.exists() == (mode == "ON"), "capture mode mismatch")
     if mode == "OFF":
         require(not (folder/"guest-samples.jsonl").exists(), "guest sampler present in OFF")
         require(not (root/"host-signals"/(stage+"--"+folder.name+".open.json")).exists(), "host sampler present in OFF")
-    return {"case":folder.name,"arm":folder.name[-1],"mode":mode,"started_utc":c["started_utc"],
+    window = {"case":folder.name,"arm":folder.name[-1],"mode":mode,"started_utc":c["started_utc"],
             "offered":c["offered"],"success":c["succeeded"],"failures":c["failures"],
             "in_offer_success":sum(c[op]["succeeded_in_window"] for op in OPS),"actual_success_rate":c["actual_success_rate"],
             "set_p99_us":c["set"]["success_latency"]["p99_us"],"set_p999_us":c["set"]["success_latency"]["p99_9_us"],
             "get_p99_us":c["get"]["success_latency"]["p99_us"], "trigger_seconds":triggers,"control_seconds":pairs,
             "trace":trace_audit(trace,c,h,triggers,controls) if mode=="ON" else None,
             "telemetry":telemetry(folder,root,stage,c,set(triggers)|controls) if mode=="ON" else None}
+    if fallback is not None:
+        window["external_control_seconds"] = fallback
+    return window
 
 
 def pair_review(windows):
@@ -298,11 +321,18 @@ def main():
     parser.add_argument("--out",type=Path,required=True)
     args=parser.parse_args()
     ledger=read(args.root/args.stage/"run.json")
+    cases = {}
+    for w in ledger["windows"]:
+        c = read(args.root/args.stage/w["attempts"][-1]["directory"]/"client.json")
+        usable = [sec["planned_second"] for sec in c["windows"] if sec["set"]["success_latency"]["p99_us"] < SLOW/1000]
+        cases[w["label"]] = (w["mode"],wall_ns(c["started_utc"]),usable)
+    external, needed = external_controls(cases)
     results=[]
     for w in ledger["windows"]:
         attempt=w["attempts"][-1]
         require(attempt["state"]=="completed","incomplete attempt")
-        results.append(audit_case(args.root/args.stage/attempt["directory"],args.root,args.stage,w["mode"]))
+        results.append(audit_case(args.root/args.stage/attempt["directory"],args.root,args.stage,w["mode"],
+                                  needed[w["label"]],external.get(w["label"])))
     require(len(results)==8,"eight-window stage incomplete")
     report={"schema_version":1,"stage":args.stage,"windows":results,"sample_pairs":pair_review(results)}
     args.out.parent.mkdir(parents=True,exist_ok=True)
