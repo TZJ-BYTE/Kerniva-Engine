@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)][string]$App,
     [string]$Server = (Join-Path $PSScriptRoot '../bin/kerniva-server.exe'),
+    [switch]$Pins,
     [string]$Evidence = (Join-Path ([IO.Path]::GetTempPath()) ('kerniva-desktop-' + [guid]::NewGuid().ToString('N')))
 )
 $ErrorActionPreference = 'Stop'
@@ -56,12 +57,20 @@ log_path: "./server.log"
     Invoke-ID 'open-browser'
     Invoke-Name 'desktop:smoke' 'Hyperlink'
     [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) 'seen-in-webview2' 'Text')
+    if ($Pins) {
+        Click-WindowButton 'pin-current'
+        [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '已固定' 'Button')
+    }
     $dbInput = Find-Control ([Windows.Automation.AutomationElement]::AutomationIdProperty) 'session-db' 'Spinner'
     $dbInput.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('1')
     Click-WindowButton 'switch-db'
     [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '已连接「原生窗口验收」 · 当前库 DB 1' 'Text')
     Invoke-Name 'desktop:smoke' 'Hyperlink'
     [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) 'seen-in-db1' 'Text')
+    if ($Pins) {
+        Click-WindowButton 'pin-current'
+        [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '已固定' 'Button')
+    }
     $report.sameKeyAcrossDBs = @('seen-in-webview2', 'seen-in-db1')
     Invoke-Name '运行状况' 'Hyperlink'
     [void](Find-Control ([Windows.Automation.AutomationElement]::AutomationIdProperty) 'status-refresh' 'Button')
@@ -86,6 +95,26 @@ log_path: "./server.log"
     Close-Desktop
     if (Get-Process -Id $report.ownedPid -ErrorAction SilentlyContinue) { throw 'Owned service survived window close' }
     $report.ownedReaped = $true
+
+    if ($Pins) {
+        $pinsBefore = (Get-Content -Raw -LiteralPath $settings | ConvertFrom-Json).pins
+        if ($pinsBefore.Count -ne 2) { throw 'Native window did not persist two different DB positions' }
+        $zero = ($pinsBefore | Where-Object db -EQ 0).id
+        $one = ($pinsBefore | Where-Object db -EQ 1).id
+        Set-TestMarker $port 1 'desktop:smoke' 'updated-after-native-close'
+        Open-Desktop @('--config', $settings)
+        Invoke-Name '数据浏览' 'Hyperlink'
+        Invoke-ID ('pin-open-' + $one)
+        [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) 'updated-after-native-close' 'Text')
+        Invoke-ID ('pin-open-' + $zero)
+        [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) 'seen-in-webview2' 'Text')
+        Invoke-ID ('pin-remove-' + $one)
+        [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '已移除常用键。' 'Text')
+        $pinsAfter = (Get-Content -Raw -LiteralPath $settings | ConvertFrom-Json).pins
+        if ($pinsAfter.Count -ne 1 -or $pinsAfter[0].id -ne $zero) { throw 'Wrong native position removed' }
+        $report.pins = @{ databases = @(0, 1); readAfterRestart = 'updated-after-native-close'; removedDB = 1 }
+        Close-Desktop
+    }
 
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     $listener.Start()

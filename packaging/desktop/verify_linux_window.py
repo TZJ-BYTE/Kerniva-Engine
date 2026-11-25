@@ -89,7 +89,7 @@ class Window:
             raise RuntimeError(f"Native window exited with {self.process.returncode}")
 
 
-def verify(binary, server, log, root):
+def verify(binary, server, log, root, pins=False):
     key, expected = "native:中文", "界面读值-826"
     with ExitStack() as stack:
         connection, port = database(stack, root, server)
@@ -113,6 +113,22 @@ def verify(binary, server, log, root):
             window.click("link", key)
             window.find(expected, lambda role, name: expected in name)
             window.actions.append("read " + expected)
+            if pins:
+                toggle = window.find("pin current key", lambda role, name: role in ("button", "toggle button") and name == "固定")
+                if not toggle.do_action(0):
+                    raise RuntimeError("Could not fix the current key in GTK")
+                window.actions.append("click 固定")
+                window.find("saved key", lambda role, name: role in ("button", "toggle button") and name == "已固定")
+                saved = json.loads(config.read_text(encoding="utf-8"))["pins"]
+                if len(saved) != 1 or saved[0]["db"] != 1:
+                    raise RuntimeError("Wrong GTK pin position")
+                window.click("link", "运行状况")
+                window.click("link", "数据浏览")
+                control = window.find("saved key link", lambda role, name: role == "link" and key in name and "DB 1" in name)
+                if not control.do_action(0):
+                    raise RuntimeError("Unable to open saved key from the GTK data page")
+                window.find(expected, lambda role, name: expected in name)
+                window.actions.append("open saved DB 1 key")
             children = []
             for path in Path(f"/proc/{proc.pid}/task").glob("*/children"):
                 for pid in path.read_text().split():
@@ -147,12 +163,13 @@ def main():
     parser.add_argument("--bundle-dir", required=True, type=Path)
     parser.add_argument("--server", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument("--pins", action="store_true", help="Check saved positions on versions 0.1.3 and higher")
     args = parser.parse_args()
     binary = (args.bundle_dir / "kerniva-workbench").resolve(strict=True)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     Atspi.init()
     with tempfile.TemporaryDirectory() as root, args.report.with_suffix(".log").open("wb") as log:
-        result = verify(binary, args.server.resolve(strict=True), log, Path(root))
+        result = verify(binary, args.server.resolve(strict=True), log, Path(root), pins=args.pins)
     encoded = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     args.report.write_text(encoded, encoding="utf-8")
     print(encoded, end="")

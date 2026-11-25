@@ -17,7 +17,7 @@ from textual.widgets import (
 )
 
 from workbench_operations import Problem
-from workbench_shell import _display_text, _format_json
+from workbench_shell import _display_text, _format_json, pin_key_label
 
 
 def plain(value):
@@ -110,6 +110,43 @@ class Form(ModalScreen):
         self.dismiss(result)
 
 
+class PinList(ModalScreen):
+    BINDINGS = [("escape", "cancel", "返回")]
+
+    def __init__(self, state):
+        super().__init__()
+        self.pins = state["pins"]
+        self.names = {profile["id"]: profile["name"] for profile in state["profiles"]}
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="pin-dialog"):
+            yield Label("常用键", classes="heading")
+            if self.pins:
+                with VerticalScroll(id="pin-list"):
+                    for i, pin in enumerate(self.pins):
+                        with Horizontal(classes="buttons pin-row"):
+                            label = f"{self.names.get(pin['profileId'], '连接已删除')}  ·  DB {pin['db']}"
+                            title = Text(plain(f"{label}   {pin_key_label(pin['key_b64'])}"))
+                            yield Button(title, id=f"open-{i}", classes="pin-location", compact=True)
+                            yield Button("移除", id=f"remove-{i}", compact=True)
+            else:
+                yield Static("打开一个键后，点击「固定」即可在这里找到它。", markup=False)
+            with Horizontal(classes="buttons"):
+                yield Button("返回", id="pin-close", compact=True)
+
+    def action_cancel(self):
+        self.dismiss(None)
+
+    @on(Button.Pressed)
+    def choose(self, event):
+        event.stop()
+        if event.button.id == "pin-close":
+            self.action_cancel()
+        else:
+            action, index = event.button.id.split("-")
+            self.dismiss((action, self.pins[int(index)]["id"]))
+
+
 class WorkbenchTUI(App):
     TITLE = "Kerniva"
     ENABLE_COMMAND_PALETTE = False
@@ -131,7 +168,12 @@ class WorkbenchTUI(App):
     #split.narrow > Vertical { width: 100%; padding: 0; }
     #notice { height: auto; max-height: 3; padding: 0 1; color: $text-muted; }
     #notice.error, #form-error { color: $error; }
-    Form { align: center middle; }
+    Form, PinList { align: center middle; }
+    #pin-dialog { width: 80; max-width: 95%; height: auto; max-height: 90%; padding: 0 1;
+                  border: round $accent; background: $panel; }
+    #pin-list { height: auto; max-height: 55vh; }
+    .pin-row { height: auto; min-height: 2; }
+    .pin-row .pin-location { width: 1fr; height: auto; }
     #dialog { width: 60; max-width: 95%; height: auto; max-height: 90%; padding: 0 1;
               border: round $accent; background: $panel; }
     #fields { height: auto; max-height: 65vh; }
@@ -175,6 +217,7 @@ class WorkbenchTUI(App):
                     yield Button("扫描", id="scan", compact=True)
                     yield Button("选库", id="database", compact=True)
                     yield Button("节点", id="node", compact=True)
+                    yield Button("常用键", id="pins", compact=True)
                 with Horizontal(id="split"):
                     with Vertical(id="list-side"):
                         yield Label("键", id="keys-title", classes="heading")
@@ -186,6 +229,7 @@ class WorkbenchTUI(App):
                         with Horizontal(classes="buttons"):
                             yield Input(placeholder="完整键名", id="exact", compact=True)
                             yield Button("打开", id="open-key", compact=True)
+                            yield Button("固定", id="pin", compact=True, disabled=True)
                         with VerticalScroll(classes="scroll-body"):
                             yield Static("选择一个键查看内容", id="detail", markup=False)
                         with Horizontal(classes="buttons"):
@@ -242,7 +286,7 @@ class WorkbenchTUI(App):
             return
         # Let an in-flight connect hand its token to run() for cleanup.
         self.quit_requested = True
-        if isinstance(self.screen, Form):
+        if isinstance(self.screen, (Form, PinList)):
             self.screen.dismiss(None)
         else:
             self.notice("当前操作完成后退出")
@@ -271,6 +315,7 @@ class WorkbenchTUI(App):
         self.page_buttons()
 
     def page_buttons(self):
+        self.query_one("#pin", Button).disabled = not self.session or "key" not in self.pages
         for section, prefix in (("scan", "list"), ("key", "value")):
             page = self.pages.get(section)
             self.query_one("#" + prefix + "-prev", Button).disabled = not page or len(page["cursors"]) <= 1
@@ -301,9 +346,9 @@ class WorkbenchTUI(App):
             self.query_one("#" + selector, Button).disabled = not self.replica_available
         self.show_settings()
 
-    def changed(self, profile=None, session=None, info=None):
+    def changed(self, profile=None, session=None, info=None, db=None):
         self.profile, self.session = profile, session
-        self.active_db = profile["db"] if profile else None
+        self.active_db = db if db is not None else profile["db"] if profile else None
         self.info_nodes = (info or {}).get("nodes", [])
         self.node = ""
         self.sync_session()
@@ -318,8 +363,7 @@ class WorkbenchTUI(App):
                 self.changed()
             raise
 
-    async def connect_profile(self, index):
-        p = self.saved[index]
+    async def authenticate(self, p):
         body = {"id": p["id"]}
         self.notice("正在连接 " + p["name"])
         if not p.get("username"):
@@ -329,22 +373,68 @@ class WorkbenchTUI(App):
                 if "NOAUTH" not in str(error).upper():
                     raise
             else:
-                return await self.connected(p, result)
+                return result
         answer = await self.push_screen_wait(Form("连接 " + plain(p["name"]), [
             ("password", "数据库密码", "", "password")], "连接"))
         if answer is not None:
-            result = await asyncio.to_thread(self.backend.perform, "connect", {**body, **answer})
-            await self.connected(p, result)
-        else:
+            return await asyncio.to_thread(self.backend.perform, "connect", {**body, **answer})
+        self.notice()
+        return None
+
+    async def connect_profile(self, index):
+        p = self.saved[index]
+        result = await self.authenticate(p)
+        if result:
+            await self.connected(p, result, p["db"])
+            await self.scan()
             self.notice()
 
-    async def connected(self, p, result):
+    async def connected(self, p, result, db):
         old = self.session
-        self.changed(p, result["session"], result["info"])
+        self.changed(p, result["session"], result["info"], db)
         if old:
             await asyncio.to_thread(self.backend.perform, "disconnect", {"session": old})
         self.query_one("#views", TabbedContent).active = "browse"
-        await self.scan()
+
+    async def pins(self):
+        state = await asyncio.to_thread(self.backend.state)
+        choice = await self.push_screen_wait(PinList(state))
+        if choice is None:
+            return
+        action, ident = choice
+        if action == "remove":
+            result = await asyncio.to_thread(self.backend.perform, "pins/remove", {"id": ident})
+            self.notice("已移除常用键。" if result.get("removed") else "此常用键已不存在。")
+            return
+        state = await asyncio.to_thread(self.backend.state)
+        pin = next((p for p in state["pins"] if p["id"] == ident), None)
+        profile = next((p for p in state["profiles"] if pin and p["id"] == pin["profileId"]), None)
+        if not profile:
+            raise ValueError("该连接或常用键已删除。")
+        body = {"key_b64": pin["key_b64"]}
+        if self.profile and self.profile["id"] == profile["id"]:
+            try:
+                if self.active_db != pin["db"]:
+                    result = await self.call("select-db", {"db": pin["db"]})
+                    self.active_db = result["db"]
+                    self.sync_session()
+                await self.page("key", body)
+                return
+            except Problem as error:
+                if error.status != 401:
+                    raise
+        result = await self.authenticate(profile)
+        if result is None:
+            return
+        session = result["session"]
+        try:
+            if profile["db"] != pin["db"]:
+                await asyncio.to_thread(self.backend.perform, "select-db", {"session": session, "db": pin["db"]})
+        except Exception:
+            await asyncio.to_thread(self.backend.perform, "disconnect", {"session": session})
+            raise
+        await self.connected(profile, result, pin["db"])
+        await self.page("key", body)
         self.notice()
 
     async def edit_profile(self, edit):
@@ -381,7 +471,18 @@ class WorkbenchTUI(App):
         params = dict(request)
         if cursors[-1]:
             params["cursor"] = cursors[-1]
-        result = await self.call(kind, params)
+        if kind == "key" and self.pages.get(kind, {}).get("request") != request:
+            self.pages.pop(kind, None)
+            self.query_one("#detail", Static).update("正在读取键…")
+            self.page_buttons()
+        try:
+            result = await self.call(kind, params)
+        except (Problem, OSError, ValueError) as error:
+            if kind == "key":
+                self.pages.pop(kind, None)
+                self.query_one("#detail", Static).update(plain(str(error)))
+                self.page_buttons()
+            raise
         self.pages[kind] = {"request": request, "cursors": cursors, "next": result.get("cursor")}
         if kind == "scan":
             self.key_rows = result["items"]
@@ -476,7 +577,7 @@ class WorkbenchTUI(App):
                 if kind in self.pages:
                     page = self.pages[kind]
                     await self.page(kind, page["request"], page["cursors"])
-                elif kind == "scan":
+                elif kind == "scan" and "key" not in self.pages:
                     await self.scan()
         elif self.view == "replication":
             await self.replica("status")
@@ -542,6 +643,12 @@ class WorkbenchTUI(App):
                 self.changed()
             elif action == "database":
                 await self.select_database()
+            elif action == "pins":
+                await self.pins()
+            elif action == "pin":
+                await self.call("pins/add", {"profileId": self.profile["id"], "db": self.active_db,
+                                             "key_b64": self.pages["key"]["request"]["key_b64"]})
+                self.notice("已固定到常用键。")
             elif action == "node":
                 options = [("所有主节点", "")] + [(Text(plain(n["label"])), n["id"]) for n in self.info_nodes]
                 answer = await self.push_screen_wait(Form("扫描节点", [("node", "节点", self.node, options)], "选择"))

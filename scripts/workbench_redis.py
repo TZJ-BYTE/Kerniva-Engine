@@ -575,6 +575,11 @@ def _read_key(request):
     return key
 
 
+def canonical_key_b64(value):
+    """Use the same byte limit and decoding for a saved key as for a live read."""
+    return _b64(_read_key({"key_b64": value}))
+
+
 def _next_stream_id(raw):
     try:
         milliseconds, sequence = map(int, _required_bytes(raw).split(b"-"))

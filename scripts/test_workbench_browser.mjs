@@ -112,9 +112,11 @@ try {
     else pending.resolve(event.result);
   });
   await cdp('Runtime.enable');
-  if (config.navigation || config.cluster) {
+  if (config.navigation || config.cluster || config.pins) {
     const {testNavigation, testCluster} = await import('./test_workbench_navigation.mjs');
-    const scenario = config.cluster ? testCluster : testNavigation;
+    const scenario = config.cluster?.exactOnly ? (await import('./test_workbench_pins.mjs')).testClusterPins
+                                 : config.pins ? (await import('./test_workbench_pins.mjs')).testPins
+                                 : config.cluster ? testCluster : testNavigation;
     const result = await scenario({config, cdp, dom, click, contains, waitFor});
     if (exceptions.length) throw new Error('Browser reported a JavaScript exception');
     console.log(JSON.stringify(result));
@@ -146,6 +148,11 @@ try {
   }
 } catch (error) {
   console.error(error.message);
+  if (config.pins && socket?.readyState === WebSocket.OPEN) {
+    const view = await dom(() => ['detail-status', 'key-detail', 'detail-page', 'pin-feedback']
+      .map(id => document.getElementById(id)?.textContent).join(' | ')).catch(() => '');
+    console.error(view);
+  }
   process.exitCode = 1;
 } finally {
   if (socket && socket.readyState === WebSocket.OPEN) await cdp('Browser.close').catch(() => {});

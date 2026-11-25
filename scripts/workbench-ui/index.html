@@ -80,6 +80,12 @@
       </section>
       <section data-view="keys" hidden>
         <header class="view-heading"><div><h1 tabindex="-1">数据浏览</h1><p id="browser-endpoint">扫描并查看键值。</p></div><button class="button" type="button" id="refresh" hidden>刷新</button></header>
+        <details id="pins" class="panel pin-panel" open>
+          <summary><strong>常用键</strong><span class="quiet" id="pin-count"></span></summary>
+          <ul id="pin-list"></ul>
+          <p class="quiet" id="pins-empty">在键详情中点「固定」，下次可直接打开。</p>
+        </details>
+        <p id="pin-feedback" class="form-feedback" role="status"></p>
         <div id="browser-offline" class="panel empty-state"><h2>等待连接</h2><p id="offline-message">选择并连接数据库后即可浏览键。</p><a class="button" id="offline-link" href="#/connections">前往连接</a></div>
         <div id="browser-online" hidden>
           <div class="database-toolbar">
@@ -112,7 +118,7 @@
                 <footer id="scan-pages" class="pagination" hidden><button class="button" id="scan-prev" type="button">上一页</button><span id="scan-page"></span><button class="button" id="scan-next" type="button">下一页</button></footer>
               </section>
               <section class="panel detail-panel" aria-labelledby="detail-heading">
-                <header class="panel-heading"><h2 id="detail-heading">键详情</h2><span class="quiet" id="detail-status" role="status"></span></header>
+                <header class="panel-heading"><h2 id="detail-heading">键详情</h2><span class="quiet" id="detail-status" role="status"></span><button class="button" type="button" id="pin-current" hidden>固定</button></header>
                 <div id="key-detail" class="panel-body"></div>
                 <footer id="detail-pages" class="pagination" hidden><button class="button" id="detail-prev" type="button">上一页</button><span id="detail-page"></span><button class="button" id="detail-next" type="button">下一页</button></footer>
               </section>

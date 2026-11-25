@@ -61,6 +61,12 @@ class App:
 
 
 class ShellTests(unittest.TestCase):
+    def test_pin_labels_distinguish_non_utf8_empty_and_control_keys(self):
+        for key, label in [(b"\xff", "Base64 /w=="), (b"\xfe", "Base64 /g=="), (b"", "（空键）"),
+                           (b"a\n", "Base64 YQo="), ("商品".encode(), "商品")]:
+            with self.subTest(key=key):
+                self.assertEqual(workbench_shell.pin_key_label(base64.b64encode(key).decode()), label)
+
     def run_commands(self, commands, passwords=()):
         app, stdout = App(), StringIO()
         answers = iter(passwords)
@@ -84,6 +90,44 @@ class ShellTests(unittest.TestCase):
         self.assertIn("WRONGPASS", output)
         self.assertNotIn("good-password", output)
         self.assertNotIn("p2-token", output)
+
+    def test_open_pin_renews_expired_session_without_scanning(self):
+        app, stdout = App(), StringIO()
+        pin = {"id": "one", "profileId": "p2", "db": 1, "key_b64": "/wA="}
+        with patch.object(app, "state", return_value={"profiles": [app.a, app.b], "pins": [pin],
+                                                      "settings": app.settings}):
+            shell = workbench_shell.Shell(app, stdout, lambda: "secret-for-test")
+            shell.connect("p2")
+            original = app.perform
+            expired = True
+            def perform(action, body):
+                nonlocal expired
+                if action == "key" and expired:
+                    expired = False
+                    raise AppProblem(401, "session expired")
+                return original(action, body)
+            with patch.object(app, "perform", side_effect=perform):
+                shell.open_pin(pin["id"])
+            self.assertEqual(shell.browse[1], {"key_b64": "/wA="})
+            self.assertFalse(any(action == "scan" for action, _ in app.calls))
+            self.assertNotIn("secret-for-test", stdout.getvalue())
+
+    def test_cross_profile_pin_failed_select_retains_original_session(self):
+        app, stdout = App(), StringIO()
+        pin = {"id": "two", "profileId": "p2", "db": 7, "key_b64": ""}
+        state = {"profiles": [app.a, app.b], "pins": [pin], "settings": app.settings}
+        with patch.object(app, "state", return_value=state):
+            shell = workbench_shell.Shell(app, stdout, lambda: "test-only")
+            shell.connect("p1")
+            original = app.perform
+            def perform(action, body):
+                if action == "select-db":
+                    raise AppProblem(422, "ERR DB index is out of range")
+                return original(action, body)
+            with patch.object(app, "perform", side_effect=perform), self.assertRaisesRegex(AppProblem, "out of range"):
+                shell.open_pin(pin["id"])
+            self.assertEqual((shell.session, shell.profile, shell.active_db), ("p1-token", app.a, 0))
+            self.assertIn(("disconnect", {"session": "p2-token"}), app.calls)
 
     def test_numbered_picker_and_scriptable_number(self):
         app, output = self.run_commands("/connect\n/connect 1\n/connect #5\n/status\n/exit\n")

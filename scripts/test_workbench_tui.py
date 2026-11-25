@@ -1,8 +1,12 @@
 """Run mouse/keyboard flows against an isolated workbench HTTP API and native database."""
 
 import asyncio
+import base64
 from contextlib import ExitStack
+import hashlib
 import importlib.util
+from io import StringIO
+import json
 import os
 from pathlib import Path
 import socket
@@ -15,9 +19,10 @@ import unittest
 
 from workbench_operations import OnlineShell, Problem
 from workbench_redis import _Client
+from workbench_shell import Shell
 
 try:
-    from workbench_tui import WorkbenchTUI
+    from workbench_tui import PinList, WorkbenchTUI
     from textual.widgets import Button, Input, OptionList, Select, Static, TabbedContent
 except ModuleNotFoundError as error:
     if error.name != "textual":
@@ -64,6 +69,7 @@ class WorkbenchTerminalTests(unittest.IsolatedAsyncioTestCase):
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
             db_port = reservation.getsockname()[1]
+        cls.db_port = db_port
         (root / "db.yaml").write_text(
             f'host: "127.0.0.1"\nport: {db_port}\nnetwork_type: "std"\ndb_count: 2\n'
             'persistence_enabled: false\nlog_level: "info"\nlog_path: "native.log"\n', encoding="utf-8")
@@ -226,6 +232,78 @@ class WorkbenchTerminalTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(tui.session)
             self.assertEqual(len(self.service.sessions), 0)
 
+    async def test_shell_and_narrow_mouse_reopen_shared_keys(self):
+        output = StringIO()
+        shell = Shell(self.backend, output, lambda: self.fail("unexpected password prompt"))
+        shell.connect(self.pid)
+        self.addCleanup(shell.disconnect)
+        pins = []
+        self.addCleanup(lambda: [self.backend.perform("pins/remove", {"id": p["id"]}) for p in pins])
+        for db, key in [(0, b"product"), (1, b"product"), (1, b""), (1, b"\xff"), (1, b"letters")]:
+            shell.execute("/db", str(db))
+            encoded = base64.b64encode(key).decode()
+            if key in (b"", b"\xff"):
+                with _Client({"port": self.db_port, "db": db}) as client:
+                    client.at(client.seed, "SET", key, b"test-binary")
+                def clean(db=db, key=key):
+                    with _Client({"port": self.db_port, "db": db}) as client:
+                        client.at(client.seed, "DEL", key)
+                self.addCleanup(clean)
+            shell.execute("/get-b64", encoded)
+            shell.execute("/pin", "")
+            pins.append(next(p for p in self.backend.state()["pins"] if p["profileId"] == self.pid
+                             and p["db"] == db and p["key_b64"] == encoded))
+        shell.execute("/pins", "")
+        self.assertIn("Base64 /w==", output.getvalue())
+        self.assertIn("（空键）", output.getvalue())
+        shell.execute("/db", "0")
+        self.backend.perform("settings", {"settings": {"pageSize": 1}})
+
+        tui = WorkbenchTUI(self.backend)
+        async with tui.run_test(size=(49, 28)) as pilot:
+            async def ready():
+                for _ in range(100):
+                    await pilot.pause(.02)
+                    if not tui.pending:
+                        return
+                self.fail("terminal operation timed out")
+
+            async def click(selector):
+                widget = tui.screen.query_one(selector)
+                widget.scroll_visible(animate=False)
+                await pilot.pause()
+                self.assertTrue(await pilot.click(selector, offset=(1, 0)), selector)
+                await pilot.pause()
+
+            await ready()
+            await click("#--content-tab-browse")
+            for i, value in enumerate(("catalog-0", "catalog-1", "test-binary", "test-binary", "A")):
+                await click("#pins")
+                await click(f"#open-{i}")
+                await ready()
+                self.assertEqual(tui.active_db, pins[i]["db"])
+                self.assertIn(value, str(tui.query_one("#detail", Static).content))
+                self.assertEqual(self.backend.perform("status", {"session": shell.session})["db"], 0)
+            await click("#value-next")
+            await ready()
+            self.assertIn("B", str(tui.query_one("#detail", Static).content))
+            await click("#pins")
+            await click("#remove-3")
+            await ready()
+            self.assertNotIn(pins[3], self.backend.state()["pins"])
+            with _Client({"port": self.db_port, "db": 1}) as client:
+                self.assertEqual(client.at(client.seed, "GET", b"\xff"), b"test-binary")
+            await click("#pin")
+            await ready()
+            self.assertEqual(len(self.backend.state()["pins"]), 4)
+            self.backend.perform("disconnect", {"session": tui.session})
+        shell.disconnect()
+        shell.execute("/pin-open", pins[1]["id"])
+        self.assertEqual(shell.active_db, 1)
+        self.assertIn("catalog-1", output.getvalue())
+        shell.execute("/unpin", pins[1]["id"])
+        self.assertNotIn(pins[1], self.backend.state()["pins"])
+
     @unittest.skipUnless(os.name == "nt" and importlib.util.find_spec("winpty"), "optional Windows ConPTY smoke (pywinpty)")
     async def test_windows_conpty_mouse_read_and_console_restoration(self):
         from winpty import Backend, PtyProcess
@@ -239,6 +317,8 @@ class WorkbenchTerminalTests(unittest.IsolatedAsyncioTestCase):
             reference.query_one("#views", TabbedContent).active = "browse"
             await pilot.pause()
             keys = reference.query_one("#keys").content_region
+            pin_button = reference.query_one("#pin").content_region
+            pins_button = reference.query_one("#pins").content_region
 
         probe = self.root / "console_probe.py"
         probe.write_text(
@@ -313,13 +393,50 @@ class WorkbenchTerminalTests(unittest.IsolatedAsyncioTestCase):
             await wait_for(lambda: "product" in "".join(chunks), "Keys did not render")
             await click(keys.x + 2, keys.y + names.index("product"))
             await wait_for(lambda: "catalog-0" in "".join(chunks), "Clicked key value did not render")
+            await click(pin_button.x + 1, pin_button.y)
+            await wait_for(lambda: any(p["profileId"] == self.pid and p["db"] == 0 and p["key_b64"] == "cHJvZHVjdA=="
+                                       for p in self.backend.state()["pins"]), "Mouse did not pin the key")
+            with _Client({"port": self.db_port, "db": 0}) as client:
+                client.at(client.seed, "SET", "product", "reopened-from-pin")
+            await click(pins_button.x + 1, pins_button.y)
+            await wait_for(lambda: "移除" in "".join(chunks), "Pin list did not open")
+            state = self.backend.state()
+            index = next(i for i, p in enumerate(state["pins"]) if p["profileId"] == self.pid and
+                         p["db"] == 0 and p["key_b64"] == "cHJvZHVjdA==")
+            reference = WorkbenchTUI(self.backend)
+            async with reference.run_test(size=(96, 32)) as pilot:
+                await pilot.pause()
+                await reference.push_screen(PinList(state))
+                await pilot.pause()
+                position = reference.screen.query_one(f"#open-{index}").content_region
+            await click(position.x + 2, position.y)
+            await wait_for(lambda: "reopened-from-pin" in "".join(chunks), "Saved location did not reread the key")
             await asyncio.to_thread(proc.setwinsize, 26, 52)
             proc.write("\x11")
             await wait_for(lambda: "KERNIVA_CONSOLE_RESTORED" in "".join(chunks), "ConPTY modes/exit code mismatch")
             self.assertFalse(self.service.sessions)
+            evidence = os.environ.get("KERNIVA_TUI_EVIDENCE")
+            if evidence:
+                path = Path(evidence)
+                path.mkdir(parents=True, exist_ok=True)
+                raw = "".join(chunks).encode("utf-8")
+                (path / "terminal.ansi").write_bytes(raw)
+                (path / "result.json").write_text(json.dumps({
+                    "platform": "Windows ConPTY", "executable": launcher or os.environ.get("KERNIVA_TUI_EXECUTABLE")
+                    or sys.executable, "database": "Kerniva", "db": 0, "key_b64": "cHJvZHVjdA==",
+                    "clicks": ["profile", "key", "pin", "pins", "open saved key"],
+                    "before": "catalog-0", "after": "reopened-from-pin", "resize": [52, 26],
+                    "console_restored": True, "sessions_after_exit": 0,
+                    "terminal_sha256": hashlib.sha256(raw).hexdigest()
+                }, ensure_ascii=False, indent=2), encoding="utf-8")
         finally:
             proc.close(force=True)
             reader_thread.join(timeout=3)
+            with _Client({"port": self.db_port, "db": 0}) as client:
+                client.at(client.seed, "SET", "product", "catalog-0")
+            for pin in self.backend.state()["pins"]:
+                if pin["profileId"] == self.pid and pin["key_b64"] == "cHJvZHVjdA==" and pin["db"] == 0:
+                    self.backend.perform("pins/remove", {"id": pin["id"]})
 
 
 if __name__ == "__main__":

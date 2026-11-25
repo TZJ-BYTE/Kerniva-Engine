@@ -23,6 +23,11 @@ COMMANDS = {
     "/prev": "查看上一页键或值",
     "/get": "输入 /get 完整键名，键名可含空格。单独执行 /get 读取空键",
     "/get-b64": "输入 /get-b64 Base64，读取二进制键",
+    "/db": "切换当前会话的逻辑库。/db 库号",
+    "/pin": "固定当前打开的键",
+    "/pins": "列出常用键及其 ID",
+    "/pin-open": "按 ID 打开常用键。/pin-open ID",
+    "/unpin": "按 ID 移除常用键。/unpin ID",
     "/settings": "显示或保存设置。/settings [pageSize|previewBytes|formatJson|autoRefresh|refreshSeconds 值]",
     "/replica": "复制演示。/replica status | activity [页码] | pause a | resume b | mark <db> <value>",
     "/exit": "退出工作台",
@@ -55,6 +60,17 @@ def _display_text(value):
 def _json(data):
     raw = json.dumps(data, ensure_ascii=False, indent=2)
     return "".join(char if _display_text(char) else ascii(char)[1:-1] for char in raw)
+
+
+def pin_key_label(encoded):
+    raw = base64.b64decode(encoded, validate=True)
+    if not raw:
+        return "（空键）"
+    try:
+        label = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return "Base64 " + encoded
+    return label if label.isprintable() else "Base64 " + encoded
 
 
 def _format_json(raw):
@@ -97,6 +113,7 @@ class Shell:
         self.choose = choose
         self.session = None
         self.profile = None
+        self.active_db = None
         self.browse = None
 
     def write(self, value):
@@ -186,21 +203,28 @@ class Shell:
             if re.fullmatch(r"[0-9]+", argument):
                 argument = "#" + argument
         profile = self.profile_named(argument, profiles)
+        result = self.authenticate(profile, ask_password)
+        self.use_session(profile, result["session"], profile["db"])
+
+    def authenticate(self, profile, ask_password=False):
         body = {"id": profile["id"]}
         if ask_password or profile.get("username"):
             body["password"] = self.password_prompt()
         try:
-            result = self.app.perform("connect", body)
+            return self.app.perform("connect", body)
         except Exception as error:
             if "password" in body or "NOAUTH" not in str(error).upper():
                 raise
             self.write("数据库要求认证。")
-            result = self.app.perform("connect", {**body, "password": self.password_prompt()})
+            return self.app.perform("connect", {**body, "password": self.password_prompt()})
+
+    def use_session(self, profile, session, db):
         old = self.session
-        self.session = result["session"]
+        self.session = session
         self.profile = profile
+        self.active_db = db
         self.browse = None
-        self.write(f"已连接 {_json(profile['name'])}（{profile['host']}:{profile['port']}，DB {profile['db']}）")
+        self.write(f"已连接 {_json(profile['name'])}（{profile['host']}:{profile['port']}，DB {db}）")
         if old is not None and old != self.session:
             self.app.perform("disconnect", {"session": old})
 
@@ -209,6 +233,7 @@ class Shell:
             self.app.perform("disconnect", {"session": self.session})
         self.session = None
         self.profile = None
+        self.active_db = None
         self.browse = None
 
     def perform(self, action, body=None):
@@ -220,6 +245,7 @@ class Shell:
             if getattr(error, "status", None) == 401:
                 self.session = None
                 self.profile = None
+                self.active_db = None
                 self.browse = None
             raise
 
@@ -238,6 +264,9 @@ class Shell:
                     self.write(_json(item["key"]))
                 else:
                     self.write("/get-b64 " + item["key_b64"] if item["key_b64"] else '""')
+            return
+        if data.get("type") == "none":
+            self.write("键不存在或已过期。")
             return
         self.write(f"类型 {data['type']}，TTL（毫秒） {_json(data.get('ttl_ms'))}")
         for item in data["items"]:
@@ -258,9 +287,51 @@ class Shell:
                 self.write("还有后续字节，运行 /next 读取。")
 
     def start_page(self, action, body):
+        self.browse = None
         data = self.perform(action, body)
         self.render_page(action, data, 0)
         self.browse = (action, body, [None], 0, data.get("cursor"))
+
+    def select_db(self, db):
+        result = self.perform("select-db", {"db": db})
+        self.active_db = result["db"]
+        self.browse = None
+        self.write(f"当前逻辑库 DB {self.active_db}")
+
+    def list_pins(self):
+        state = self.app.state()
+        names = {p["id"]: p["name"] for p in state["profiles"]}
+        for pin in state["pins"]:
+            name = names.get(pin["profileId"], "连接已删除")
+            self.write(f"{pin['id']}  {_json(name)}  DB {pin['db']}  {_json(pin_key_label(pin['key_b64']))}")
+        if not state["pins"]:
+            self.write("没有常用键。打开键后可用 /pin 固定。")
+
+    def open_pin(self, ident):
+        state = self.app.state()
+        pin = next((p for p in state["pins"] if p["id"] == ident), None)
+        profile = next((p for p in state["profiles"] if pin and p["id"] == pin["profileId"]), None)
+        if not profile:
+            raise ShellError("该连接或常用键已删除。")
+        body = {"key_b64": pin["key_b64"]}
+        if self.profile and self.profile["id"] == profile["id"]:
+            try:
+                if self.active_db != pin["db"]:
+                    self.select_db(pin["db"])
+                self.start_page("key", body)
+                return
+            except Exception as error:
+                if getattr(error, "status", None) != 401:
+                    raise
+        session = self.authenticate(profile)["session"]
+        try:
+            if pin["db"] != profile["db"]:
+                self.app.perform("select-db", {"session": session, "db": pin["db"]})
+        except Exception:
+            self.app.perform("disconnect", {"session": session})
+            raise
+        self.use_session(profile, session, pin["db"])
+        self.start_page("key", body)
 
     def turn_page(self, step):
         if self.browse is None:
@@ -320,7 +391,8 @@ class Shell:
     def execute(self, command, argument):
         if command not in COMMANDS:
             raise ShellError("未知命令，请运行 /help。")
-        if command in {"/help", "/profiles", "/disconnect", "/status", "/next", "/prev", "/exit"} and argument.strip():
+        if command in {"/help", "/profiles", "/disconnect", "/status", "/next", "/prev", "/exit",
+                       "/pins", "/pin"} and argument.strip():
             raise ShellError(COMMANDS[command])
         if command == "/help":
             for name, guide in COMMANDS.items():
@@ -350,6 +422,27 @@ class Shell:
         elif command in ("/get", "/get-b64"):
             key = argument if command == "/get-b64" else base64.b64encode(argument.encode()).decode()
             self.start_page("key", {"key_b64": key})
+        elif command == "/db":
+            if not re.fullmatch(r"[0-9]{1,5}", argument.strip()):
+                raise ShellError(COMMANDS[command])
+            self.select_db(int(argument))
+        elif command == "/pins":
+            self.list_pins()
+        elif command == "/pin":
+            if not self.browse or self.browse[0] != "key":
+                raise ShellError("请先用 /get 或 /get-b64 打开要固定的键。")
+            result = self.perform("pins/add", {"profileId": self.profile["id"], "db": self.active_db,
+                                               "key_b64": self.browse[1]["key_b64"]})
+            self.write("已固定 " + result["pin"]["id"])
+        elif command in ("/pin-open", "/unpin"):
+            ident = argument.strip()
+            if not ident:
+                raise ShellError(COMMANDS[command])
+            if command == "/pin-open":
+                self.open_pin(ident)
+            else:
+                result = self.app.perform("pins/remove", {"id": ident})
+                self.write("已移除常用键。" if result.get("removed") else "未找到此常用键。")
         elif command == "/settings":
             self.settings(argument)
         elif command == "/replica":

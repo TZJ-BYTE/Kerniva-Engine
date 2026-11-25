@@ -1,6 +1,7 @@
 """Run the database-navigation browser journey against a temporary Kerniva and workbench."""
 
 import argparse
+import base64
 from contextlib import contextmanager
 import json
 import os
@@ -106,8 +107,16 @@ def cluster_journey(args, root, evidence):
             with workbench(args, root) as origin:
                 api = API(origin)
                 profile = api("profile/save", {"profile": {"name": "Cluster ACL", "host": "127.0.0.1",
-                              "port": cluster["seed"], "db": 0, "mode": "cluster", "username": "viewer"}})["profile"]
+                              "port": cluster["seed"], "db": 0, "mode": "cluster",
+                              "username": "exact" if args.pin_cluster else "viewer"}})["profile"]
                 api("settings", {"settings": {"pageSize": 1}})
+                if args.pin_cluster:
+                    token = api("connect", {"id": profile["id"], "password": cluster["password"]})["session"]
+                    for node in [*cluster["nodes"].values(), {"key": "forbidden:demo"}]:
+                        key = base64.b64encode(node["key"].encode()).decode("ascii")
+                        api("pins/add", {"session": token, "profileId": profile["id"], "db": 0, "key_b64": key})
+                    api("disconnect", {"session": token})
+                    cluster["exactOnly"] = True
                 report = journey(args, {"origin": origin, "profileId": profile["id"],
                                         "cluster": cluster, "evidence": str(evidence)})
                 require(cluster["password"] not in (root / "profiles.json").read_text(encoding="utf-8"),
@@ -129,12 +138,15 @@ def main():
     parser.add_argument("--distro", help="WSL distribution for the Redis Cluster fixture")
     parser.add_argument("--user", help="WSL user for the Redis Cluster fixture")
     parser.add_argument("--lock", help="Absolute WSL path for the shared nonblocking CPU lock")
+    parser.add_argument("--pin-cluster", action="store_true", help="Exercise saved keys using a restricted exact-read ACL")
     parser.add_argument("--browser", type=Path, required=True, help="Chromium or Edge (Node 22+)")
     parser.add_argument("--service", type=Path, help="Optional packaged workbench service")
     parser.add_argument("--evidence", type=Path, required=True, help="New screenshot and result directory")
     args = parser.parse_args()
     if args.cluster and not (args.distro and args.user and args.lock):
         parser.error("--cluster requires --distro, --user and --lock")
+    if args.pin_cluster and not args.cluster:
+        parser.error("--pin-cluster requires --cluster")
     evidence = args.evidence.resolve()
     evidence.mkdir(parents=True, exist_ok=False)
     try:

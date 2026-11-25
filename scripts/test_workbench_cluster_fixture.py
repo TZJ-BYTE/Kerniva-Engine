@@ -56,7 +56,8 @@ def start(args):
             cfg.write_text(f'bind 127.0.0.1\nport {port}\ncluster-enabled yes\ncluster-announce-ip 127.0.0.1\n'
                            'cluster-config-file nodes.conf\nsave ""\nappendonly no\n'
                            f'user default on >{admin} ~* &* +@all\n'
-                           f'user viewer on >{password} ~tui:* +@read +ping +info +command +cluster|slots\n')
+                           f'user viewer on >{password} ~tui:* +@read +ping +info +command +cluster|slots\n'
+                           f'user exact on >{password} ~tui:* +@read -scan +ping +info +command +cluster|slots\n')
             cfg.chmod(0o600)
             log = stack.enter_context((d / "server.log").open("wb"))
             children.append(subprocess.Popen(["redis-server", str(cfg)], cwd=d, stdout=log, stderr=log))

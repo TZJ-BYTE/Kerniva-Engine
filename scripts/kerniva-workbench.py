@@ -157,6 +157,22 @@ class Config:
                 ids.add(pid)
                 profiles.append({**profile(item), "id": pid})
             clean = {"version": 1, "profiles": profiles, "settings": settings(data["settings"])}
+            saved_pins = data.get("pins", [])
+            require(isinstance(saved_pins, list), "常用键应为列表")
+            pins = []
+            pin_ids, positions = set(), set()
+            for pin in saved_pins:
+                fields(pin, {"id", "profileId", "db", "key_b64"})
+                pin_id = str(uuid.UUID(pin["id"]))
+                db = integer(pin["db"], 0, 65535, "数据库编号")
+                key = adapter.canonical_key_b64(pin["key_b64"])
+                position = (pin["profileId"], db, key)
+                require(pin["profileId"] in ids and pin_id not in pin_ids and position not in positions,
+                        "常用键的连接或标识无效")
+                pins.append({"id": pin_id, "profileId": pin["profileId"], "db": db, "key_b64": key})
+                pin_ids.add(pin_id)
+                positions.add(position)
+            clean["pins"] = pins
             if data.get("replicationUrl"):
                 clean["replicationUrl"] = controller_url(data["replicationUrl"])
             return clean
@@ -272,10 +288,20 @@ class Workbench:
                     item["id"] = str(uuid.uuid4())
                     data["profiles"].append(item)
                 result = {"profile": item}
+            elif action == "pins/remove":
+                fields(body, {"id"})
+                pin_id = string(body.get("id"), 36, "常用键编号")
+                pins = [pin for pin in data["pins"] if pin["id"] != pin_id]
+                if len(pins) == len(data["pins"]):
+                    return {"pins": pins, "removed": False}
+                data["pins"] = pins
+                result = {"pins": pins, "removed": True}
             else:
                 fields(body, {"id"})
                 data["profiles"].remove(lookup(data, body.get("id")))
-                result = {"ok": True}
+                removed = [pin for pin in data["pins"] if pin["profileId"] == body["id"]]
+                data["pins"] = [pin for pin in data["pins"] if pin["profileId"] != body["id"]]
+                result = {"ok": True, "removedPins": len(removed)}
             self.config.write(data)
             if action.startswith("profile/"):
                 with self.lock:
@@ -322,11 +348,11 @@ class Workbench:
         if action.startswith("replication/"):
             verb, args = action_from_path(action[len("replication/"):], body)
             return self.replication_action(verb, args)
-        if action in ("settings", "profile/save", "profile/delete"):
+        if action in ("settings", "profile/save", "profile/delete", "pins/remove"):
             return self.update(action, body)
         if action == "connect":
             return self.connect(body)
-        if action not in ("scan", "key", "status", "disconnect", "select-db"):
+        if action not in ("scan", "key", "status", "disconnect", "select-db", "pins/add"):
             raise Problem(404, "未知工作台操作")
         token = string(body.get("session"), 128, "会话")
         if action == "disconnect":
@@ -344,6 +370,23 @@ class Workbench:
                     raise Problem(401, "连接已断开或配置已变更，请重新连接。")
                 session["until"] = time.monotonic() + IDLE_SECONDS
                 active_profile = {**session["profile"], "db": session.get("db", session["profile"]["db"])}
+                if action == "pins/add":
+                    fields(body, {"session", "profileId", "db", "key_b64"})
+                    db = integer(body.get("db"), 0, 65535, "数据库编号")
+                    if body.get("profileId") != active_profile["id"] or db != active_profile["db"]:
+                        raise Problem(409, "当前连接或逻辑库已变化，请重新打开键后再固定。")
+                    try:
+                        key = adapter.canonical_key_b64(body.get("key_b64"))
+                    except ValueError as error:
+                        raise Problem(400, "键名不是有效的 Base64 或超过读取长度上限。") from error
+                    position = {"profileId": active_profile["id"], "db": db, "key_b64": key}
+                    for pin in data["pins"]:
+                        if all(pin[k] == v for k, v in position.items()):
+                            return {"pin": pin, "pins": data["pins"]}
+                    pin = {"id": str(uuid.uuid4()), **position}
+                    data["pins"].append(pin)
+                    self.config.write(data)
+                    return {"pin": pin, "pins": data["pins"]}
         if action == "select-db":
             fields(body, {"session", "db"})
             db = integer(body.get("db"), 0, 65535, "数据库编号")

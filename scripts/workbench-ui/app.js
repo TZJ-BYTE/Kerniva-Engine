@@ -10,7 +10,7 @@ const initialProfile = {name: "", mode: "standalone", host: "127.0.0.1", port: 6
 const initialSettings = {pageSize: 50, previewBytes: 4096, formatJson: true, autoRefresh: false, refreshSeconds: 10};
 const viewNames = {connections: "连接", keys: "数据浏览", status: "运行状况", replication: "复制控制台", settings: "设置"};
 const state = {
-  profiles: [], settings: initialSettings, ready: false, active: null,
+  profiles: [], pins: [], settings: initialSettings, ready: false, active: null,
   route: null, editor: null, browser: null, connectionBusy: false, profileBusy: false,
   scan: freshPage(), detail: freshPage(), timer: null, replicationAvailable: false,
 };
@@ -265,6 +265,7 @@ function renderRoute(focus = false) {
     }
   } else if (view === "keys") {
     renderBrowser();
+    if (state.ready && oldRoute?.view !== "keys") void refreshPins();
   }
   if (oldRoute?.view === "keys" && view !== "keys") {
     invalidate(state.scan);
@@ -274,7 +275,8 @@ function renderRoute(focus = false) {
   if (focus && oldRoute?.view !== view && !(view === "connections" && state.route.params.has("new"))) {
     document.querySelector("[data-view]:not([hidden]) h1")?.focus();
   }
-  if (focus && oldRoute?.view === "keys" && view === "keys" && oldRoute.params.get("key") !== state.route.params.get("key")) {
+  if (focus && oldRoute?.view === "keys" && view === "keys" &&
+      (oldRoute.params.get("key") !== state.route.params.get("key") || oldRoute.params.get("pin") !== state.route.params.get("pin"))) {
     highlightKey();
   }
   operations.navigate();
@@ -293,6 +295,7 @@ async function bootstrap() {
   try {
     const result = await request("state");
     state.profiles = result.profiles;
+    state.pins = result.pins || [];
     state.settings = {...initialSettings, ...result.settings};
     state.ready = true;
     fillForm(settingsForm, state.settings);
@@ -404,17 +407,18 @@ byId("confirm-delete-button").addEventListener("click", async () => {
   renderEditor();
   feedback("profile-feedback", "正在删除…");
   try {
-    await request("profile/delete", {id});
+    const result = await request("profile/delete", {id});
     if (state.active?.id === id) {
       const {session} = state.active;
       dropActive();
       terminateSession(session).catch(() => {});
     }
     state.profiles = state.profiles.filter((profile) => profile.id !== id);
+    state.pins = state.pins.filter((pin) => pin.profileId !== id);
     if (state.editor === editor && state.route.view === "connections") {
       history.replaceState(null, "", routeLink("connections", state.profiles.length ? {} : {new: 1}));
       renderRoute();
-      feedback("profile-feedback", "连接配置已删除。");
+      feedback("profile-feedback", result.removedPins ? "连接配置及其 " + result.removedPins + " 个常用键已移除。" : "连接配置已删除。");
       document.querySelector("#profile-list a")?.focus();
     } else {
       renderProfiles();
@@ -504,7 +508,9 @@ function invalidate(page) {
 
 function browserParams() {
   const params = state.route.params;
-  return {id: params.get("id") || state.active?.id, pattern: params.get("pattern") || "*", node: params.get("node") || "", key: params.get("key")};
+  const pin = state.pins.find((item) => item.id === params.get("pin"));
+  return {id: pin?.profileId || params.get("id") || state.active?.id, pin, pattern: params.get("pattern") || "*",
+    node: params.get("node") || "", key: pin?.key_b64 ?? params.get("key")};
 }
 
 function databaseRoute(active, db) {
@@ -552,8 +558,162 @@ function keyLabel(item) {
   return item.key || "（空键名）";
 }
 
+function pinLabel(pin) {
+  let key = null;
+  try {
+    const bytes = Uint8Array.from(atob(pin.key_b64), (ch) => ch.charCodeAt(0));
+    key = new TextDecoder("utf-8", {fatal: true, ignoreBOM: true}).decode(bytes);
+  } catch { /* A binary key is displayed in Base64. */ }
+  return keyLabel({key, key_b64: pin.key_b64});
+}
+
+function pinRoute(pin) {
+  return {id: pin.profileId, db: pin.db, pin: pin.id};
+}
+
+let pinGeneration = 0;
+let pinListSignature;
+let pinBusy = false;
+
+function renderPins() {
+  const pins = state.pins;
+  const signature = JSON.stringify(pins.map((pin) => [pin.id, pin.key_b64, pin.db, findProfile(pin.profileId)?.name]));
+  if (pinListSignature === signature) return;
+  pinListSignature = signature;
+  byId("pin-count").textContent = pins.length ? pins.length + " 项" : "";
+  byId("pins-empty").hidden = !!pins.length;
+  const items = pins.map((pin) => {
+    const row = element("li");
+    const profile = findProfile(pin.profileId);
+    const name = pinLabel(pin);
+    const open = element("a", undefined, "pin-open");
+    open.id = "pin-open-" + pin.id;
+    open.href = routeLink("keys", pinRoute(pin));
+    open.dataset.pin = pin.id;
+    open.append(element("code", name), element("small", (profile?.name || "已删除的连接") + " · DB " + pin.db));
+    const remove = element("button", "移除", "pin-remove");
+    remove.id = "pin-remove-" + pin.id;
+    remove.type = "button";
+    remove.dataset.removePin = pin.id;
+    remove.setAttribute("aria-label", "移除常用键 " + name + "，DB " + pin.db);
+    row.append(open, remove);
+    return row;
+  });
+  byId("pin-list").replaceChildren(...items);
+}
+
+async function refreshPins() {
+  const generation = ++pinGeneration;
+  try {
+    const data = await request("state");
+    if (generation !== pinGeneration) return false;
+    state.pins = data.pins || [];
+    state.profiles = data.profiles;
+    renderPins();
+    if (state.route.view === "keys") renderPinButton();
+    return true;
+  } catch (error) {
+    if (generation === pinGeneration) feedback("pin-feedback", error.message, true);
+    return false;
+  }
+}
+
+async function openPin(id) {
+  feedback("pin-feedback");
+  if (!await refreshPins() || state.route.view !== "keys") return;
+  const pin = state.pins.find((item) => item.id === id);
+  if (!pin || !findProfile(pin.profileId)) {
+    feedback("pin-feedback", "该连接或常用键已删除。", true);
+    return;
+  }
+  const target = pinRoute(pin);
+  if (state.active?.id === pin.profileId && !sameProfile(state.active.profile, findProfile(pin.profileId))) {
+    const session = state.active.session;
+    dropActive();
+    terminateSession(session).catch(() => {});
+  }
+  if (state.active?.id === pin.profileId) {
+    invalidate(state.detail);
+    state.detail = freshPage();
+    go("keys", target);
+    return;
+  }
+  history.pushState(null, "", routeLink("connections", {id: pin.profileId, browse: new URLSearchParams(target).toString()}));
+  renderRoute(true);
+  field(connectForm, "password").value = "";
+  await connectProfile();
+  if (state.route.view === "connections" && state.editor?.id === pin.profileId && state.active?.id !== pin.profileId) {
+    field(connectForm, "password").focus();
+  }
+}
+
+function currentPin() {
+  const browse = state.browser;
+  return browse && state.pins.find((pin) => pin.profileId === browse.id && pin.db === browse.db && pin.key_b64 === browse.key);
+}
+
+function renderPinButton() {
+  const button = byId("pin-current");
+  const page = state.detail;
+  const browse = state.browser;
+  button.hidden = !browse || browse.key === null || page.error || !page.data || page.data.type === "none" || !page.data.type;
+  const pinned = Boolean(currentPin());
+  button.textContent = pinned ? "已固定" : "固定";
+  button.setAttribute("aria-pressed", String(pinned));
+  button.disabled = pinBusy || page.busy;
+}
+
+async function mutatePin(id) {
+  if (pinBusy) return;
+  const browse = state.browser;
+  const current = currentPin();
+  pinBusy = true;
+  ++pinGeneration;
+  renderPinButton();
+  try {
+    const result = id ? await request("pins/remove", {id}) : await request("pins/add", {
+      session: browse.session, profileId: browse.id, db: browse.db, key_b64: browse.key,
+    });
+    ++pinGeneration;
+    state.pins = result.pins;
+    if (id && id === state.route.params.get("pin") && current?.id === id && browse) {
+      history.replaceState(null, "", routeLink("keys", {id: browse.id, db: browse.db, key: browse.key}));
+      state.route = readRoute();
+      state.browser = {...browse, pin: null};
+    }
+    renderPins();
+    feedback("pin-feedback", id ? (result.removed ? "已移除常用键。" : "该常用键已不存在。") : "已加入常用键。");
+  } catch (error) {
+    feedback("pin-feedback", error.message, true);
+  } finally {
+    pinBusy = false;
+    renderPinButton();
+  }
+}
+
+byId("pin-list").addEventListener("click", (event) => {
+  const open = event.target.closest("a[data-pin]");
+  if (open && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    void openPin(open.dataset.pin);
+  }
+  const remove = event.target.closest("button[data-remove-pin]");
+  if (remove) void mutatePin(remove.dataset.removePin);
+});
+byId("pin-current").addEventListener("click", () => void mutatePin(currentPin()?.id));
+byId("pins").addEventListener("toggle", () => {
+  if (byId("pins").open && state.ready && state.route.view === "keys") void refreshPins();
+});
+window.addEventListener("focus", () => {
+  if (state.ready && state.route.view === "keys") void refreshPins();
+});
+
 function renderBrowser() {
+  renderPins();
   const params = browserParams();
+  for (const link of byId("pin-list").querySelectorAll("a")) setCurrent(link, link.dataset.pin === params.pin?.id);
+  const missingPin = state.ready && state.route.params.has("pin") && !params.pin;
+  if (missingPin) feedback("pin-feedback", "该连接或常用键已删除。", true);
   const active = state.active && state.active.id === params.id ? state.active : null;
   byId("browser-offline").hidden = !!active;
   byId("browser-online").hidden = !active;
@@ -576,7 +736,7 @@ function renderBrowser() {
   const input = byId("session-db");
   input.disabled = Boolean(active.switching);
   byId("switch-db").disabled = Boolean(active.switching);
-  const requested = state.route.params.get("db");
+  const requested = params.pin ? String(params.pin.db) : state.route.params.get("db");
   if (active.switching) return;
   if (requested !== null && requested !== String(active.db)) {
     if (/^\d{1,5}$/.test(requested) && Number(requested) <= 65535 && Number(requested) !== active.db) {
@@ -619,7 +779,7 @@ function renderBrowser() {
   }
   renderScan();
   renderDetail();
-  if (changedScan || !state.scan.data) void loadPage("scan", state.scan.index);
+  if (!params.pin && (changedScan || !state.scan.data)) void loadPage("scan", state.scan.index);
   if (params.key !== null && (changedKey || !state.detail.data)) void loadPage("detail", state.detail.index);
 }
 
@@ -638,8 +798,9 @@ function renderScan() {
   const items = [...new Map((page.data?.items || []).map((item) => [item.key_b64, item])).values()];
   const error = page.error || page.data?.unsupported;
   const existing = new Map([...area.querySelectorAll("a")].map((item) => [item.dataset.key, item]));
+  const empty = !page.data ? "点击「扫描」查看此库中的键。" : page.data.done ? "此页没有匹配的键。" : "此页没有匹配的键，可继续扫描下一页。";
   const rendered = (error || !items.length) ? [
-    element("p", error || (page.busy ? "正在扫描…" : (!page.data || page.data.done ? "此页没有匹配的键。" : "此页没有匹配的键，可继续扫描下一页。")), "panel-body quiet" + (error ? " inline-error" : "")),
+    element("p", error || (page.busy ? "正在扫描…" : empty), "panel-body quiet" + (error ? " inline-error" : "")),
   ] : items.map((item) => {
     const link = existing.get(item.key_b64) || element("a", keyLabel(item), "key-link");
     const params = state.browser;
@@ -795,6 +956,7 @@ function renderDetail() {
     }
   }
   paginate("detail");
+  renderPinButton();
 }
 
 async function loadPage(kind, index, cursor) {
@@ -848,7 +1010,7 @@ async function loadPage(kind, index, cursor) {
 
 function refresh() {
   if (!state.browser) return;
-  void loadPage("scan", state.scan.index);
+  if (!state.browser.pin || state.scan.data) void loadPage("scan", state.scan.index);
   void loadPage("detail", state.detail.index);
 }
 

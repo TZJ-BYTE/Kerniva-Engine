@@ -92,6 +92,24 @@ input[type="checkbox"] { margin: 0; accent-color: var(--accent); width: 16px; he
 .delete-confirm .actions { margin-top: 6px; }
 .feedback { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 18px; padding: 8px 10px; border-radius: 4px; background: var(--accent-wash); overflow-wrap: anywhere; }
 .empty-state { padding: 19px 15px; }
+.pin-panel { margin-bottom: 12px; }
+.pin-panel summary { padding: 10px 14px; cursor: pointer; }
+.pin-panel summary strong { margin: 0 9px 0 3px; }
+#pin-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
+#pin-list li { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding: 2px 13px; }
+.pin-open { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; padding: 5px 0; }
+.pin-open:hover code { color: var(--accent); text-decoration: underline; }
+.pin-open[aria-current="page"] code { color: var(--accent); font-weight: 600; }
+.pin-open code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin-open small { color: var(--muted); overflow-wrap: anywhere; }
+.pin-remove { border: 0; background: none; color: var(--muted); padding: 6px; }
+.pin-remove:hover { color: var(--accent); }
+#pins-empty { padding: 0 14px 12px; }
+#pin-feedback:not(:empty) { margin: 0 0 12px; }
+#pin-current { margin-left: auto; padding: 3px 9px; min-height: 28px; }
+@media (max-width: 600px) {
+  .pin-open { flex-direction: column; align-items: stretch; }
+}
 .empty-state p { color: var(--muted); margin: 5px 0 11px; }
 .database-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; border-block: 1px solid var(--line); padding: 11px 0; margin-bottom: 16px; }
 #database-form { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
