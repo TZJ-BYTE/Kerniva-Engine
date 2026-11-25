@@ -168,6 +168,7 @@ go run ./scripts/bench -addr 127.0.0.1:16379 -clients 1,16,64 -requests 10000 -n
 - [Go-log 主库、Rust 快照和只读副本架构图](docs/architecture/kerniva-current-architecture.svg)
 - [无人值守实施与对照计划](docs/golog_unattended_plan.md)
 - 副本安装同一份 64 MiB 增量，四个时段的 64 窗均低于 2 秒。两轮截断恢复及一主两从断源重启通过。[验收与复现](docs/verification/replica-install-latency.md) · [逐窗数据](docs/verification/replica-install-latency.json)
+- 真实 TCP 主库与 Rust 整理、一主两从同时运行的对照，覆盖 50% 写 3,000/s 和 95% 读 6,000/s。[主库尾延迟、复制可见时间与复现](docs/verification/replica-live-load.md)
 - [Go 日志与 Rust 快照 WSL 实测](docs/golog_wsl_report.md)
 - [合并同步与复制 WSL 实测](docs/golog_grouped_replica_report.md)
 - [副本快照恢复的内存归因、峰值对照与断源重启](docs/verification/replica-recovery-memory.md)

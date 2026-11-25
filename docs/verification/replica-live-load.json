@@ -1,0 +1,2852 @@
+{
+  "phase": "formal",
+  "expected_windows": [
+    "01-r50-q3000-A",
+    "02-r50-q3000-B",
+    "03-r50-q3000-B",
+    "04-r50-q3000-A",
+    "05-r95-q6000-A",
+    "06-r95-q6000-B",
+    "07-r95-q6000-B",
+    "08-r95-q6000-A"
+  ],
+  "windows": [
+    {
+      "case": "01-r50-q3000-A",
+      "arm": "A",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "d4deb9eba344d8575e74b8252303f1943e19f9ed50ac5692846ae1423fef45a5",
+        "client": "69b5817658d516c3b0581390bf6f12a23fa2c4b18a42c60d41213d2b0164a117",
+        "histogram": "1f84705364be8f328bd375f93a89143938db743c46cafbdaecc5e4d95aa633b2"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 50,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 3000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 90000,
+        "sent": 90000,
+        "succeeded": 90000,
+        "failures": 0,
+        "sent_in_window": 90000,
+        "succeeded_in_window": 89996
+      },
+      "rates": {
+        "actual_send_rate": 2999.779233147197,
+        "actual_success_rate": 2999.779233147197,
+        "window_send_rate": 3000.0,
+        "window_success_rate": 2999.866666666667
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1187.839,
+          "p99_9_us": 2060.287
+        },
+        "get_observed": {
+          "p99_us": 1187.839,
+          "p99_9_us": 2060.287
+        },
+        "get_client_queue": {
+          "p99_us": 1093.631,
+          "p99_9_us": 1163.263
+        },
+        "set_success": {
+          "p99_us": 7225.343,
+          "p99_9_us": 9469.951
+        },
+        "set_observed": {
+          "p99_us": 7225.343,
+          "p99_9_us": 9469.951
+        },
+        "set_client_queue": {
+          "p99_us": 1097.727,
+          "p99_9_us": 1179.647
+        }
+      },
+      "queue_first_third_mean_us": 443.5416785,
+      "queue_last_third_mean_us": 450.52430423333334,
+      "queue_slope_us_per_second": 0.3415027843529848,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "5f32a88ad72771ec6671deb7f1ae4ba2ef4e5bb3c111872c1a23525f0d509962",
+        "measurement_interval_ns": [
+          73738380703323,
+          73768370701728
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 8395,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 30388,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 50640,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {},
+          "1": {}
+        },
+        "snapshot_publications_inside_offered_window": [],
+        "end_primary": {
+          "0": {
+            "sequence": 52873,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {},
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32
+        },
+        "process_exit_codes": {
+          "primary": 0
+        }
+      }
+    },
+    {
+      "case": "02-r50-q3000-B",
+      "arm": "B",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "f4046caadfac26f109879b5df6b51ffec60af50d7dd0af052fdf8beb8b42e831",
+        "client": "6d8dff2dfdbafacb59465d738ae4d2ff8266b01d54291c2d62d130f9916b8a62",
+        "histogram": "12c2caab0be0ac41ef7a97754a550f666bbde58ac3925454df5cb2a4378dd71d"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 50,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 3000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 90000,
+        "sent": 90000,
+        "succeeded": 90000,
+        "failures": 0,
+        "sent_in_window": 90000,
+        "succeeded_in_window": 89997
+      },
+      "rates": {
+        "actual_send_rate": 2999.822528799297,
+        "actual_success_rate": 2999.822528799297,
+        "window_send_rate": 3000.0,
+        "window_success_rate": 2999.9
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1200.127,
+          "p99_9_us": 1748.991
+        },
+        "get_observed": {
+          "p99_us": 1200.127,
+          "p99_9_us": 1748.991
+        },
+        "get_client_queue": {
+          "p99_us": 1101.823,
+          "p99_9_us": 1200.127
+        },
+        "set_success": {
+          "p99_us": 7929.855,
+          "p99_9_us": 11403.263
+        },
+        "set_observed": {
+          "p99_us": 7929.855,
+          "p99_9_us": 11403.263
+        },
+        "set_client_queue": {
+          "p99_us": 1101.823,
+          "p99_9_us": 1187.839
+        }
+      },
+      "queue_first_third_mean_us": 451.7893585666667,
+      "queue_last_third_mean_us": 448.49543159999996,
+      "queue_slope_us_per_second": -0.11071281787170968,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "f5a914f57838443cf9dad33d91f16ab0236344b57b88be039afb69a88ecd9f3b",
+        "measurement_interval_ns": [
+          73776178158828,
+          73806171589007
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 8406,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73777516868974,
+              73777547181174
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                55.769068
+              ],
+              "b": [
+                0.0,
+                56.045494
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                165.666683
+              ],
+              "b": [
+                0.0,
+                165.68163
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73778010237803,
+              73778036943711
+            ],
+            "source_to_get_ms": {
+              "a": [
+                50.928779,
+                103.77789
+              ],
+              "b": [
+                51.348235,
+                104.094345
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                176.216316
+              ],
+              "b": [
+                0.0,
+                176.229114
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 30386,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73792506263985,
+              73792536616501
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                55.695466
+              ],
+              "b": [
+                0.0,
+                55.918263
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                38.388484
+              ],
+              "b": [
+                0.0,
+                38.401062
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73792506314912,
+              73792535858758
+            ],
+            "source_to_get_ms": {
+              "a": [
+                76.296481,
+                131.691627
+              ],
+              "b": [
+                0.0,
+                55.241607
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                9.444162,
+                290.7397
+              ],
+              "b": [
+                0.0,
+                39.081053
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 50646,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73806001125271,
+              73806031553182
+            ],
+            "source_to_get_ms": {
+              "a": [
+                50.712323,
+                107.363378
+              ],
+              "b": [
+                25.375372,
+                81.805665
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                141.693101
+              ],
+              "b": [
+                0.0,
+                141.708648
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73806001163029,
+              73806030649394
+            ],
+            "source_to_get_ms": {
+              "a": [
+                25.092817,
+                80.781604
+              ],
+              "b": [
+                25.495007,
+                81.206865
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                142.556196
+              ],
+              "b": [
+                0.0,
+                142.571635
+              ]
+            }
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {
+            "a": {
+              "samples": 119,
+              "max_lower": 2300,
+              "max_upper": 2300
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 2300,
+              "max_upper": 2300
+            }
+          },
+          "1": {
+            "a": {
+              "samples": 119,
+              "max_lower": 1,
+              "max_upper": 1
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 0,
+              "max_upper": 0
+            }
+          }
+        },
+        "snapshot_publications_inside_offered_window": [
+          {
+            "db": 0,
+            "start_ns": 73776225308682,
+            "end_ns": 73776275691862,
+            "previous_cutoff": 0,
+            "cutoff": 7867,
+            "bytes": 8988983
+          },
+          {
+            "db": 1,
+            "start_ns": 73776225308682,
+            "end_ns": 73776275691862,
+            "previous_cutoff": 0,
+            "cutoff": 1,
+            "bytes": 93
+          },
+          {
+            "db": 0,
+            "start_ns": 73778287788364,
+            "end_ns": 73778338191026,
+            "previous_cutoff": 7867,
+            "cutoff": 9879,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73779346146801,
+            "end_ns": 73779396541986,
+            "previous_cutoff": 9879,
+            "cutoff": 12122,
+            "bytes": 8989067
+          },
+          {
+            "db": 1,
+            "start_ns": 73779396437536,
+            "end_ns": 73779446844137,
+            "previous_cutoff": 1,
+            "cutoff": 2,
+            "bytes": 177
+          },
+          {
+            "db": 0,
+            "start_ns": 73781462024879,
+            "end_ns": 73781512438788,
+            "previous_cutoff": 12122,
+            "cutoff": 14388,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73782518375823,
+            "end_ns": 73782568768298,
+            "previous_cutoff": 14388,
+            "cutoff": 16617,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73783574803577,
+            "end_ns": 73783625214425,
+            "previous_cutoff": 16617,
+            "cutoff": 18809,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73785687386753,
+            "end_ns": 73785737817692,
+            "previous_cutoff": 18809,
+            "cutoff": 21065,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73786743605476,
+            "end_ns": 73786794010790,
+            "previous_cutoff": 21065,
+            "cutoff": 23326,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73788805435190,
+            "end_ns": 73788855854981,
+            "previous_cutoff": 23326,
+            "cutoff": 25572,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73789861498682,
+            "end_ns": 73789911924504,
+            "previous_cutoff": 25572,
+            "cutoff": 27839,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73791923640917,
+            "end_ns": 73791974778062,
+            "previous_cutoff": 27839,
+            "cutoff": 30131,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73793032692426,
+            "end_ns": 73793083090277,
+            "previous_cutoff": 30131,
+            "cutoff": 32395,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73794089139421,
+            "end_ns": 73794139550507,
+            "previous_cutoff": 32395,
+            "cutoff": 34695,
+            "bytes": 8989151
+          },
+          {
+            "db": 1,
+            "start_ns": 73794089139421,
+            "end_ns": 73794139550507,
+            "previous_cutoff": 2,
+            "cutoff": 3,
+            "bytes": 261
+          },
+          {
+            "db": 0,
+            "start_ns": 73796151028595,
+            "end_ns": 73796201415295,
+            "previous_cutoff": 34695,
+            "cutoff": 36907,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73797257597157,
+            "end_ns": 73797308053807,
+            "previous_cutoff": 36907,
+            "cutoff": 39170,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73799319660644,
+            "end_ns": 73799370043288,
+            "previous_cutoff": 39170,
+            "cutoff": 41361,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73800376123078,
+            "end_ns": 73800426547248,
+            "previous_cutoff": 41361,
+            "cutoff": 43633,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73802437804318,
+            "end_ns": 73802488193943,
+            "previous_cutoff": 43633,
+            "cutoff": 45924,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73803544168044,
+            "end_ns": 73803594654617,
+            "previous_cutoff": 45924,
+            "cutoff": 48207,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73804600651169,
+            "end_ns": 73804651028649,
+            "previous_cutoff": 48207,
+            "cutoff": 50408,
+            "bytes": 8989151
+          }
+        ],
+        "end_primary": {
+          "0": {
+            "sequence": 52873,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {
+          "a": {
+            "0": {
+              "generation": "generation-3212603414",
+              "source": "61ae451364e3bd1da0bec2d33bb939d6",
+              "sequence": 52873,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-267174781",
+              "source": "61ae451364e3bd1da0bec2d33bb939d6",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          },
+          "b": {
+            "0": {
+              "generation": "generation-428501774",
+              "source": "61ae451364e3bd1da0bec2d33bb939d6",
+              "sequence": 52873,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-115531671",
+              "source": "61ae451364e3bd1da0bec2d33bb939d6",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          }
+        },
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32,
+          "a": 32,
+          "b": 32
+        },
+        "process_exit_codes": {
+          "primary": 0,
+          "source": 0,
+          "a": 0,
+          "b": 0,
+          "maintainer": -15
+        }
+      }
+    },
+    {
+      "case": "03-r50-q3000-B",
+      "arm": "B",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "3f7bc7f593c13b2085bfe8c74c7f516333d38ddb649dba9de78d61a4fcdb165c",
+        "client": "19b118a6c465726194e2b5efa79a578fadf0b85117f9e4d17f6cafdce7735520",
+        "histogram": "608cfeeffffad1aec2414f65b9c013828f498cb42c0d944f92b90da7b84e7ae6"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 50,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 3000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 90000,
+        "sent": 90000,
+        "succeeded": 90000,
+        "failures": 0,
+        "sent_in_window": 90000,
+        "succeeded_in_window": 89995
+      },
+      "rates": {
+        "actual_send_rate": 2999.4024454475266,
+        "actual_success_rate": 2999.4024454475266,
+        "window_send_rate": 3000.0,
+        "window_success_rate": 2999.8333333333335
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1204.223,
+          "p99_9_us": 1699.839
+        },
+        "get_observed": {
+          "p99_us": 1204.223,
+          "p99_9_us": 1699.839
+        },
+        "get_client_queue": {
+          "p99_us": 1101.823,
+          "p99_9_us": 1191.935
+        },
+        "set_success": {
+          "p99_us": 7929.855,
+          "p99_9_us": 11599.871
+        },
+        "set_observed": {
+          "p99_us": 7929.855,
+          "p99_9_us": 11599.871
+        },
+        "set_client_queue": {
+          "p99_us": 1101.823,
+          "p99_9_us": 1204.223
+        }
+      },
+      "queue_first_third_mean_us": 453.6040845333333,
+      "queue_last_third_mean_us": 450.88499229999996,
+      "queue_slope_us_per_second": -0.12460059273266597,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "b4903a1eaf3af2dffac629bc810fabde0a25f1a72f49bce22c99339f36acaee8",
+        "measurement_interval_ns": [
+          73815798829586,
+          73845788827065
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 8400,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73817206833658,
+              73817237072654
+            ],
+            "source_to_get_ms": {
+              "a": [
+                25.078386,
+                81.465023
+              ],
+              "b": [
+                25.353523,
+                81.821381
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                93.30614
+              ],
+              "b": [
+                0.0,
+                93.322004
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73817206959102,
+              73817236190299
+            ],
+            "source_to_get_ms": {
+              "a": [
+                76.963653,
+                132.27556
+              ],
+              "b": [
+                77.319694,
+                132.527782
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                64.831218,
+                345.872007
+              ],
+              "b": [
+                64.849115,
+                345.886193
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 30384,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73832228419740,
+              73832258628930
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                55.678801
+              ],
+              "b": [
+                0.0,
+                56.065026
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                185.244611
+              ],
+              "b": [
+                0.0,
+                185.262199
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73832228472484,
+              73832258007308
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                55.020631
+              ],
+              "b": [
+                0.0,
+                55.424466
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                186.085906
+              ],
+              "b": [
+                0.0,
+                186.102977
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 50641,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73845726217651,
+              73845756266102
+            ],
+            "source_to_get_ms": {
+              "a": [
+                50.937125,
+                107.203203
+              ],
+              "b": [
+                25.460138,
+                81.696344
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                3.805872,
+                108.307565
+              ],
+              "b": [
+                3.827877,
+                108.323202
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73845726257034,
+              73845755583081
+            ],
+            "source_to_get_ms": {
+              "a": [
+                25.102196,
+                80.830635
+              ],
+              "b": [
+                25.562717,
+                81.336168
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                5.139225,
+                108.935144
+              ],
+              "b": [
+                5.155702,
+                108.948342
+              ]
+            }
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {
+            "a": {
+              "samples": 119,
+              "max_lower": 2287,
+              "max_upper": 2287
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 2287,
+              "max_upper": 2287
+            }
+          },
+          "1": {
+            "a": {
+              "samples": 119,
+              "max_lower": 1,
+              "max_upper": 1
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 1,
+              "max_upper": 1
+            }
+          }
+        },
+        "snapshot_publications_inside_offered_window": [
+          {
+            "db": 0,
+            "start_ns": 73815842877926,
+            "end_ns": 73815893267166,
+            "previous_cutoff": 0,
+            "cutoff": 7867,
+            "bytes": 8988983
+          },
+          {
+            "db": 1,
+            "start_ns": 73815842877926,
+            "end_ns": 73815893267166,
+            "previous_cutoff": 0,
+            "cutoff": 1,
+            "bytes": 93
+          },
+          {
+            "db": 0,
+            "start_ns": 73817905806337,
+            "end_ns": 73817956227352,
+            "previous_cutoff": 7867,
+            "cutoff": 10009,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73819013677274,
+            "end_ns": 73819064219182,
+            "previous_cutoff": 10009,
+            "cutoff": 12256,
+            "bytes": 8989067
+          },
+          {
+            "db": 1,
+            "start_ns": 73819013677274,
+            "end_ns": 73819064219182,
+            "previous_cutoff": 1,
+            "cutoff": 2,
+            "bytes": 177
+          },
+          {
+            "db": 0,
+            "start_ns": 73821077246696,
+            "end_ns": 73821127643938,
+            "previous_cutoff": 12256,
+            "cutoff": 14524,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73822133290453,
+            "end_ns": 73822183671956,
+            "previous_cutoff": 14524,
+            "cutoff": 16753,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73824246005317,
+            "end_ns": 73824296412752,
+            "previous_cutoff": 16753,
+            "cutoff": 18945,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73825302402422,
+            "end_ns": 73825352813356,
+            "previous_cutoff": 18945,
+            "cutoff": 21191,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73826358944856,
+            "end_ns": 73826409325048,
+            "previous_cutoff": 21191,
+            "cutoff": 23461,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73828471006099,
+            "end_ns": 73828521394325,
+            "previous_cutoff": 23461,
+            "cutoff": 25704,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73829527270334,
+            "end_ns": 73829577673646,
+            "previous_cutoff": 25704,
+            "cutoff": 27964,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73831589177409,
+            "end_ns": 73831639528075,
+            "previous_cutoff": 27964,
+            "cutoff": 30276,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73832646373061,
+            "end_ns": 73832696778650,
+            "previous_cutoff": 30276,
+            "cutoff": 32515,
+            "bytes": 8989151
+          },
+          {
+            "db": 1,
+            "start_ns": 73833702805153,
+            "end_ns": 73833753184268,
+            "previous_cutoff": 2,
+            "cutoff": 3,
+            "bytes": 261
+          },
+          {
+            "db": 0,
+            "start_ns": 73834758974779,
+            "end_ns": 73834809497931,
+            "previous_cutoff": 32515,
+            "cutoff": 34834,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73835815148727,
+            "end_ns": 73835865546123,
+            "previous_cutoff": 34834,
+            "cutoff": 37045,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73836871179857,
+            "end_ns": 73836921604287,
+            "previous_cutoff": 37045,
+            "cutoff": 39306,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73838982871569,
+            "end_ns": 73839033264442,
+            "previous_cutoff": 39306,
+            "cutoff": 41503,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73840038924785,
+            "end_ns": 73840089446848,
+            "previous_cutoff": 41503,
+            "cutoff": 43773,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73842101037806,
+            "end_ns": 73842151453651,
+            "previous_cutoff": 43773,
+            "cutoff": 46050,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73843157046070,
+            "end_ns": 73843207443550,
+            "previous_cutoff": 46050,
+            "cutoff": 48337,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73845268208719,
+            "end_ns": 73845318521687,
+            "previous_cutoff": 48337,
+            "cutoff": 50535,
+            "bytes": 8989151
+          }
+        ],
+        "end_primary": {
+          "0": {
+            "sequence": 52873,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {
+          "a": {
+            "0": {
+              "generation": "generation-917455691",
+              "source": "85ba5bd950aa164ca40adf3e361f3607",
+              "sequence": 52873,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-3815889912",
+              "source": "85ba5bd950aa164ca40adf3e361f3607",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          },
+          "b": {
+            "0": {
+              "generation": "generation-3657823440",
+              "source": "85ba5bd950aa164ca40adf3e361f3607",
+              "sequence": 52873,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-2183683635",
+              "source": "85ba5bd950aa164ca40adf3e361f3607",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          }
+        },
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32,
+          "a": 32,
+          "b": 32
+        },
+        "process_exit_codes": {
+          "primary": 0,
+          "source": 0,
+          "a": 0,
+          "b": 0,
+          "maintainer": -15
+        }
+      }
+    },
+    {
+      "case": "04-r50-q3000-A",
+      "arm": "A",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "6e72e48e890c8365a32d2efee61acc15ad55d3adc66074fe5e1a03b27c2aca11",
+        "client": "87b409e96a8bf86139a23b4727b7f54587bac06f313c4e8c6e04577792aa507e",
+        "histogram": "9c47aa56c833885b0a0fbc6cab9a1aa0bb8f10c5211b5100641a969a7698d637"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 50,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 3000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 90000,
+        "sent": 90000,
+        "succeeded": 90000,
+        "failures": 0,
+        "sent_in_window": 89999,
+        "succeeded_in_window": 89996
+      },
+      "rates": {
+        "actual_send_rate": 2999.7132589094376,
+        "actual_success_rate": 2999.7132589094376,
+        "window_send_rate": 2999.9666666666667,
+        "window_success_rate": 2999.866666666667
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1196.031,
+          "p99_9_us": 1507.327
+        },
+        "get_observed": {
+          "p99_us": 1196.031,
+          "p99_9_us": 1507.327
+        },
+        "get_client_queue": {
+          "p99_us": 1101.823,
+          "p99_9_us": 1183.743
+        },
+        "set_success": {
+          "p99_us": 6832.127,
+          "p99_9_us": 9011.199
+        },
+        "set_observed": {
+          "p99_us": 6832.127,
+          "p99_9_us": 9011.199
+        },
+        "set_client_queue": {
+          "p99_us": 1097.727,
+          "p99_9_us": 1196.031
+        }
+      },
+      "queue_first_third_mean_us": 451.8145383333333,
+      "queue_last_third_mean_us": 450.13895046666664,
+      "queue_slope_us_per_second": -0.07483944352984767,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "43dd781907014e9083566759bb9443eb9c52cb38c11b93aa0b84e91000a255da",
+        "measurement_interval_ns": [
+          73853921728131,
+          73883911726952
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 8389,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 30379,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 50634,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {},
+          "1": {}
+        },
+        "snapshot_publications_inside_offered_window": [],
+        "end_primary": {
+          "0": {
+            "sequence": 52873,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {},
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32
+        },
+        "process_exit_codes": {
+          "primary": 0
+        }
+      }
+    },
+    {
+      "case": "05-r95-q6000-A",
+      "arm": "A",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "0715f286eb2dcf07d73f7ee5692c4373eecfda9bd7fa6fb3274bb378a6f424e8",
+        "client": "c32fd949c74644bc51704e94a7ab2c3a4ff2973dc843e37366a6385e548a2984",
+        "histogram": "343e4593586200505f9265d5ab1099b0cadfe389fb4794d868e4301df99064ba"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 95,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 6000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 180000,
+        "sent": 180000,
+        "succeeded": 180000,
+        "failures": 0,
+        "sent_in_window": 179999,
+        "succeeded_in_window": 179999
+      },
+      "rates": {
+        "actual_send_rate": 5999.958310289674,
+        "actual_success_rate": 5999.958310289674,
+        "window_send_rate": 5999.966666666666,
+        "window_success_rate": 5999.966666666666
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1261.567,
+          "p99_9_us": 1482.751
+        },
+        "get_observed": {
+          "p99_us": 1261.567,
+          "p99_9_us": 1482.751
+        },
+        "get_client_queue": {
+          "p99_us": 1150.975,
+          "p99_9_us": 1302.527
+        },
+        "set_success": {
+          "p99_us": 5259.263,
+          "p99_9_us": 8191.999
+        },
+        "set_observed": {
+          "p99_us": 5259.263,
+          "p99_9_us": 8191.999
+        },
+        "set_client_queue": {
+          "p99_us": 1159.167,
+          "p99_9_us": 1335.295
+        }
+      },
+      "queue_first_third_mean_us": 486.19496795,
+      "queue_last_third_mean_us": 488.50423670000004,
+      "queue_slope_us_per_second": 0.13433187834631144,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "80ac8eb51c7e851769e0ad11adc8ca0d87a8d01b1774dd6514ed5f1ac6070994",
+        "measurement_interval_ns": [
+          73890499553164,
+          73920489551860
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 2038,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 6385,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 10394,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {},
+          "1": {}
+        },
+        "snapshot_publications_inside_offered_window": [],
+        "end_primary": {
+          "0": {
+            "sequence": 10807,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {},
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32
+        },
+        "process_exit_codes": {
+          "primary": 0
+        }
+      }
+    },
+    {
+      "case": "06-r95-q6000-B",
+      "arm": "B",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "d1588dcb6bbbb109f43b94558f7ec15ad53bf69a5d3d2eac3c16cd12d1fe94cf",
+        "client": "ee3bbb8ffb51c289b4dc6740d3a3090381d204b7762252d4c7269126f43ab9ab",
+        "histogram": "96e65bd983c9b9389a101a0daa3d28a855bbb68ad2201bec9989765c862525a0"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 95,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 6000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 180000,
+        "sent": 180000,
+        "succeeded": 180000,
+        "failures": 0,
+        "sent_in_window": 180000,
+        "succeeded_in_window": 180000
+      },
+      "rates": {
+        "actual_send_rate": 5999.969685553162,
+        "actual_success_rate": 5999.969685553162,
+        "window_send_rate": 6000.0,
+        "window_success_rate": 6000.0
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1290.239,
+          "p99_9_us": 1519.615
+        },
+        "get_observed": {
+          "p99_us": 1290.239,
+          "p99_9_us": 1519.615
+        },
+        "get_client_queue": {
+          "p99_us": 1167.359,
+          "p99_9_us": 1355.775
+        },
+        "set_success": {
+          "p99_us": 6373.375,
+          "p99_9_us": 9895.935
+        },
+        "set_observed": {
+          "p99_us": 6373.375,
+          "p99_9_us": 9895.935
+        },
+        "set_client_queue": {
+          "p99_us": 1179.647,
+          "p99_9_us": 1376.255
+        }
+      },
+      "queue_first_third_mean_us": 488.8467099,
+      "queue_last_third_mean_us": 491.18212163333334,
+      "queue_slope_us_per_second": 0.1760601750834256,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "5d5268942c01b7bba702c58a777c747c5e333b2a270ece09697e91fb8c3a6532",
+        "measurement_interval_ns": [
+          73927762866898,
+          73957752865871
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 2038,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73929110956365,
+              73929139417362
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                53.932734
+              ],
+              "b": [
+                0.0,
+                54.143969
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                150.141659
+              ],
+              "b": [
+                0.0,
+                150.158332
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73929110998331,
+              73929138824926
+            ],
+            "source_to_get_ms": {
+              "a": [
+                51.035435,
+                105.062639
+              ],
+              "b": [
+                51.445686,
+                105.346592
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                150.852585
+              ],
+              "b": [
+                0.0,
+                150.864653
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 6385,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73944115100573,
+              73944143254066
+            ],
+            "source_to_get_ms": {
+              "a": [
+                51.117103,
+                105.609691
+              ],
+              "b": [
+                51.600806,
+                105.916903
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                259.561465
+              ],
+              "b": [
+                0.0,
+                259.576397
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73944115048242,
+              73944142782897
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                53.440649
+              ],
+              "b": [
+                0.0,
+                53.886303
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                260.566918
+              ],
+              "b": [
+                0.0,
+                260.582341
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 10394,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73957629088539,
+              73957657258442
+            ],
+            "source_to_get_ms": {
+              "a": [
+                77.161462,
+                131.543242
+              ],
+              "b": [
+                77.505159,
+                131.863013
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                64.392313,
+                181.251518
+              ],
+              "b": [
+                64.416216,
+                181.268131
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73957629047591,
+              73957657207802
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                53.957776
+              ],
+              "b": [
+                0.0,
+                54.458943
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                93.352719
+              ],
+              "b": [
+                0.0,
+                93.3667
+              ]
+            }
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {
+            "a": {
+              "samples": 119,
+              "max_lower": 467,
+              "max_upper": 467
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 467,
+              "max_upper": 467
+            }
+          },
+          "1": {
+            "a": {
+              "samples": 119,
+              "max_lower": 0,
+              "max_upper": 0
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 0,
+              "max_upper": 0
+            }
+          }
+        },
+        "snapshot_publications_inside_offered_window": [
+          {
+            "db": 0,
+            "start_ns": 73927801097642,
+            "end_ns": 73927851525493,
+            "previous_cutoff": 0,
+            "cutoff": 1920,
+            "bytes": 8988983
+          },
+          {
+            "db": 1,
+            "start_ns": 73927801097642,
+            "end_ns": 73927851525493,
+            "previous_cutoff": 0,
+            "cutoff": 1,
+            "bytes": 93
+          },
+          {
+            "db": 0,
+            "start_ns": 73929866908119,
+            "end_ns": 73929917289185,
+            "previous_cutoff": 1920,
+            "cutoff": 2344,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73930924985829,
+            "end_ns": 73930975378075,
+            "previous_cutoff": 2344,
+            "cutoff": 2803,
+            "bytes": 8989067
+          },
+          {
+            "db": 1,
+            "start_ns": 73930975267340,
+            "end_ns": 73931025956052,
+            "previous_cutoff": 1,
+            "cutoff": 2,
+            "bytes": 177
+          },
+          {
+            "db": 0,
+            "start_ns": 73933038624974,
+            "end_ns": 73933089012459,
+            "previous_cutoff": 2803,
+            "cutoff": 3259,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73934095215844,
+            "end_ns": 73934145612090,
+            "previous_cutoff": 3259,
+            "cutoff": 3671,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73936158024853,
+            "end_ns": 73936208424613,
+            "previous_cutoff": 3671,
+            "cutoff": 4105,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73937214447215,
+            "end_ns": 73937264876201,
+            "previous_cutoff": 4105,
+            "cutoff": 4585,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73938321701353,
+            "end_ns": 73938372166386,
+            "previous_cutoff": 4585,
+            "cutoff": 4997,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73940384873382,
+            "end_ns": 73940435286157,
+            "previous_cutoff": 4997,
+            "cutoff": 5450,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73941441444965,
+            "end_ns": 73941491943026,
+            "previous_cutoff": 5450,
+            "cutoff": 5878,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73943505282918,
+            "end_ns": 73943555991536,
+            "previous_cutoff": 5878,
+            "cutoff": 6348,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73944562282199,
+            "end_ns": 73944612673257,
+            "previous_cutoff": 6348,
+            "cutoff": 6792,
+            "bytes": 8989151
+          },
+          {
+            "db": 1,
+            "start_ns": 73945568252798,
+            "end_ns": 73945618625450,
+            "previous_cutoff": 2,
+            "cutoff": 3,
+            "bytes": 261
+          },
+          {
+            "db": 0,
+            "start_ns": 73946625223405,
+            "end_ns": 73946675620236,
+            "previous_cutoff": 6792,
+            "cutoff": 7243,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73947732312438,
+            "end_ns": 73947782705104,
+            "previous_cutoff": 7243,
+            "cutoff": 7684,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73948789060540,
+            "end_ns": 73948839485510,
+            "previous_cutoff": 7684,
+            "cutoff": 8130,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73950851810805,
+            "end_ns": 73950902221840,
+            "previous_cutoff": 8130,
+            "cutoff": 8573,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73951908480436,
+            "end_ns": 73951958858847,
+            "previous_cutoff": 8573,
+            "cutoff": 9040,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73953970938557,
+            "end_ns": 73954021314483,
+            "previous_cutoff": 9040,
+            "cutoff": 9484,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73955077962374,
+            "end_ns": 73955128393636,
+            "previous_cutoff": 9484,
+            "cutoff": 9935,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73957142958578,
+            "end_ns": 73957193302732,
+            "previous_cutoff": 9935,
+            "cutoff": 10363,
+            "bytes": 8989151
+          }
+        ],
+        "end_primary": {
+          "0": {
+            "sequence": 10807,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {
+          "a": {
+            "0": {
+              "generation": "generation-3336427773",
+              "source": "692bff190aeaf4428e2b4d853acc2609",
+              "sequence": 10807,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-3419592640",
+              "source": "692bff190aeaf4428e2b4d853acc2609",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          },
+          "b": {
+            "0": {
+              "generation": "generation-2116226321",
+              "source": "692bff190aeaf4428e2b4d853acc2609",
+              "sequence": 10807,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-3836717356",
+              "source": "692bff190aeaf4428e2b4d853acc2609",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          }
+        },
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32,
+          "a": 32,
+          "b": 32
+        },
+        "process_exit_codes": {
+          "primary": 0,
+          "source": 0,
+          "a": 0,
+          "b": 0,
+          "maintainer": -15
+        }
+      }
+    },
+    {
+      "case": "07-r95-q6000-B",
+      "arm": "B",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "d2395a2ca537bb8da7f7cae9fcbed99b6a5d8fc6b234a79abe74da5b0aa7fab1",
+        "client": "d9cac17f3a3e72571803e425c8ba9ac064e0395284a39589085c5b442144cf7c",
+        "histogram": "b57f2078c4fb4699bd1e5d063c1822de12f9133ecaeb52fe5bd2c7415d1136d5"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 95,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 6000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 180000,
+        "sent": 180000,
+        "succeeded": 180000,
+        "failures": 0,
+        "sent_in_window": 180000,
+        "succeeded_in_window": 180000
+      },
+      "rates": {
+        "actual_send_rate": 5999.978670875822,
+        "actual_success_rate": 5999.978670875822,
+        "window_send_rate": 6000.0,
+        "window_success_rate": 6000.0
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1294.335,
+          "p99_9_us": 1544.191
+        },
+        "get_observed": {
+          "p99_us": 1294.335,
+          "p99_9_us": 1544.191
+        },
+        "get_client_queue": {
+          "p99_us": 1171.455,
+          "p99_9_us": 1355.775
+        },
+        "set_success": {
+          "p99_us": 6406.143,
+          "p99_9_us": 9371.647
+        },
+        "set_observed": {
+          "p99_us": 6406.143,
+          "p99_9_us": 9371.647
+        },
+        "set_client_queue": {
+          "p99_us": 1163.263,
+          "p99_9_us": 1388.543
+        }
+      },
+      "queue_first_third_mean_us": 490.6661161,
+      "queue_last_third_mean_us": 490.59268418333335,
+      "queue_slope_us_per_second": 0.034165438338894995,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "bf4973ea4023627da32924c7716ec0ca85000f070e3d2bf972d3239f3d445e6d",
+        "measurement_interval_ns": [
+          73965897948739,
+          73995887945854
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 2038,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73967249823686,
+              73967277959176
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                26.036653
+              ],
+              "b": [
+                0.0,
+                26.537656
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                148.237567
+              ],
+              "b": [
+                0.0,
+                148.25221
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73967249780810,
+              73967277910717
+            ],
+            "source_to_get_ms": {
+              "a": [
+                25.060841,
+                79.260843
+              ],
+              "b": [
+                25.402757,
+                79.500203
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                149.040648
+              ],
+              "b": [
+                0.0,
+                149.053351
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 6385,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73982219897246,
+              73982247908598
+            ],
+            "source_to_get_ms": {
+              "a": [
+                77.378119,
+                131.803932
+              ],
+              "b": [
+                77.808469,
+                132.141744
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                11.691279,
+                291.461068
+              ],
+              "b": [
+                11.715548,
+                291.476186
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73982246708221,
+              73982274367780
+            ],
+            "source_to_get_ms": {
+              "a": [
+                77.123585,
+                131.236247
+              ],
+              "b": [
+                77.822546,
+                131.527525
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                265.533059
+              ],
+              "b": [
+                0.0,
+                265.546711
+              ]
+            }
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 10398,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73995741540278,
+              73995769423271
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                53.34478
+              ],
+              "b": [
+                0.0,
+                53.738479
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                113.585471
+              ],
+              "b": [
+                0.0,
+                113.599914
+              ]
+            }
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "exact-source-and-get",
+            "scope_reason": null,
+            "source_available_ns": [
+              73995741377277,
+              73995769275039
+            ],
+            "source_to_get_ms": {
+              "a": [
+                0.0,
+                53.616748
+              ],
+              "b": [
+                0.0,
+                54.013537
+              ]
+            },
+            "source_to_disk_current_ms": {
+              "a": [
+                0.0,
+                114.607302
+              ],
+              "b": [
+                0.0,
+                114.619935
+              ]
+            }
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {
+            "a": {
+              "samples": 119,
+              "max_lower": 450,
+              "max_upper": 450
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 450,
+              "max_upper": 450
+            }
+          },
+          "1": {
+            "a": {
+              "samples": 119,
+              "max_lower": 1,
+              "max_upper": 1
+            },
+            "b": {
+              "samples": 119,
+              "max_lower": 1,
+              "max_upper": 1
+            }
+          }
+        },
+        "snapshot_publications_inside_offered_window": [
+          {
+            "db": 0,
+            "start_ns": 73965940734051,
+            "end_ns": 73965991168221,
+            "previous_cutoff": 0,
+            "cutoff": 1920,
+            "bytes": 8988983
+          },
+          {
+            "db": 1,
+            "start_ns": 73965940734051,
+            "end_ns": 73965991168221,
+            "previous_cutoff": 0,
+            "cutoff": 1,
+            "bytes": 93
+          },
+          {
+            "db": 0,
+            "start_ns": 73968003926457,
+            "end_ns": 73968054389577,
+            "previous_cutoff": 1920,
+            "cutoff": 2335,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73969061107408,
+            "end_ns": 73969111615297,
+            "previous_cutoff": 2335,
+            "cutoff": 2798,
+            "bytes": 8989067
+          },
+          {
+            "db": 1,
+            "start_ns": 73969061107408,
+            "end_ns": 73969111615297,
+            "previous_cutoff": 1,
+            "cutoff": 2,
+            "bytes": 177
+          },
+          {
+            "db": 0,
+            "start_ns": 73971127176141,
+            "end_ns": 73971177694401,
+            "previous_cutoff": 2798,
+            "cutoff": 3251,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73972184658588,
+            "end_ns": 73972235035619,
+            "previous_cutoff": 3251,
+            "cutoff": 3667,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73974247281628,
+            "end_ns": 73974297711392,
+            "previous_cutoff": 3667,
+            "cutoff": 4098,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73975353824136,
+            "end_ns": 73975404231645,
+            "previous_cutoff": 4098,
+            "cutoff": 4576,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73976410485333,
+            "end_ns": 73976460934391,
+            "previous_cutoff": 4576,
+            "cutoff": 4993,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73978473233597,
+            "end_ns": 73978523650771,
+            "previous_cutoff": 4993,
+            "cutoff": 5442,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73979529620953,
+            "end_ns": 73979580070687,
+            "previous_cutoff": 5442,
+            "cutoff": 5873,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73981594081021,
+            "end_ns": 73981644393809,
+            "previous_cutoff": 5873,
+            "cutoff": 6342,
+            "bytes": 8989067
+          },
+          {
+            "db": 0,
+            "start_ns": 73982651139213,
+            "end_ns": 73982701589479,
+            "previous_cutoff": 6342,
+            "cutoff": 6787,
+            "bytes": 8989151
+          },
+          {
+            "db": 1,
+            "start_ns": 73983657541807,
+            "end_ns": 73983707993798,
+            "previous_cutoff": 2,
+            "cutoff": 3,
+            "bytes": 261
+          },
+          {
+            "db": 0,
+            "start_ns": 73984714463218,
+            "end_ns": 73984764865643,
+            "previous_cutoff": 6787,
+            "cutoff": 7241,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73985771107976,
+            "end_ns": 73985821548759,
+            "previous_cutoff": 7241,
+            "cutoff": 7675,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73986878385986,
+            "end_ns": 73986928896460,
+            "previous_cutoff": 7675,
+            "cutoff": 8125,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73988941143586,
+            "end_ns": 73988991534451,
+            "previous_cutoff": 8125,
+            "cutoff": 8570,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73989997833249,
+            "end_ns": 73990048219893,
+            "previous_cutoff": 8570,
+            "cutoff": 9038,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73992060382765,
+            "end_ns": 73992110782506,
+            "previous_cutoff": 9038,
+            "cutoff": 9480,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73993116678666,
+            "end_ns": 73993167075352,
+            "previous_cutoff": 9480,
+            "cutoff": 9927,
+            "bytes": 8989151
+          },
+          {
+            "db": 0,
+            "start_ns": 73995181412525,
+            "end_ns": 73995231763073,
+            "previous_cutoff": 9927,
+            "cutoff": 10359,
+            "bytes": 8989151
+          }
+        ],
+        "end_primary": {
+          "0": {
+            "sequence": 10807,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {
+          "a": {
+            "0": {
+              "generation": "generation-2161718590",
+              "source": "766488879169ad0465cbef24e6eda383",
+              "sequence": 10807,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-1753774590",
+              "source": "766488879169ad0465cbef24e6eda383",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          },
+          "b": {
+            "0": {
+              "generation": "generation-762730667",
+              "source": "766488879169ad0465cbef24e6eda383",
+              "sequence": 10807,
+              "snapshot": 0
+            },
+            "1": {
+              "generation": "generation-1109233867",
+              "source": "766488879169ad0465cbef24e6eda383",
+              "sequence": 4,
+              "snapshot": 0
+            }
+          }
+        },
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32,
+          "a": 32,
+          "b": 32
+        },
+        "process_exit_codes": {
+          "primary": 0,
+          "source": 0,
+          "a": 0,
+          "b": 0,
+          "maintainer": -15
+        }
+      }
+    },
+    {
+      "case": "08-r95-q6000-A",
+      "arm": "A",
+      "driver_status": "completed",
+      "client_exit_code": 0,
+      "sha256": {
+        "case": "462cadddeffc15d72bb8d90cbaf7efddf7859af0d85bab6bba05f5615ecfe3a1",
+        "client": "ed2cd32846c514eebf3620138f33abe062c15f9c2755dcf15bfb6badf2bb7dfc",
+        "histogram": "be00c4adf52056850a31d552238ddf7cecc005471e2ecd8ad52f21d7b44bfa64"
+      },
+      "config": {
+        "network": "gnet",
+        "durability": "sync",
+        "clients": 64,
+        "keys": 100000,
+        "value_bytes": 32,
+        "read_percent": 95,
+        "hot_percent": 0,
+        "hot_keys": 1000,
+        "seed": 42,
+        "duration_seconds": 30,
+        "target_rate": 6000,
+        "timeout_seconds": 2,
+        "queue_per_client": 4096
+      },
+      "counts": {
+        "offered": 180000,
+        "sent": 180000,
+        "succeeded": 180000,
+        "failures": 0,
+        "sent_in_window": 180000,
+        "succeeded_in_window": 180000
+      },
+      "rates": {
+        "actual_send_rate": 5999.97783388189,
+        "actual_success_rate": 5999.97783388189,
+        "window_send_rate": 6000.0,
+        "window_success_rate": 6000.0
+      },
+      "get_set_tails": {
+        "get_success": {
+          "p99_us": 1347.583,
+          "p99_9_us": 1548.287
+        },
+        "get_observed": {
+          "p99_us": 1347.583,
+          "p99_9_us": 1548.287
+        },
+        "get_client_queue": {
+          "p99_us": 1212.415,
+          "p99_9_us": 1392.639
+        },
+        "set_success": {
+          "p99_us": 5652.479,
+          "p99_9_us": 8323.071
+        },
+        "set_observed": {
+          "p99_us": 5652.479,
+          "p99_9_us": 8323.071
+        },
+        "set_client_queue": {
+          "p99_us": 1208.319,
+          "p99_9_us": 1368.063
+        }
+      },
+      "queue_first_third_mean_us": 494.0400272,
+      "queue_last_third_mean_us": 491.7484515,
+      "queue_slope_us_per_second": -0.05656105350389299,
+      "sustained_queue_growth": false,
+      "primary_load_met": true,
+      "replication": {
+        "witness_sha256": "86691a90a09007ba48cff9b32cfb8d077aa6fd2f374c7d76657a50119f6e1d19",
+        "measurement_interval_ns": [
+          74003878696376,
+          74033873424279
+        ],
+        "markers": [
+          {
+            "db": 0,
+            "ordinal": 0,
+            "key": "live-observer:0:db:0",
+            "sequence": 2041,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 0,
+            "key": "live-observer:0:db:1",
+            "sequence": 2,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 1,
+            "key": "live-observer:1:db:0",
+            "sequence": 6386,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 1,
+            "key": "live-observer:1:db:1",
+            "sequence": 3,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 0,
+            "ordinal": 2,
+            "key": "live-observer:2:db:0",
+            "sequence": 10398,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          },
+          {
+            "db": 1,
+            "ordinal": 2,
+            "key": "live-observer:2:db:1",
+            "sequence": 4,
+            "scope": "primary-seal",
+            "scope_reason": null,
+            "source_to_get_ms": {}
+          }
+        ],
+        "scope_limited_markers": 0,
+        "sampled_sequence_lag_against_sealed_source": {
+          "0": {},
+          "1": {}
+        },
+        "snapshot_publications_inside_offered_window": [],
+        "end_primary": {
+          "0": {
+            "sequence": 10807,
+            "dbsize": 100004,
+            "seed": "live-load-db0"
+          },
+          "1": {
+            "sequence": 4,
+            "dbsize": 4,
+            "seed": "live-load-db1"
+          }
+        },
+        "end_follower_current": {},
+        "terminal_db0_workload_keys_per_node": {
+          "primary": 32
+        },
+        "process_exit_codes": {
+          "primary": 0
+        }
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "order": "AB",
+      "A": "01-r50-q3000-A",
+      "B": "02-r50-q3000-B",
+      "both_primary_load_met": true,
+      "get_success_B_minus_A": {
+        "p99_us": 12.288000000000011,
+        "p99_9_us": -311.2959999999998
+      }
+    },
+    {
+      "order": "BA",
+      "A": "04-r50-q3000-A",
+      "B": "03-r50-q3000-B",
+      "both_primary_load_met": true,
+      "get_success_B_minus_A": {
+        "p99_us": 8.192000000000007,
+        "p99_9_us": 192.51199999999994
+      }
+    },
+    {
+      "order": "AB",
+      "A": "05-r95-q6000-A",
+      "B": "06-r95-q6000-B",
+      "both_primary_load_met": true,
+      "get_success_B_minus_A": {
+        "p99_us": 28.672000000000025,
+        "p99_9_us": 36.86400000000003
+      }
+    },
+    {
+      "order": "BA",
+      "A": "08-r95-q6000-A",
+      "B": "07-r95-q6000-B",
+      "both_primary_load_met": true,
+      "get_success_B_minus_A": {
+        "p99_us": -53.24800000000005,
+        "p99_9_us": -4.096000000000004
+      }
+    }
+  ],
+  "errors": [],
+  "client_evidence_complete": true,
+  "all_driver_cases_completed": true
+}
