@@ -24,6 +24,8 @@ usage() {
   ./kerniva client [host] [port]
   ./kerniva workbench [--port PORT] [--config PATH]
   ./kerniva shell [--config PATH | --url http://127.0.0.1:PORT]
+  ./kerniva tui [--config PATH | --url http://127.0.0.1:PORT]
+  ./kerniva desktop [--config PATH | --url http://127.0.0.1:PORT]
 EOF
 }
 
@@ -50,6 +52,16 @@ cmd="${1:-help}"
 shift || true
 
 case "$cmd" in
+  desktop)
+    tags=production
+    if [[ "$(uname -s)" == Linux ]]; then tags=production,purego; fi
+    exec go -C "$ROOT/desktop" run -tags "$tags" . --source "$ROOT" "$@"
+    ;;
+  tui)
+    python="$BIN_DIR/workbench-tui-venv/bin/python3"
+    if [[ ! -x "$python" ]]; then python=python3; fi
+    exec "$python" -B "$ROOT/scripts/kerniva-workbench.py" --tui "$@"
+    ;;
   shell)
     exec python3 -B "$ROOT/scripts/kerniva-workbench.py" --shell "$@"
     ;;

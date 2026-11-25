@@ -61,6 +61,8 @@ function Usage {
   .\kerniva client [host] [port]
   .\kerniva workbench [--port PORT] [--config PATH]
   .\kerniva shell [--config PATH | --url http://127.0.0.1:PORT]
+  .\kerniva tui [--config PATH | --url http://127.0.0.1:PORT]
+  .\kerniva desktop [--config PATH | --url http://127.0.0.1:PORT]
 
 说明:
   - build 调用 scripts\build.ps1 构建服务和原生库
@@ -89,6 +91,16 @@ if (-not $Command -or $Command -in @("help", "-h", "--help", "/?")) {
 }
 
 switch ($Command.ToLowerInvariant()) {
+  "desktop" {
+    & go -C (Join-Path $root "desktop") run -tags production . --source $root @ArgsRest
+    exit $LASTEXITCODE
+  }
+  "tui" {
+    $python = Join-Path $binDir "workbench-tui-venv\Scripts\python.exe"
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { $python = "python" }
+    & $python -X utf8 -B (Join-Path $root "scripts\kerniva-workbench.py") --tui @ArgsRest
+    exit $LASTEXITCODE
+  }
   "shell" {
     & python -X utf8 -B (Join-Path $root "scripts\kerniva-workbench.py") --shell @ArgsRest
     exit $LASTEXITCODE
