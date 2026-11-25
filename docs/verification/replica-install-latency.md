@@ -2,6 +2,8 @@
 
 本次测量使用 WSL 2 的真实 HTTP 源和只读副本。每窗从 DB 15 的游标 4 开始，一次安装同一份 18 段封存日志，共 67,126,416 字节，发布到 260。安装后逐一校验 18 个文件与 256 个键。生产源码取自 `8eda4dd`，运行号为 `kerniva-replica-latency.pIx8R4RG`。本轮虚拟磁盘位于 F 盘。历史 E 盘上两次超过 2 秒的观测保留为历史参照。[调查计划](../golog_replica_24h_plan.md)
 
+**验收结论。** 2026 年 11 月 25 日 00:45:39 启动，20:49:51 通过 Astra 最终审查，历时约 20 小时 4 分。四个分开时段共测量 64 个安装窗，0 个达到 2 秒，中位 328.777 ms，最长 400.252 ms。另有 32 个校准窗和 4 项早晚故障实验。历史的 5.463 s 和 2.379 s 仍缺少定位所需的同阶段慢窗。生产继续使用已验收的读取缓冲区实现 `4c2b9cd`。[逐窗 JSON](replica-install-latency.json)
+
 ## 校准
 
 11 月 25 日（上海时间）首次粗探针重复性对照的 8 窗耗时为 304.290–451.958 ms，中位 317.841 ms。这个区间从清单校验完成计到 `CURRENT` 最后一次目录同步成功。两臂使用同一个已验收的粗探针二进制。
@@ -52,13 +54,24 @@ Astra 在 T+13 审查中结束性能补采，放行 15:45:39 的截断增量恢�
 
 另一个一主两从故障窗使用 16 库真实夹具，限并发 4。DB 1 的快照传输到 524,288 字节时截断，完整重试接收 8,400,792 字节，安装快照 260 和后缀 261。15 个快照库与 1 个轻库在 39.126 秒内追齐。两从的 32 个磁盘游标、3 次跨库写入和 5 个进程的退出状态均通过复核。最后一次重启将 B 指向无监听端口，核对 16 库本地读值。Astra 已接纳两项基线可靠性证据。
 
+### 晚时段生产复验
+
+11 月 25 日两次晚时段复验均在预登记的时间开门，第一次尝试即完成。每块单独启动生产副本，并从 WSL 账本与 Windows 镜像分别读取结果摘要。
+
+| 上海时间 | 故障与复验结果 | 结果摘要（SHA-256） |
+| --- | --- | --- |
+| 15:45，DB 15 增量 | 524,288 字节处截断。截断中、断流后、阻断重启前后四次检查，每次 256 个新键均返回 404，旧值可读。唯一一次完整重试接收 67,126,416 字节。最终目录同步成功后留下持久发布事件，随后同代切换读视图。发布后及关闭真实源再次重启后，共 512 次 GET 逐值通过，离线启动新增安装 0 次。 | `e4a0c2c9ff363aa94aa6c1723d3c8e492166a20f4e2f8f8a6267fd2f5eaa505f` |
+| 20:45，一主两从 | DB 1 首次快照在 524,288 字节处中断，旧值可读。完整重试 8,400,792 字节，快照序号 260，后缀到 261。15 个快照库和 1 个轻库在 39.194 秒内追齐，两个副本的 32 个磁盘游标均符合预期。断源重启后复核 16 库，5 个自有进程均正常退出。 | `9b75833dd58f4e37f67fcc65192c6de1adf85adbe7084c57ceca7c6052123437` |
+
+快照窗内三个轻库标记均在其他库传输期间发布并可读。晚段共发生 16 次快照拉取，其中 15 次完成、1 次按计划截断，转发器错误为 0。20:46:31 镜像读回完成，Windows 值守进程退出。早晚共四项故障实验单列统计，64 个正式与补采窗口的分母保持一致。
+
 ## 复验入口
 
 原始记录在 WSL 的 `/home/lemon/kerniva-replica-latency.pIx8R4RG`。独占锁沿用开发树 `logs/golog-followup-bSuIKDwd/.cpu-exclusive.lock`。Windows 镜像位于仓库内的 `logs/golog-replica-latency/kerniva-replica-latency.pIx8R4RG`，每块保留运行参数、退出状态与逐窗摘要，审查决定在 `reviews/`。前端关闭、第二执行者争锁、子任务中断和跳过已完成块的演练保存在同级 `smoke-witness`。
 
 镜像的 `frozen/` 保存本轮实际使用的脚本源码和生成的 Go 探针文件，`fixture/result.json` 保存冻结夹具索引。正式块使用的诊断程序 SHA-256 为 `33c5b88ad96ea91935943d9c983b876f23ccf339181ec46be5e95ba579b4a8f7`。归档中的 `control/probe-inputs.json` 锁定了外部采样器源码。复现本轮历史读数时使用冻结的脚本和相同封存文件。
 
-在 Windows 脱离 WSL 重新计算时，按镜像 `reviews/mirror-recompute.md` 执行 PowerShell。三个正式时段与四组校准的 298 份账本文件摘要通过核验，80 窗逐项与原报告吻合。另存于 `history/direct-1`、`history/direct-2` 的 56 份小文件（59,458 字节）与旧盘归档逐字节一致；独立复算得历史慢窗 2/16，均在第一块。历史粗探针只能量出完整安装区间。
+在 Windows 脱离 WSL 重新计算时，按镜像 `reviews/mirror-recompute.md` 执行 PowerShell。在第三时段的中间检查中，三个正式时段与四组校准的 298 份账本文件摘要通过核验，80 窗逐项与当时报告吻合。另存于 `history/direct-1`、`history/direct-2` 的 56 份小文件（59,458 字节）与旧盘归档逐字节一致；独立复算得历史慢窗 2/16，均在第一块。历史粗探针只能量出完整安装区间。
 
 ### 脱离原实验目录重放
 
@@ -88,7 +101,7 @@ flock -n "$lock" python3 -B "$bundle/scripts/golog_replica_direct_delta.py" \
 
 ### 在原 WSL 复核或重跑故障窗口
 
-下面的 Bash 命令按冻结参数读取两次早段故障实验的结果。它会核对 DB 15 截断时的旧值、重启读数和文件摘要，以及一主两从的磁盘游标、跨库标记和进程退出记录。两个参数文件也给出了原始驱动和夹具的绝对路径。
+下面的 Bash 命令按冻结参数读取两次晚段故障实验的结果。将块名中的 `late` 换成 `baseline` 即可复核早段。它会核对 DB 15 截断时的旧值、重启读数和文件摘要，以及一主两从的磁盘游标、跨库标记和进程退出记录。两个参数文件也给出了原始驱动和夹具的绝对路径。
 
 ~~~bash
 set -eu
@@ -99,7 +112,7 @@ from pathlib import Path
 
 run = Path(sys.argv[1])
 for kind in ("db15", "snapshot"):
-    block = f"baseline-reliability-{kind}-01"
+    block = f"late-reliability-{kind}-01"
     spec = json.loads((run / "control" / f"{block}.json").read_bytes())
     result = run / "blocks" / block / "attempt-001" / "result"
     subprocess.run([*spec["audit"], str(result)], cwd=spec["cwd"], check=True)
@@ -127,7 +140,7 @@ PY
 
 ### 从账本和逐窗记录复算
 
-要从 Windows 镜像重建四个时段的逐窗 JSON，在项目根目录的 PowerShell 7 中运行以下命令。三个原定时段由 `--schedule` 读取，校准、第四时段与历史参照分别指定。命令从保存的第四时段账本创建隔离副本；证据仍保存在原镜像中。
+要从 Windows 镜像重建四个时段的逐窗 JSON，在项目根目录的 PowerShell 7 中运行以下命令。三个原定时段由 `--schedule` 读取，校准、第四时段与历史参照分别指定。命令使用已封存的 16 块账本创建隔离副本，并校验重建文件与仓库中发布的逐窗 JSON 字节一致。
 
 ~~~powershell
 $mirror = (Resolve-Path 'logs/golog-replica-latency/kerniva-replica-latency.pIx8R4RG').Path
@@ -136,7 +149,7 @@ New-Item -ItemType Directory -Path $copy | Out-Null
 foreach ($name in 'blocks','control','run.json') {
     Copy-Item -LiteralPath (Join-Path $mirror $name) -Destination $copy -Recurse
 }
-Copy-Item -LiteralPath (Join-Path $mirror 'reviews/fourth-ledger.json') -Destination (Join-Path $copy 'ledger.json')
+Copy-Item -LiteralPath (Join-Path $mirror 'reviews/final-ledger.json') -Destination (Join-Path $copy 'ledger.json')
 $params = @('-B','scripts/diagnostics/golog_install_latency/summarize.py',
     '--fixture',(Join-Path $mirror 'fixture/result.json'),'--schedule',$copy)
 $groups = [ordered]@{
@@ -157,6 +170,9 @@ foreach ($id in 'direct-1','direct-2') {
 $out = Join-Path $copy 'four-periods.json'
 python @params --output $out
 if ($LASTEXITCODE) { throw '逐窗复算未通过' }
+$actual = (Get-FileHash -LiteralPath $out).Hash
+$expected = (Get-FileHash -LiteralPath 'docs/verification/replica-install-latency.json').Hash
+if ($actual -ne $expected) { throw "逐窗 JSON 摘要不一致，实际 $actual" }
 Get-FileHash -LiteralPath $out
 ~~~
 
@@ -185,3 +201,25 @@ flock -n "$lock" python3 -B "$run/build/probe-overlay/scripts/golog_replica_dire
   --baseline "$diag" --candidate "$diag" --baseline-mode coarse --candidate-mode fine \
   --observe --sample-interval-ms 50 --host-disk /mnt/f --order ABBA-BAAB
 ~~~
+
+## 最终封存
+
+本地小文件镜像和同级的调度恢复见证共 975 份文件、45,832,760 字节。总清单覆盖镜像根的最终账本、逐轮日志、两次晚段 Windows 启动退出记录、可重放的 DB 15 夹具及独立审查收据。原始 WSL 工作目录另保留完整实验数据。独立复算核对了 384 项账本结果摘要、517 项镜像文件摘要及 71 份重放包输入。16 个登记块均首次通过，账本中的 16 个尝试各自退出 0。
+
+| 文件 | SHA-256 |
+| --- | --- |
+| Windows 镜像 `sha256.txt` | `1802f4e37fcd05379f898ff6532fdd11f05a547310baf11ad1ef132981837582` |
+| 源端和镜像 `ledger.json` | `80ec210bd981d994988e594b972d1ad0605f37d7f310b059deb04595c635295b` |
+| 独立复算 `reviews/independent-final.json` | `d1b9dcd85813eb0b6dfdb4dab78de40d58840e00ef4ea8c377454c8c3d32aa67` |
+| Astra 裁决 `reviews/final-astra.json` | `26b5943444c56ea1365f0a5703fe03267137ef73024cf65d0eee7862437f431c` |
+| 仓库内的 `replica-install-latency.json` | `d773c27b45b7bb8ffa16b13451f32415ed15734151591779dd920e0e407306bf` |
+
+在包含本地证据的项目根目录用 WSL 或 Linux 验证清单。这两次校验分别核对清单本身及清单列出的文件。
+
+~~~bash
+manifest=logs/golog-replica-latency/kerniva-replica-latency.pIx8R4RG/sha256.txt
+printf '%s  %s\n' 1802f4e37fcd05379f898ff6532fdd11f05a547310baf11ad1ef132981837582 "$manifest" | sha256sum -c - &&
+  sha256sum --quiet -c "$manifest"
+~~~
+
+下一阶段在持续 TCP 写入的主库上让 Rust 整理和两从追赶同时运行，分别记录主库尾延迟与封存到副本可读的延迟。若再次捕获数秒安装窗，沿用已校准的探针与同一时段的正常窗比较。[开发路线](../golog_next_stage_plan.md)

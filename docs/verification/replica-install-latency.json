@@ -5781,6 +5781,26 @@
         "result_sha256": "9a01c86d55afd93b124a895b3aab9c6cad7886f51787071af6260325142e40a8"
       }
     ],
+    "late-reliability-db15-01": [
+      {
+        "number": 1,
+        "status": "passed",
+        "exit_code": 0,
+        "started_at": "2026-11-25T07:45:41.924654+00:00",
+        "finished_at": "2026-11-25T07:45:45.946865+00:00",
+        "result_sha256": "e4a0c2c9ff363aa94aa6c1723d3c8e492166a20f4e2f8f8a6267fd2f5eaa505f"
+      }
+    ],
+    "late-reliability-snapshot-01": [
+      {
+        "number": 1,
+        "status": "passed",
+        "exit_code": 0,
+        "started_at": "2026-11-25T12:45:42.636450+00:00",
+        "finished_at": "2026-11-25T12:46:26.452452+00:00",
+        "result_sha256": "9b75833dd58f4e37f67fcc65192c6de1adf85adbe7084c57ceca7c6052123437"
+      }
+    ],
     "supplement-b1": [
       {
         "number": 1,
