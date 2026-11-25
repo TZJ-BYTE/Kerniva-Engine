@@ -86,7 +86,79 @@ flock -n "$lock" python3 -B "$bundle/scripts/golog_replica_direct_delta.py" \
   --baseline-mode fine --candidate-mode fine --order ABBA-BAAB --observe --sample-interval-ms 50 --host-disk /mnt/f
 ~~~
 
-### 使用原实验目录复算
+### 在原 WSL 复核或重跑故障窗口
+
+下面的 Bash 命令按冻结参数读取两次早段故障实验的结果。它会核对 DB 15 截断时的旧值、重启读数和文件摘要，以及一主两从的磁盘游标、跨库标记和进程退出记录。两个参数文件也给出了原始驱动和夹具的绝对路径。
+
+~~~bash
+set -eu
+run=/home/lemon/kerniva-replica-latency.pIx8R4RG
+python3 -B - "$run" <<'PY'
+import json, subprocess, sys
+from pathlib import Path
+
+run = Path(sys.argv[1])
+for kind in ("db15", "snapshot"):
+    block = f"baseline-reliability-{kind}-01"
+    spec = json.loads((run / "control" / f"{block}.json").read_bytes())
+    result = run / "blocks" / block / "attempt-001" / "result"
+    subprocess.run([*spec["audit"], str(result)], cwd=spec["cwd"], check=True)
+PY
+~~~
+
+要再次注入故障，在保存了这些输入的 WSL 主机上运行下一段命令。它沿用上述 `run` 变量和正式实验的独占锁，为每次运行新建 ext4 结果目录。命令先读取每个块的冻结启动参数，故障运行成功后立即用对应驱动审查输出。结果目录会打印到终端，供两次运行对照。
+
+~~~bash
+lock=/home/lemon/kerniva-development-20261124/logs/golog-followup-bSuIKDwd/.cpu-exclusive.lock
+flock -n "$lock" python3 -B - "$run" <<'PY'
+import json, subprocess, sys, tempfile
+from pathlib import Path
+
+run = Path(sys.argv[1])
+for kind in ("db15", "snapshot"):
+    block = f"baseline-reliability-{kind}-01"
+    spec = json.loads((run / "control" / f"{block}.json").read_bytes())
+    result = tempfile.mkdtemp(prefix=f"kerniva-recovery-{kind}-", dir=run.parent)
+    print(result, flush=True)
+    subprocess.run([*spec["command"], "--root", result], cwd=spec["cwd"], check=True)
+    subprocess.run([*spec["audit"], result], cwd=spec["cwd"], check=True)
+PY
+~~~
+
+### 从账本和逐窗记录复算
+
+要从 Windows 镜像重建四个时段的逐窗 JSON，在项目根目录的 PowerShell 7 中运行以下命令。三个原定时段由 `--schedule` 读取，校准、第四时段与历史参照分别指定。命令从保存的第四时段账本创建隔离副本；证据仍保存在原镜像中。
+
+~~~powershell
+$mirror = (Resolve-Path 'logs/golog-replica-latency/kerniva-replica-latency.pIx8R4RG').Path
+$copy = Join-Path ([IO.Path]::GetTempPath()) ("kerniva-four-periods-" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $copy | Out-Null
+foreach ($name in 'blocks','control','run.json') {
+    Copy-Item -LiteralPath (Join-Path $mirror $name) -Destination $copy -Recurse
+}
+Copy-Item -LiteralPath (Join-Path $mirror 'reviews/fourth-ledger.json') -Destination (Join-Path $copy 'ledger.json')
+$params = @('-B','scripts/diagnostics/golog_install_latency/summarize.py',
+    '--fixture',(Join-Path $mirror 'fixture/result.json'),'--schedule',$copy)
+$groups = [ordered]@{
+    'calibration-aa-01' = 'repeatability'
+    'calibration-coarse-fine-01' = 'calibration'
+    'calibration-ordinary-coarse-01' = 'external'
+    'calibration-ordinary-off-01' = 'external'
+    'supplement-b1' = 'formal'
+    'supplement-b2' = 'formal'
+}
+foreach ($id in $groups.Keys) {
+    $period = if ($id.StartsWith('supplement-')) { 'supplement' } else { 'setup' }
+    $params += @('--block',$period,$id,$groups[$id],(Join-Path $copy "blocks/$id/attempt-001/result"))
+}
+foreach ($id in 'direct-1','direct-2') {
+    $params += @('--block','historic',$id,'reference',(Join-Path $mirror "history/$id"))
+}
+$out = Join-Path $copy 'four-periods.json'
+python @params --output $out
+if ($LASTEXITCODE) { throw '逐窗复算未通过' }
+Get-FileHash -LiteralPath $out
+~~~
 
 仓库版工具另加了逐窗断点。驱动在每窗完成后写入索引，调度器把索引摘要写入尝试账本。中断后，复算器单列能核对摘要的窗口和缺少完整证据的窗口。正式块、配置与补采放行规则仍按本轮预登记口径复算。Windows 上重新读取三时段和四组校准的全部 80 窗，两版复算逐窗一致。版本摘要与中断验证结果见镜像的 `reviews/checkpoint-audit-smoke.txt`。
 
