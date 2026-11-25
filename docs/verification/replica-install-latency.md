@@ -44,6 +44,34 @@ Astra 已批准正式块使用细探针。每个时段运行两个完整八窗�
 
 在 Windows 脱离 WSL 重新计算时，按镜像 `reviews/mirror-recompute.md` 执行 PowerShell。三个正式时段与四组校准的 298 份账本文件摘要通过核验，80 窗逐项与原报告吻合。另存于 `history/direct-1`、`history/direct-2` 的 56 份小文件（59,458 字节）与旧盘归档逐字节一致；独立复算得历史慢窗 2/16，均在第一块。历史粗探针只能量出完整安装区间。
 
+### 脱离原实验目录重放
+
+镜像的 `fixture/db15-linux-amd64-replay.tar.gz` 包含 DB 15 的原始封存文件、游标 4 的副本种子、冻结的 Linux amd64 主库、源端、副本、动态库和驱动。压缩包为 20,438,115 字节，SHA-256 为 `96e4f126625851b1a2b5361ce769996b4c57438b39a9d5a6bbae3bd951cfecd0`。包内 `inputs.json` 可逐项追溯到登记的输入文件，`sha256.txt` 可核验全部 71 份输入，合计 110,831,298 字节。
+
+在新建的 ext4 目录中解包复验，包内源端通过真实 HTTP 返回 18 段、67,126,416 字节，哈希与正式夹具逐项相同。另用包内副本在断源条件下从种子启动，读回 `capacity:marker` 的旧值 `fixed-link-snapshot-capacity-marker-4`，新键返回 404，磁盘序号仍为 4。三个进程均以 0 退出，三个监听端口随后释放。此次检查没有运行计时安装窗。操作与原始记录在镜像的 `reviews/check-replay-fixture.py`、`reviews/replay-ready/`。调度中断与恢复演练的 111 份原始文件也已从 ext4 逐字节回读到 `smoke/`，摘要在 `reviews/smoke-mirror-readback.json`。
+
+第三个正式时段结束后，同一台 WSL 在空档完成 Linux 工作台打包、Redis 三主客户端验证及上述夹具读回，记录分别在 12:06、12:08、12:19（上海时间）写出。夹具验证与集群操作均已释放实验锁。补采预约从 13:45:39 开始。跨时段解释耗时时保留宿主负载和缓存状态变化的可能性。
+
+在 WSL 的 Bash 中可用以下命令按相同输入重放一个八窗块。将 `mirror` 指向交付的镜像。实验机使用登记的独占锁，输出与解包目录均在本机 ext4。换宿主时将 `--host-disk` 指向存放虚拟磁盘的实际挂载盘。
+
+~~~bash
+set -euo pipefail
+mirror='/mnt/e/project/go/Kerniva Engine/logs/golog-replica-latency/kerniva-replica-latency.pIx8R4RG'
+archive="$mirror/fixture/db15-linux-amd64-replay.tar.gz"
+printf '%s  %s\n' 96e4f126625851b1a2b5361ce769996b4c57438b39a9d5a6bbae3bd951cfecd0 "$archive" | sha256sum -c -
+bundle=$(mktemp -d "$HOME/kerniva-replay-inputs.XXXXXXXX")
+out=$(mktemp -d "$HOME/kerniva-replay-result.XXXXXXXX")
+tar -xzf "$archive" -C "$bundle"
+(cd "$bundle" && sha256sum --quiet -c sha256.txt)
+lock=/home/lemon/kerniva-development-20261124/logs/golog-followup-bSuIKDwd/.cpu-exclusive.lock
+flock -n "$lock" python3 -B "$bundle/scripts/golog_replica_direct_delta.py" \
+  --root "$out" --origin "$bundle/origin" --prepared "$bundle/prepared" \
+  --bin "$bundle/bin" --baseline "$bundle/fine/kerniva-replica" --candidate "$bundle/fine/kerniva-replica" \
+  --baseline-mode fine --candidate-mode fine --order ABBA-BAAB --observe --sample-interval-ms 50 --host-disk /mnt/f
+~~~
+
+### 使用原实验目录复算
+
 仓库版工具另加了逐窗断点。驱动在每窗完成后写入索引，调度器把索引摘要写入尝试账本。中断后，复算器单列能核对摘要的窗口和缺少完整证据的窗口。正式块、配置与补采放行规则仍按本轮预登记口径复算。Windows 上重新读取三时段和四组校准的全部 80 窗，两版复算逐窗一致。版本摘要与中断验证结果见镜像的 `reviews/checkpoint-audit-smoke.txt`。
 
 下例复算已完成的校准块。在本项目根目录执行，仅读已归档数据。复算器校验冻结夹具、块与各窗结果摘要，随后从原始事件重算耗时。运行账本提供失败和中断记录。
