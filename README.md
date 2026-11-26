@@ -154,6 +154,8 @@ scripts/                    构建、清理、测试和 TCP benchmark
 
 后续两组真实负载中，51 个可逐笔核验的慢同步批次累计睡眠 1,435.613 ms，其中 95.1% 在等 ext4 提交日志。另做 8 窗配置对照，234 万次请求全部成功。把封存年龄从 1 秒改到 30 秒，DB 0 每窗新封存的文件从 43–44 个降为 2 个，50% 写入、每秒投递 3,000 次时仍有明显排队。两种设置均通过进程崩溃恢复，保留 30 秒默认值。[单笔拆解、八窗对照及复跑方法](docs/verification/primary-journal-load.md)
 
+在 65 秒高写复验中，增加合写等待和滚动预分配都未能稳定降低尾延迟。Windows 原生同步写测试也出现了慢请求，50% 写时 GET / SET p99 为 187 / 221 ms。两档测试均通过强杀恢复。[逐窗对照、文件布局实验与复现方法](docs/verification/primary-durable-queue.md)
+
 ~~~powershell
 ./scripts/test.ps1 -Race
 ~~~
