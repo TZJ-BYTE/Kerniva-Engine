@@ -16,14 +16,16 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from golog_batch_capture import gc, run_window
-from golog_batch_report import require
+from golog_batch_report import records, require
 
 
 ORDER = ("off", "on", "on", "off")
+SHORT_ORDER = ("basic", "journal", "journal", "basic")
+JOURNAL_ORDER = ("off", "journal", "journal", "off")
 
 
 class KernelTrace:
-    def __init__(self, folder, primary, storage, args, duration):
+    def __init__(self, folder, primary, storage, args, duration, journal_stacks):
         self.folder = folder
         self.output = folder / "kernel"
         script = Path(__file__).with_name("golog_kernel_writer_trace.py").resolve()
@@ -32,7 +34,7 @@ class KernelTrace:
                      "python3", "-B", str(script), "--pid", str(primary.pid), "--active-log",
                      str(storage / "db_0" / "active.log"), "--output", str(self.output),
                      "--duration-sec", str(duration + 20)]
-        if args.journal_stacks:
+        if journal_stacks:
             self.argv.append("--journal-stacks")
         self.child = None
 
@@ -114,7 +116,7 @@ def capture(root, options, position, mode, ports, args):
                 nonlocal trace
                 before_release()
                 require(primary is not None and primary.poll() is None, "primary missing before release")
-                trace = KernelTrace(folder, primary, storage, args, options.duration)
+                trace = KernelTrace(folder, primary, storage, args, options.duration, mode == "journal")
                 trace.start()
             return original_case(*case_args, before_release=release, **kwargs)
 
@@ -136,10 +138,30 @@ def capture(root, options, position, mode, ports, args):
     require(result["pass"], f"{folder.name}: workload capture failed")
     client = gc.live.read_json(folder / "client.json")
     require(client["offered"] == options.duration * gc.RATE, "incomplete offer count")
-    result.update(kernel_mode=mode, kernel_argv=trace.argv if trace else None,
+    result.update(kernel_mode="off" if mode == "off" else "on", kernel_argv=trace.argv if trace else None,
                   offered=client["offered"], failures=client["failures"])
-    gc.settled.write_json(folder / "capture.json", result)
-    print(f"{folder.name}: kernel {mode}, sent {client['offered']}, failures {client['failures']}", flush=True)
+    if args.journal_stacks:
+        summary = None
+        for summary in records(folder / "client-trace.jsonl"):
+            pass
+        require(summary and summary["type"] == "summary" and summary["drops"] == 0, "client trace incomplete")
+        slow = {op: sum(second[index]["slow"] for worker in summary["by_worker_second_get_set"] for second in worker)
+                for index, op in enumerate(("get", "set"))}
+        result.update(trace_mode=mode, slow_ge_100ms=slow,
+                      p99_us={op: client[op]["success_latency"]["p99_us"] for op in ("get", "set")})
+        if trace:
+            raw_kernel = gc.live.read_json(folder / "kernel-receipt.json")
+            result["kernel_summary"] = {key: raw_kernel[key] for key in
+                                        ("loss", "instance_removed", "stop_reason", "event_count", "peak_cpu_bytes")}
+        gc.settled.write_json(folder / "capture.json", result)
+        require(client["failures"] == 0, "benchmark reported unsuccessful requests")
+        if trace:
+            require(raw_kernel["instance_removed"] and not any(raw_kernel["loss"].values()),
+                    "kernel trace lost records or failed to clean its instance")
+    else:
+        gc.settled.write_json(folder / "capture.json", result)
+    print(f"{folder.name}: kernel {mode}, sent {client['offered']}, failures {client['failures']}, "
+          f"slow {result.get('slow_ge_100ms')}", flush=True)
     return result
 
 
@@ -166,7 +188,7 @@ def single_write(root, options, args):
         run.process_options = options.child_process_options
         primary = run.start_primary()
         identity = gc.live.check.RUNNER.process_identity(primary.pid)
-        trace = KernelTrace(folder, primary, run.storage, args, 5)
+        trace = KernelTrace(folder, primary, run.storage, args, 5, args.journal_stacks)
         try:
             trace.start()
             with gc.live.primary_client(run.primary, 0) as client:
@@ -201,11 +223,13 @@ def main():
     parser.add_argument("--binary-manifest", type=Path, required=True)
     parser.add_argument("--mirror", type=Path, required=True)
     parser.add_argument("--distribution", default=os.environ.get("WSL_DISTRO_NAME"))
-    parser.add_argument("--stage", choices=("single", "single-delay", "smoke", "natural"), required=True)
+    parser.add_argument("--stage", choices=("single", "single-delay", "smoke", "short", "natural"), required=True)
     parser.add_argument("--journal-stacks", action="store_true", help="record DB0 writer D-state stacks and journal phases")
     args = parser.parse_args()
-    if args.journal_stacks and args.stage != "single":
-        parser.error("--journal-stacks requires --stage single")
+    if args.stage == "short" and not args.journal_stacks:
+        parser.error("--stage short requires --journal-stacks")
+    if args.journal_stacks and args.stage not in ("single", "short", "natural"):
+        parser.error("--journal-stacks supports single, short and natural stages")
     require(args.distribution and gc.live.check.RUNNER.filesystem_type(Path.home()) == "ext4",
             "WSL ext4 and distribution identity required")
     inherited = {"GODEBUG", "GOGC", "GOMEMLIMIT", "GOMAXPROCS", "GOTRACEBACK", "KERNIVA_GOLOG_BATCH_TRACE"}
@@ -217,6 +241,10 @@ def main():
     require(old.keys() == new.keys() and all(old[key] == new[key] for key in old.keys() -
             {"kerniva-server", "kerniva-bench"}), "unexpected frozen binary dependency")
     order = ORDER if args.stage == "natural" else ("on",)
+    if args.stage == "short":
+        order = SHORT_ORDER
+    elif args.stage == "natural" and args.journal_stacks:
+        order = JOURNAL_ORDER
     duration = gc.DURATION if args.stage == "natural" else 5
     receipt = {"argv": sys.argv, "stage": args.stage, "order": order, "duration_s": duration,
                "warmup_s": gc.WARMUP, "rate": gc.RATE, "keys": gc.live.KEYS, "read_percent": 95,
@@ -226,6 +254,8 @@ def main():
                "setup": setup,
                "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
                "start": gc.stall.clock(), "windows": []}
+    if args.journal_stacks and args.stage != "single":
+        receipt.update(trace_modes=list(order), order=["off" if mode == "off" else "on" for mode in order])
     status = 2
     with Path(setup["performance_lock"]).open("rb") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

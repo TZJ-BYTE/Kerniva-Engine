@@ -162,6 +162,9 @@ def run(args):
         r["cpu_stats"] = stats
         r["loss"] = {k:sum(int(re.search("^"+k+r":\s*(\d+)",s,re.M)[1]) for s in stats.values())
                      for k in ("overrun","commit overrun","dropped events")}
+        r["event_count"] = sum(int(re.search(r"^entries:\s*(\d+)", value, re.M)[1]) for value in stats.values())
+        r["peak_cpu_bytes"] = max(int(re.search(r"^bytes:\s*(\d+)", value, re.M)[1])
+                                  for value in stats.values())
         # Disk writes are deferred until the bounded measurement has ended.
         with (instance/"trace").open("rb") as src, (out/"trace.txt").open("xb") as dst:
             while data := src.read(1024*1024):
