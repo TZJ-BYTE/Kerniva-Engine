@@ -2,7 +2,7 @@
 
 Kerniva 是 Go 实现的 Redis 协议兼容内存数据库，支持标准库 net 与 gnet 两种网络入口。当前毕设方案由 Go 处理请求和追加分段日志，独立 Rust 进程生成全量快照并回收旧段，Go 启动时通过 C ABI 复用 Rust 恢复逻辑。
 
-当前处于原型工程化阶段。命令覆盖、故障恢复、跨语言生命周期和构建验证已经形成闭环，兼容性和负载规模仍需持续验证。
+Go 主库也支持独立的全量内存快照。可配置为纯内存、只记增量日志、只存定时快照，或两者同时开启。只开快照时可以在没有 Rust 动态库的情况下启动和恢复。项目处于原型工程化阶段。[持久化开关、恢复及切换示例](docs/verification/persistence-modes.md)
 
 数据库工作台提供原生桌面窗口、鼠标终端、浏览器和命令式终端。可连接本地或远程 Kerniva、Redis 单机和 Redis Cluster，在「数据浏览」切换当前逻辑库、分页查看键值。Windows x64 离线安装器自带工作台和单机引擎。在「连接 → 本机实例」选引擎和数据位置后即可部署，关掉桌面窗口仍能使用数据库。Windows 便携包的两个入口是 `Kerniva Workbench.exe` 和 `Kerniva-TUI.cmd`，Linux 包的两个入口是 `./kerniva-workbench` 和 `./kerniva-tui`。[工作台用法](docs/database_workbench.md) · [桌面打包与验收](docs/verification/native-workbench.md) · [Windows 安装与系统服务](packaging/desktop/windows-installation.md)
 
@@ -87,6 +87,8 @@ redis-cli -p 16379 GET sample
 | 冷启动 | load_all | Rust 从快照和日志恢复，Go 装入分片内存 |
 | durability | sync | Go 同步日志文件后确认写入 |
 | go_log_group_max | 8 | 一个同步批次最多合并 8 个已排队请求 |
+| go_log_enabled / snapshot_enabled | 均省略 | 保留既有 Go 日志和外部 Rust 整理行为。显式设置可独立选择增量日志与定时全量快照 |
+| snapshot_interval_seconds | 300 | 开启独立快照时两次定时保存的间隔，单位为秒 |
 | 封存条件 | 4 MiB 或 30 秒 | 非空日志达到任意条件可封存 |
 | 日志 | `./logs/kerniva-go-log.log` | 同时写 stderr，记录进程运行情况 |
 
