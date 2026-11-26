@@ -8,14 +8,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/TZJ-BYTE/Kerniva/internal/gologstate"
 )
 
 const (
-	goModeWAL             = "wal"
-	goModeHandoff         = "handoff"
-	goModeSnapshot        = "snapshot"
-	goModeImport          = "snapshot-import"
-	goPersistenceModeFile = ".go-persistence-mode-v1"
+	goModeWAL             = gologstate.WAL
+	goModeHandoff         = gologstate.Handoff
+	goModeSnapshot        = gologstate.Snapshot
+	goModeImport          = gologstate.SnapshotImport
+	goPersistenceModeFile = gologstate.ModeFile
 )
 
 // goPersistenceMode serializes manager startups across the two Go persistence
@@ -59,7 +61,7 @@ func lockGoPersistenceRoot(dir string, useWAL bool) (*goPersistenceMode, error) 
 	}
 	mode := &goPersistenceMode{
 		root:        root,
-		logDir:      filepath.Join(root, "go-log-v1"),
+		logDir:      filepath.Join(root, gologstate.WALDir),
 		snapshotDir: filepath.Join(root, "go-snapshot-v1"),
 		lock:        lock,
 		useWAL:      useWAL,
@@ -217,36 +219,14 @@ func checkWALDatabase(path string) error {
 }
 
 func (m *goPersistenceMode) readState() error {
-	path := filepath.Join(m.root, goPersistenceModeFile)
-	raw, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
+	state, generation, walDBCount, err := gologstate.Read(m.root)
 	if err != nil {
-		return fmt.Errorf("read Go persistence mode: %w", err)
+		return err
 	}
-	fields := strings.Fields(string(raw))
-	if len(fields) == 2 || len(fields) == 3 {
-		state, generationText := fields[0], fields[1]
-		generation, err := strconv.ParseUint(generationText, 10, 64)
-		wal := state == goModeWAL && generation == 0 || state == goModeHandoff && generation != 0
-		snapshot := state == goModeSnapshot || state == goModeImport
-		walDBCount := 0
-		if len(fields) == 3 {
-			count, countErr := strconv.Atoi(fields[2])
-			if countErr != nil || count < 0 || wal && count == 0 || snapshot && count != 0 {
-				return fmt.Errorf("invalid Go persistence WAL database count in %s", path)
-			}
-			walDBCount = count
-		}
-		if err == nil && (wal || snapshot) {
-			m.state = state
-			m.generation = generation
-			m.walDBCount = walDBCount
-			return nil
-		}
-	}
-	return fmt.Errorf("invalid Go persistence mode in %s", path)
+	m.state = state
+	m.generation = generation
+	m.walDBCount = walDBCount
+	return nil
 }
 
 func (m *goPersistenceMode) startWriting() error {

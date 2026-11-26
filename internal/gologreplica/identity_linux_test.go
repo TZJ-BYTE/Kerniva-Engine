@@ -11,8 +11,90 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TZJ-BYTE/Kerniva/internal/gologstate"
 	"golang.org/x/sys/unix"
 )
+
+func TestSourceOpeningChecksManagedWALAuthority(t *testing.T) {
+	for _, tc := range []struct {
+		name, marker, reason string
+	}{
+		{name: "missing"},
+		{name: "legacy WAL", marker: "wal 0\n"},
+		{name: "WAL database count", marker: "wal 0 16\n"},
+		{name: "handoff", marker: "handoff 2 16\n"},
+		{name: "snapshot", marker: "snapshot 1\n", reason: "WAL is not authoritative"},
+		{name: "snapshot import", marker: "snapshot-import 2\n", reason: "WAL is not authoritative"},
+		{name: "bad generation", marker: "wal 1 16\n", reason: "invalid Go persistence mode"},
+		{name: "bad count", marker: "wal 0 0\n", reason: "invalid Go persistence WAL database count"},
+		{name: "unknown phase", marker: "unknown 0\n", reason: "invalid Go persistence mode"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := t.TempDir()
+			root := filepath.Join(data, gologstate.WALDir)
+			check(t, os.MkdirAll(filepath.Join(root, dbName(0)), 0700))
+			if tc.marker != "" {
+				check(t, os.WriteFile(filepath.Join(data, gologstate.ModeFile), []byte(tc.marker), 0600))
+			}
+			legacy, legacyErr := NewSource(root)
+			leased, lease, leaseErr := OpenLeasedSource(root)
+			if lease != nil {
+				defer lease.Close()
+			}
+			if tc.reason != "" {
+				_, rotateErr := RotateSourceID(root)
+				for _, err := range []error{legacyErr, leaseErr, rotateErr} {
+					if err == nil || !strings.Contains(err.Error(), tc.reason) {
+						t.Fatalf("want %q, got %v", tc.reason, err)
+					}
+				}
+				if _, err := os.Stat(filepath.Join(root, sourceIDFile)); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("refused source created its identity: %v", err)
+				}
+				return
+			}
+			check(t, legacyErr)
+			check(t, leaseErr)
+			identity, err := os.ReadFile(filepath.Join(root, sourceIDFile))
+			check(t, err)
+			for _, handler := range []http.Handler{legacy, leased} {
+				response := httptest.NewRecorder()
+				handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/pull?db=0&after=0", nil))
+				if response.Code != http.StatusOK {
+					t.Fatalf("pull returned %d: %s", response.Code, response.Body)
+				}
+				info, err := readManifest(response.Body)
+				check(t, err)
+				if info.Source != string(identity) {
+					t.Fatalf("pull reported source %q, want %q", info.Source, identity)
+				}
+			}
+		})
+	}
+}
+
+func TestNewSourceSharesLeaseDuringIdentityCreation(t *testing.T) {
+	data := t.TempDir()
+	check(t, os.WriteFile(filepath.Join(data, gologstate.ModeFile), []byte("snapshot 1\n"), 0600))
+	root := filepath.Join(data, "custom-wal")
+	check(t, os.Mkdir(root, 0700))
+	exclusive, err := acquireSourceLease(root, unix.LOCK_EX)
+	check(t, err)
+	t.Cleanup(func() { exclusive.Close() })
+	if _, err := NewSource(root); !errors.Is(err, unix.EWOULDBLOCK) {
+		t.Fatalf("legacy opening should respect an exclusive lease, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, sourceIDFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy opening created an identity under an exclusive lease: %v", err)
+	}
+	check(t, exclusive.Close())
+	_, err = NewSource(root)
+	check(t, err)
+	// Legacy opening releases the temporary lease once the identity exists.
+	lease, err := acquireSourceLease(root, unix.LOCK_EX)
+	check(t, err)
+	check(t, lease.Close())
+}
 
 func TestRotateSourceIDRequiresAllServingLeasesToClose(t *testing.T) {
 	root := t.TempDir()

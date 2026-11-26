@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/TZJ-BYTE/Kerniva/internal/gologstate"
 	"golang.org/x/sys/unix"
 )
 
@@ -27,8 +28,8 @@ var (
 )
 
 const (
-	sourceIDFile    = ".replica-source-id"
-	sourceLeaseFile = ".replica-source.lock"
+	sourceIDFile    = gologstate.SourceIDFile
+	sourceLeaseFile = gologstate.SourceLeaseFile
 )
 
 type source struct {
@@ -39,15 +40,23 @@ type source struct {
 // NewSource serves sealed files from the primary's go-log-v1 directory.
 // Call OpenLeasedSource when administrative source rotation is available.
 func NewSource(root string) (http.Handler, error) {
-	if err := checkSourceRoot(root); err != nil {
+	handler, lease, err := OpenLeasedSource(root)
+	if err != nil {
 		return nil, err
 	}
-	return sourceHandler(root)
+	if err := lease.Close(); err != nil {
+		return nil, err
+	}
+	return handler, nil
 }
 
 // OpenLeasedSource serves the same files and holds a shared source lease.
 // The caller closes the lease once it can no longer serve replication requests.
 func OpenLeasedSource(root string) (http.Handler, io.Closer, error) {
+	root, err := resolveSourceRoot(root)
+	if err != nil {
+		return nil, nil, err
+	}
 	lease, err := acquireSourceLease(root, unix.LOCK_SH)
 	if err != nil {
 		return nil, nil, err
@@ -68,11 +77,18 @@ func RotateSourceID(root string) (string, error) {
 }
 
 func rotateSourceID(root string, syncRoot func(string) error) (string, error) {
+	root, err := resolveSourceRoot(root)
+	if err != nil {
+		return "", err
+	}
 	lease, err := acquireSourceLease(root, unix.LOCK_EX)
 	if err != nil {
 		return "", err
 	}
 	defer lease.Close()
+	if err := checkSourceAuthority(root); err != nil {
+		return "", err
+	}
 
 	id, temporary, err := writeSourceID(root)
 	if err != nil {
@@ -86,6 +102,30 @@ func rotateSourceID(root string, syncRoot func(string) error) (string, error) {
 		return id, fmt.Errorf("sync source directory after changing identity to %s: %w", id, err)
 	}
 	return id, nil
+}
+
+func resolveSourceRoot(root string) (string, error) {
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(absolute)
+}
+
+func checkSourceAuthority(root string) error {
+	if filepath.Base(root) != gologstate.WALDir {
+		return nil
+	}
+	phase, _, _, err := gologstate.Read(filepath.Dir(root))
+	if err != nil {
+		return fmt.Errorf("check replication source authority: %w", err)
+	}
+	switch phase {
+	case "", gologstate.WAL, gologstate.Handoff:
+		return nil
+	default:
+		return fmt.Errorf("replication source WAL is not authoritative in %s (phase %s)", root, phase)
+	}
 }
 
 func checkSourceRoot(root string) error {
@@ -114,6 +154,9 @@ func acquireSourceLease(root string, mode int) (*os.File, error) {
 }
 
 func sourceHandler(root string) (http.Handler, error) {
+	if err := checkSourceAuthority(root); err != nil {
+		return nil, err
+	}
 	id, err := sourceID(root)
 	if err != nil {
 		return nil, fmt.Errorf("open replication source identity: %w", err)
