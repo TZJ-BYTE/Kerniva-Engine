@@ -17,6 +17,7 @@ const CURRENT: &str = "CURRENT";
 const ACTIVE: &str = "active.log";
 const RECOVERY_LOCK: &str = ".recovery.lock";
 const MAINTENANCE_LOCK: &str = ".maintenance.lock";
+const SNAPSHOT_MAINTENANCE: &str = ".snapshot-maintenance";
 const MAX_RETAINED_SEGMENTS: u64 = 16;
 const MAX_RETAINED_BYTES: u64 = 64 << 20;
 
@@ -104,6 +105,22 @@ impl Maintainer {
         &self,
         force: bool,
     ) -> Result<Vec<(PathBuf, Result<Option<MaintenanceOutcome>>)>> {
+        // Go updates this byte under the same file lock before serving with new
+        // settings. Keep the lock until all publications and removals are done.
+        let policy = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(self.root.join(SNAPSHOT_MAINTENANCE))?;
+        policy.lock()?;
+        let mut value = Vec::new();
+        (&policy).take(2).read_to_end(&mut value)?;
+        match value.as_slice() {
+            b"" | b"1" => {}
+            b"0" => return Ok(Vec::new()),
+            _ => return Err(corrupt("invalid snapshot maintenance policy")),
+        }
         let mut directories = Vec::new();
         for entry in fs::read_dir(&self.root)? {
             let entry = entry?;

@@ -87,6 +87,33 @@ fn log(frames: &[&[u8]]) -> Vec<u8> {
 }
 
 #[test]
+fn live_maintainer_respects_snapshot_policy_even_for_forced_pass() {
+    let dir = TestDirectory::new();
+    let segment = dir.seal(1, 1, &log(&[&batch(1, &[(1, b"k", b"value")])]));
+    let worker = Maintainer::open(dir.root.clone(), MaintenanceOptions::default()).unwrap();
+    let policy = dir.root.join(SNAPSHOT_MAINTENANCE);
+    fs::write(&policy, b"0").unwrap();
+    assert!(worker.run_pass(true).unwrap().is_empty());
+    assert!(segment.exists());
+    assert!(!dir.database.join(CURRENT).exists());
+    fs::write(&policy, b"invalid").unwrap();
+    assert!(worker.run_pass(true).is_err());
+    assert!(segment.exists());
+    fs::write(&policy, b"1").unwrap();
+    assert!(
+        worker
+            .run_pass(true)
+            .unwrap()
+            .pop()
+            .unwrap()
+            .1
+            .unwrap()
+            .is_some()
+    );
+    assert!(dir.database.join(CURRENT).is_file());
+}
+
+#[test]
 fn restores_complete_batches_and_reports_truncated_active_tail() {
     let directory = TestDirectory::new();
     assert_eq!(format::crc32(b"123456789"), 0xcbf4_3926);
