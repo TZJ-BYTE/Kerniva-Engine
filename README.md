@@ -146,6 +146,8 @@ scripts/                    构建、清理、测试和 TCP benchmark
 
 后续实测把单条 SET 对到了真实的日志批次，定位到慢同步与监控命令之间的全局锁等待。现已修复普通 SELECT、INFO 和工作台 PING 对跨库读的阻塞。让 DB 0 同步返回延迟 350 ms 时，DB 1 的 GET 从 204–205 ms 降至 0.56–0.77 ms。六个自然窗口的 108 万请求全部成功，修复版本仍复现过整体长尾。[逐批数字、修复前后对照及复现命令](docs/verification/observer-execution-gate.md)
 
+修复版又完成 144 万次请求，两个自然窗口出现至少 100 ms 的延迟。其中一个窗口在 24 个长同步内取得 72 个完整的 Windows 整盘采样间隔，仅记录到一次 8 KiB 写入完成；另一个窗口的慢同步伴随来宾 I/O 压力。逐请求记录显示写队列和同连接后继请求的发送等待都会放大长尾。[Windows 与 WSL 同窗实测、已知延迟对照和复算](docs/verification/primary-host-disk.md)
+
 ~~~powershell
 ./scripts/test.ps1 -Race
 ~~~

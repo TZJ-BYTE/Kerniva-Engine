@@ -1,0 +1,334 @@
+{
+  "schema": 1,
+  "host_guest_drift_limit_ppm": 200,
+  "windows": [
+    {
+      "folder": "01-r95-q6000-A",
+      "host_mode": "off",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 5999.966666666666,
+      "get_set_p99_us": {
+        "get": 1327.103,
+        "set": 6815.743
+      },
+      "slow_requests": {
+        "get": 0,
+        "set": 0
+      },
+      "joined_sets": 8884,
+      "batches": 7916,
+      "sync_ns": {
+        "p50": 1629961,
+        "p99": 3315769,
+        "max": 12935831
+      },
+      "max_queue_ns": 9780733,
+      "sync_ge_10ms": 4,
+      "sync_ge_50ms": 0,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 0
+      },
+      "guest_samples": 753,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 41036328,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 0,
+        "exchange_ge_100ms": 0
+      }
+    },
+    {
+      "folder": "02-r95-q6000-A",
+      "host_mode": "on",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 5999.9,
+      "get_set_p99_us": {
+        "get": 1290.239,
+        "set": 6766.591
+      },
+      "slow_requests": {
+        "get": 0,
+        "set": 0
+      },
+      "joined_sets": 8884,
+      "batches": 7920,
+      "sync_ns": {
+        "p50": 1636752,
+        "p99": 3271470,
+        "max": 8574571
+      },
+      "max_queue_ns": 8465904,
+      "sync_ge_10ms": 0,
+      "sync_ge_50ms": 0,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 0,
+        "host": 0
+      },
+      "guest_samples": 753,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 41771598,
+      "host_samples": 938,
+      "max_host_gap_ns": 40637100,
+      "invalid_host_cpu_deltas": 6,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 0,
+        "exchange_ge_100ms": 0
+      }
+    },
+    {
+      "folder": "03-r95-q6000-A",
+      "host_mode": "on",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 6000,
+      "get_set_p99_us": {
+        "get": 1302.527,
+        "set": 6356.991
+      },
+      "slow_requests": {
+        "get": 0,
+        "set": 0
+      },
+      "joined_sets": 8884,
+      "batches": 7966,
+      "sync_ns": {
+        "p50": 1608789,
+        "p99": 3171399,
+        "max": 7835327
+      },
+      "max_queue_ns": 7437827,
+      "sync_ge_10ms": 0,
+      "sync_ge_50ms": 0,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 0,
+        "host": 0
+      },
+      "guest_samples": 752,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 40602671,
+      "host_samples": 955,
+      "max_host_gap_ns": 41735600,
+      "invalid_host_cpu_deltas": 8,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 0,
+        "exchange_ge_100ms": 0
+      }
+    },
+    {
+      "folder": "04-r95-q6000-A",
+      "host_mode": "on",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 5999.966666666666,
+      "get_set_p99_us": {
+        "get": 1318.911,
+        "set": 6471.679
+      },
+      "slow_requests": {
+        "get": 0,
+        "set": 0
+      },
+      "joined_sets": 8884,
+      "batches": 7910,
+      "sync_ns": {
+        "p50": 1624277,
+        "p99": 3286904,
+        "max": 11619877
+      },
+      "max_queue_ns": 6738365,
+      "sync_ge_10ms": 1,
+      "sync_ge_50ms": 0,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 3,
+        "host": 0
+      },
+      "guest_samples": 751,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 40210103,
+      "host_samples": 935,
+      "max_host_gap_ns": 40791800,
+      "invalid_host_cpu_deltas": 6,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 0,
+        "exchange_ge_100ms": 0
+      }
+    },
+    {
+      "folder": "05-r95-q6000-A",
+      "host_mode": "on",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 5999.933333333333,
+      "get_set_p99_us": {
+        "get": 218628.095,
+        "set": 389021.695
+      },
+      "slow_requests": {
+        "get": 2688,
+        "set": 257
+      },
+      "joined_sets": 8884,
+      "batches": 7722,
+      "sync_ns": {
+        "p50": 1600697,
+        "p99": 3516503,
+        "max": 84836850
+      },
+      "max_queue_ns": 368828461,
+      "sync_ge_10ms": 26,
+      "sync_ge_50ms": 2,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 0,
+        "host": 0
+      },
+      "guest_samples": 752,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 40401046,
+      "host_samples": 936,
+      "max_host_gap_ns": 42078600,
+      "invalid_host_cpu_deltas": 6,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 2833,
+        "exchange_ge_100ms": 156
+      }
+    },
+    {
+      "folder": "06-r95-q6000-A",
+      "host_mode": "on",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 5999.933333333333,
+      "get_set_p99_us": {
+        "get": 1294.335,
+        "set": 6340.607
+      },
+      "slow_requests": {
+        "get": 0,
+        "set": 0
+      },
+      "joined_sets": 8884,
+      "batches": 7997,
+      "sync_ns": {
+        "p50": 1558279,
+        "p99": 3048631,
+        "max": 8811439
+      },
+      "max_queue_ns": 12347341,
+      "sync_ge_10ms": 0,
+      "sync_ge_50ms": 0,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 0,
+        "host": 0
+      },
+      "guest_samples": 752,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 61516654,
+      "host_samples": 935,
+      "max_host_gap_ns": 42204800,
+      "invalid_host_cpu_deltas": 7,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 0,
+        "exchange_ge_100ms": 0
+      }
+    },
+    {
+      "folder": "07-r95-q6000-A",
+      "host_mode": "on",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 6000,
+      "get_set_p99_us": {
+        "get": 439353.343,
+        "set": 589299.711
+      },
+      "slow_requests": {
+        "get": 11520,
+        "set": 1241
+      },
+      "joined_sets": 8884,
+      "batches": 6521,
+      "sync_ns": {
+        "p50": 1624451,
+        "p99": 6173292,
+        "max": 211454528
+      },
+      "max_queue_ns": 417973028,
+      "sync_ge_10ms": 44,
+      "sync_ge_50ms": 29,
+      "sync_ge_100ms": 24,
+      "batches_outside_definite_coverage": {
+        "guest": 3,
+        "host": 0
+      },
+      "guest_samples": 741,
+      "guest_missed_slots": 10,
+      "max_guest_gap_ns": 198248251,
+      "host_samples": 932,
+      "max_host_gap_ns": 41310400,
+      "invalid_host_cpu_deltas": 1,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 12065,
+        "exchange_ge_100ms": 832
+      },
+      "inside_syncs_ge_100ms": {
+        "host": {
+          "distinct_whole_buckets": 72,
+          "batches_with_whole_buckets": 24,
+          "reads": 0,
+          "writes": 1,
+          "write_bytes": 8192
+        },
+        "guest": {
+          "distinct_whole_buckets": 67,
+          "batches_with_whole_buckets": 21,
+          "writes": 0,
+          "flushes": 0,
+          "flush_ms": 0
+        }
+      }
+    },
+    {
+      "folder": "08-r95-q6000-A",
+      "host_mode": "off",
+      "requests": 180000,
+      "failures": 0,
+      "window_success_rate": 5999.966666666666,
+      "get_set_p99_us": {
+        "get": 1273.855,
+        "set": 6094.847
+      },
+      "slow_requests": {
+        "get": 0,
+        "set": 0
+      },
+      "joined_sets": 8884,
+      "batches": 8024,
+      "sync_ns": {
+        "p50": 1563790,
+        "p99": 2977784,
+        "max": 10708668
+      },
+      "max_queue_ns": 7608905,
+      "sync_ge_10ms": 1,
+      "sync_ge_50ms": 0,
+      "sync_ge_100ms": 0,
+      "batches_outside_definite_coverage": {
+        "guest": 0
+      },
+      "guest_samples": 752,
+      "guest_missed_slots": 0,
+      "max_guest_gap_ns": 40832550,
+      "nonexclusive_slow_counts": {
+        "before_send_ge_100ms": 0,
+        "exchange_ge_100ms": 0
+      }
+    }
+  ]
+}
