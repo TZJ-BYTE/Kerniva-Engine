@@ -1,4 +1,4 @@
-"""Prepare or run an isolated Windows gnet WAL deployment comparison."""
+"""Prepare or run a gnet WAL comparison on native NTFS or Linux ext4."""
 import argparse
 from contextlib import contextmanager
 import ctypes
@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import traceback
@@ -97,7 +98,7 @@ def fields(port):
     values = dict(line.split(":", 1) for line in raw.splitlines() if ":" in line and not line.startswith("#"))
     for key, expected in {
         "storage_backend": "go-log", "persistence_durability": "sync",
-        "go_log_enabled": "true", "snapshot_enabled": "false", "log_group_max": "8",
+        "go_log_enabled": "true", "snapshot_enabled": "false", "log_group_max": str(BASE_SETTINGS["go_log_group_max"]),
     }.items():
         require(values.get(key) == expected, f"unexpected INFO {key}={values.get(key)!r}")
     counters = {key: int(values[key]) for key in ("last_sequence", "sync_count", "sealed_segments", "sealed_bytes")}
@@ -206,6 +207,7 @@ def run_window(options, path, profile, environment, window):
             metrics[op] = {
                 **{key: summary[key] for key in ("sent", "succeeded", "succeeded_in_window", *FAILURES)},
                 "success_latency_us": summary["success_latency"], "ge100ms": bounds[op],
+                "ge500ms": threshold_bounds(histogram[op]["success"], 500_000_000),
                 "queue_ge100ms": threshold_bounds(histogram[op]["client_queue"]),
                 "replies_after_cutoff": summary["succeeded"] - summary["succeeded_in_window"],
             }
@@ -268,25 +270,40 @@ def main():
     parser.add_argument("--server", type=Path, required=True)
     parser.add_argument("--bench", type=Path, required=True)
     parser.add_argument("--library", type=Path, required=True)
-    parser.add_argument("--scratch-parent", type=Path, required=True, help="existing directory on the NTFS volume to test")
+    parser.add_argument("--scratch-parent", type=Path, required=True, help="existing directory on the NTFS or ext4 volume to test")
     parser.add_argument("--output", type=Path, required=True, help="new evidence directory")
     parser.add_argument("--execute", action="store_true", help="start measurement processes")
     parser.add_argument("--trace", action="store_true", help="separate instrumented run with exact 100 ms counts")
     parser.add_argument("--reverse", action="store_true", help="run the 95%%-read profile first")
+    parser.add_argument("--high-write-only", action="store_true", help="run only 50%% writes at 3,000 requests/s")
+    parser.add_argument("--group-max", type=int, default=8, help="maximum ready writes per sync group")
     options = parser.parse_args()
-    require(os.name == "nt", "Windows only")
+    require(1 <= options.group_max <= 32, "explicit sync group size must be from 1 to 32")
+    BASE_SETTINGS["go_log_group_max"] = options.group_max
     for key in ("server", "bench", "library"):
         setattr(options, key, getattr(options, key).resolve(strict=True))
     options.scratch_parent = options.scratch_parent.resolve(strict=True)
     output = options.output.resolve()
-    require(options.scratch_parent.is_dir() and ntfs(options.scratch_parent), "scratch parent must be on NTFS")
+    require(options.scratch_parent.is_dir(), "scratch parent must be a directory")
+    if os.name == "nt":
+        require(ntfs(options.scratch_parent), "Windows scratch parent must be on NTFS")
+        filesystem = "NTFS"
+    else:
+        require(sys.platform == "linux", "benchmark supports Windows NTFS and Linux ext4")
+        filesystem = subprocess.check_output(
+            ["findmnt", "-n", "-o", "FSTYPE", "-T", str(options.scratch_parent)], text=True,
+        ).strip()
+        require(filesystem == "ext4", "Linux scratch parent must be on ext4")
     output.mkdir(parents=True, exist_ok=False)
-    plan = tuple(reversed(PROFILES)) if options.reverse else PROFILES
+    plan = PROFILES[:1] if options.high_write_only else PROFILES
+    if options.reverse:
+        plan = tuple(reversed(plan))
     record = {
         "started_utc": utc_now(), "mode": "execute" if options.execute else "prepare", "config": BASE_SETTINGS,
         "artifact_sha256": {name: {"path": str(getattr(options, name)), "sha256": digest(getattr(options, name))}
                             for name in ("server", "bench", "library")},
         "script_sha256": digest(Path(__file__)), "scratch_parent": str(options.scratch_parent),
+        "platform": sys.platform, "filesystem": filesystem,
         "profiles": [{"read_percent": read, "rate": rate,
                       "bench_argv_template": mixed_argv(options.bench, "PORT", Path("WINDOW_DIR"), (read, rate),
                                                        options.trace)} for read, rate in plan],
