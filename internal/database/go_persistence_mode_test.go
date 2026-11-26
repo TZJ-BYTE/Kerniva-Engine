@@ -110,6 +110,10 @@ func TestManagerGoPersistenceHandoff(t *testing.T) {
 	if err := m.GetDefaultDB().SetStringBytes([]byte("key"), []byte("WAL value")); err != nil {
 		t.Fatal(err)
 	}
+	db1, _ := m.GetDBByIndex(1)
+	if err := db1.SetStringBytes([]byte("removed"), []byte("old WAL")); err != nil {
+		t.Fatal(err)
+	}
 	closeGoPersistenceTestManager(t, m)
 	requireNoGoPersistencePath(t, filepath.Join(cfg.DataDir, "go-snapshot-v1"))
 
@@ -137,16 +141,25 @@ func TestManagerGoPersistenceHandoff(t *testing.T) {
 	if err := m.GetDefaultDB().SetStringBytes([]byte("key"), []byte("newer snapshot value")); err != nil {
 		t.Fatal(err)
 	}
+	db1, _ = m.GetDBByIndex(1)
+	if !db1.Delete("removed") {
+		t.Fatal("snapshot lost DB 1 before deletion")
+	}
 	closeGoPersistenceTestManager(t, m)
 
-	if m, err := NewDBManagerChecked(&both); err == nil {
-		_ = m.Close()
-		t.Fatal("dual mode accepted WAL after snapshot-only updates")
-	} else if !strings.Contains(err.Error(), "snapshots are authoritative") {
-		t.Fatal(err)
-	}
-	m = openGoPersistenceTestManager(t, &snapshotOnly)
+	m = openGoPersistenceTestManager(t, &both)
 	requireString(t, m.GetDefaultDB(), "key", "newer snapshot value")
+	db1, _ = m.GetDBByIndex(1)
+	if _, ok := db1.Get("removed"); ok {
+		t.Fatal("restored a key deleted while the WAL was disabled")
+	}
+	closeGoPersistenceTestManager(t, m)
+	m = openGoPersistenceTestManager(t, cfg)
+	requireString(t, m.GetDefaultDB(), "key", "newer snapshot value")
+	db1, _ = m.GetDBByIndex(1)
+	if _, ok := db1.Get("removed"); ok {
+		t.Fatal("WAL restart resurrected a key missing from the snapshot")
+	}
 }
 
 func TestManagerFreshGoSnapshotImportsWALAfterInterruption(t *testing.T) {

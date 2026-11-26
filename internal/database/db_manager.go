@@ -101,11 +101,6 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	if maxMemory == 0 {
 		maxMemory = math.MaxInt64
 	}
-	if manager.goPersistence != nil && manager.goPersistence.needsImport {
-		if err := manager.goPersistence.importSnapshot(cfg, engineOptions, maxMemory); err != nil {
-			return nil, errors.Join(err, manager.closeDatabases())
-		}
-	}
 	for i := 0; i < cfg.DBCount; i++ {
 		dbConfig := &DatabaseConfig{
 			StorageBackend:  cfg.StorageBackend,
@@ -122,6 +117,10 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 			dbConfig.GoLogGroupMax = cfg.GoLogGroupMax
 			dbConfig.WriteMode = cfg.PersistenceWriteMode
 			dbConfig.Durability = cfg.PersistenceDurability
+		}
+		if manager.goPersistence != nil && manager.goPersistence.needsImport {
+			manager.databases = append(manager.databases, newResidentDatabase(i, dbConfig))
+			continue
 		}
 		db, err := NewDatabaseWithConfig(i, dbConfig)
 		if err != nil {
@@ -141,13 +140,18 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 		}
 	}
 	if manager.goPersistence != nil {
-		if manager.goPersistence.needsImport && cfg.AllowsGoLogMaintenance() {
-			if err := setGoMaintenance(manager.goPersistence.logDir, true, true); err != nil {
+		mode := manager.goPersistence
+		if mode.needsImport {
+			if err := mode.importSnapshot(manager.databases); err != nil {
 				return nil, errors.Join(err, manager.closeDatabases())
 			}
-		}
-		if manager.goPersistence.walExportDBCount == 0 {
-			if err := manager.goPersistence.startWriting(); err != nil {
+			if cfg.AllowsGoLogMaintenance() {
+				if err := setGoMaintenance(mode.logDir, true, true); err != nil {
+					return nil, errors.Join(err, manager.closeDatabases())
+				}
+			}
+		} else if mode.walExportDBCount == 0 {
+			if err := mode.startWriting(); err != nil {
 				return nil, errors.Join(err, manager.closeDatabases())
 			}
 		}

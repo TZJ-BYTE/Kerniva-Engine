@@ -293,6 +293,19 @@ func (w *Writer) Reset() error {
 	return w.append(nil, true, nil)
 }
 
+// Seal publishes the active segment durably while retaining the writer lock.
+func (w *Writer) Seal() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return errWriterClosed
+	}
+	if w.fault != nil || w.firstSequence == 0 {
+		return w.fault
+	}
+	return w.sealLocked()
+}
+
 func (w *Writer) append(operations []rustengine.WriteOp, reset bool, row *writetrace.Request) error {
 	if w.writes != nil {
 		return w.enqueueWrite(operations, reset, row)

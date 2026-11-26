@@ -8,7 +8,7 @@ import (
 	"github.com/TZJ-BYTE/Kerniva/internal/golog"
 )
 
-func (db *Database) openGoLog(options *EngineOptions) error {
+func (db *Database) openGoLog(options *EngineOptions, restore func(key, value []byte) error) error {
 	if db.config.ColdStartStrategy != "load_all" || db.evictionPolicy != "noeviction" {
 		return fmt.Errorf("go-log requires a fully resident database with noeviction")
 	}
@@ -17,7 +17,7 @@ func (db *Database) openGoLog(options *EngineOptions) error {
 		MaxAge:       db.config.GoLogSegmentAge,
 		GroupMax:     db.config.GoLogGroupMax,
 		Sync:         db.persistenceDurability() == "sync",
-	}, db.restoreGoLogEntry)
+	}, restore)
 	if err != nil {
 		return fmt.Errorf("open Go log: %w", err)
 	}

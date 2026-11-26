@@ -140,24 +140,7 @@ func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) 
 	if dbConfig == nil {
 		dbConfig = DefaultDatabaseConfig()
 	}
-	// 获取全局配置
-	globalConfig := config.DefaultConfig()
-
-	db := &Database{
-		id:             id,
-		config:         dbConfig,
-		maxMemory:      globalConfig.MaxMemory,
-		evictionPolicy: globalConfig.MaxMemoryPolicy,
-	}
-	if dbConfig.MaxMemory > 0 {
-		db.maxMemory = dbConfig.MaxMemory
-	}
-	if dbConfig.MaxMemoryPolicy != "" {
-		db.evictionPolicy = dbConfig.MaxMemoryPolicy
-	}
-	if strings.Contains(db.evictionPolicy, "lru") {
-		db.keyHeat = NewKeyTopK(1024)
-	}
+	db := newResidentDatabase(id, dbConfig)
 
 	// 如果启用持久化，则初始化 Kerniva Engine
 	if dbConfig.Type == Persistent {
@@ -171,7 +154,7 @@ func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) 
 		}
 
 		if dbConfig.StorageBackend == config.StorageGoLog {
-			if err := db.openGoLog(options); err != nil {
+			if err := db.openGoLog(options, db.restoreGoLogEntry); err != nil {
 				return nil, err
 			}
 			return db, nil
@@ -206,6 +189,21 @@ func NewDatabaseWithConfig(id int, dbConfig *DatabaseConfig) (*Database, error) 
 	}
 
 	return db, nil
+}
+
+func newResidentDatabase(id int, cfg *DatabaseConfig) *Database {
+	defaults := config.DefaultConfig()
+	db := &Database{id: id, config: cfg, maxMemory: defaults.MaxMemory, evictionPolicy: defaults.MaxMemoryPolicy}
+	if cfg.MaxMemory > 0 {
+		db.maxMemory = cfg.MaxMemory
+	}
+	if cfg.MaxMemoryPolicy != "" {
+		db.evictionPolicy = cfg.MaxMemoryPolicy
+	}
+	if strings.Contains(db.evictionPolicy, "lru") {
+		db.keyHeat = NewKeyTopK(1024)
+	}
+	return db
 }
 
 func (db *Database) StartExpireCleaner() {

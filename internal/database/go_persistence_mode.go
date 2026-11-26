@@ -21,8 +21,8 @@ const (
 )
 
 // goPersistenceMode serializes manager startups across the two Go persistence
-// paths. WAL remains authoritative until a successful combined shutdown marks
-// the exact committed snapshot generation available for handoff.
+// paths. Each transition publishes its replacement recovery baseline before
+// recording the new authority.
 type goPersistenceMode struct {
 	root             string
 	logDir           string
@@ -77,19 +77,12 @@ func (m *goPersistenceMode) checkStartup(useSnapshot bool, dbCount int) error {
 		return err
 	}
 	if m.useWAL {
-		if m.state == goModeSnapshot {
-			exists, err := m.hasExistingWAL()
-			if err != nil {
-				return err
-			}
-			if exists {
-				return fmt.Errorf("Go snapshots are authoritative in %s; preserve the old go-log-v1 directory outside this data root before enabling the WAL", m.root)
-			}
-		}
 		if m.state == goModeSnapshot || m.state == goModeImport {
 			m.needsImport = true
-			m.walDBCount = dbCount
-			return m.checkSnapshotGeneration()
+			if err := m.checkSnapshotGeneration(); err != nil {
+				return err
+			}
+			return m.checkWALDatabases(true, dbCount)
 		}
 		if m.state == "" {
 			generation, err := m.latestSnapshot()
@@ -134,7 +127,7 @@ func (m *goPersistenceMode) hasExistingWAL() (bool, error) {
 		return false, err
 	}
 	for _, entry := range entries {
-		if entry.Name() != ".snapshot-maintenance" {
+		if entry.Name() != ".snapshot-maintenance" && entry.Name() != gologstate.SourceLeaseFile {
 			return true, nil
 		}
 	}
@@ -172,6 +165,9 @@ func (m *goPersistenceMode) checkWALDatabases(useSnapshot bool, dbCount int) err
 		id, err := strconv.Atoi(suffix)
 		if err != nil || id < 0 || id == math.MaxInt || strconv.Itoa(id) != suffix {
 			continue
+		}
+		if m.needsImport && id >= dbCount {
+			return fmt.Errorf("db_count=%d excludes retained WAL database %d", dbCount, id)
 		}
 		err = checkWALDatabase(filepath.Join(m.logDir, entry.Name()))
 		databases[id] = err

@@ -3,45 +3,55 @@ package database
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
-	"github.com/TZJ-BYTE/Kerniva/config"
 	"github.com/TZJ-BYTE/Kerniva/internal/golog"
+	"github.com/TZJ-BYTE/Kerniva/internal/gologstate"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
 )
 
-// importSnapshot builds a WAL only when no previous WAL could carry user data.
-// The on-disk import state means an interrupted run may reset its own partial
-// WAL, while the snapshot retains authority until all imported logs are durable.
-func (m *goPersistenceMode) importSnapshot(cfg *config.Config, options *EngineOptions, maxMemory int64) error {
-	dbs := make([]*Database, cfg.DBCount)
-	for i := range dbs {
-		db, err := NewDatabaseWithConfig(i, &DatabaseConfig{
-			MaxMemory:       maxMemory,
-			MaxMemoryPolicy: cfg.MaxMemoryPolicy,
-		})
-		if err != nil {
-			return err
-		}
-		dbs[i] = db
-	}
+// importSnapshot keeps the existing history and its sequence numbers. All
+// writers remain owned by the live databases through publication and serving.
+func (m *goPersistenceMode) importSnapshot(dbs []*Database) (err error) {
 	if err := LoadSnapshot(m.snapshotDir, dbs); err != nil {
 		return fmt.Errorf("restore Go snapshot for WAL import: %w", err)
+	}
+	lease, err := os.OpenFile(filepath.Join(m.logDir, gologstate.SourceLeaseFile), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, lease.Close()) }()
+	if err := tryLockSnapshotFile(lease); err != nil {
+		return fmt.Errorf("lock replication source for snapshot import: %w", err)
+	}
+	if _, err := os.Lstat(filepath.Join(m.logDir, gologstate.SourceIDFile)); err == nil {
+		return fmt.Errorf("snapshot import requires a standalone WAL: preserve the existing replication source directory and re-establish the replica baseline before enabling the WAL")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	for _, db := range dbs {
+		// Existing values have been superseded by the authoritative snapshot.
+		// The WAL reader still validates each segment and recovers its offset.
+		if err := db.openGoLog(db.config.Options, nil); err != nil {
+			return fmt.Errorf("open WAL for snapshot database %d: %w", db.id, err)
+		}
+		if m.generation == 0 && db.goLog.Stats().LastSequence != 0 {
+			return fmt.Errorf("no published Go snapshot for retained WAL database %d", db.id)
+		}
 	}
 	if err := m.writeState(goModeImport, m.generation); err != nil {
 		return err
 	}
 	for _, db := range dbs {
-		dir := filepath.Join(m.logDir, fmt.Sprintf("db_%d", db.id))
-		writer, err := golog.Open(dir, golog.Options{SegmentBytes: options.SegmentSizeBytes}, nil)
-		if err != nil {
-			return fmt.Errorf("open WAL for snapshot database %d: %w", db.id, err)
-		}
-		if err := errors.Join(importSnapshotDatabase(writer, db), writer.Close()); err != nil {
+		if err := importSnapshotDatabase(db.goLog, db); err != nil {
 			return fmt.Errorf("import snapshot database %d into WAL: %w", db.id, err)
 		}
+		if err := db.goLog.Seal(); err != nil {
+			return fmt.Errorf("publish snapshot baseline for database %d: %w", db.id, err)
+		}
 	}
-	return nil
+	return m.startWriting()
 }
 
 func importSnapshotDatabase(writer *golog.Writer, db *Database) error {
