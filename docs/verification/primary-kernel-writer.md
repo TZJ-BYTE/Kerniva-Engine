@@ -30,6 +30,8 @@
 
 批次 1374 对应写者 TID 13436、fd 9、inode 329940。它睡眠的三段分别为 20.125、147.381、102.087 ms。Go 同步跨度中位于系统调用以外的时间仅为 3.533–5.531 µs，因而 Go GC 暂停或 Go 调度等待无法解释这一笔的数百毫秒。本轮没有同步记录主库 GC 事件。此前单独一轮的运行时跟踪中，第一次主库 GC 暂停发生在全部慢请求结束至少 6.086 秒之后。[此前 GC 逐请求核对](primary-gc-stalls.md)
 
+主库在每个正式窗前后也读取了 Go 的 `NumGC` 和 `PauseTotalNs`。原始 `capture.json` 中两次 INFO 读数的时间边界覆盖了整个投递窗。第 3 和第 4 窗各完成一次 GC，累计 GC 暂停仅增加 0.130703、0.104792 ms。上一轮磁盘采样的慢窗 5 和 7 分别增加 0.167557、0.691928 ms。这些计数给出了暂停总时长，没有提供逐次 GC 的发生时刻。
+
 ## 两种已知条件下的单写对照
 
 两次均启动真实主库，只测一条 DB 0 SET，同时核对其活动日志、Go 批次和内核写线程。第二次用 strace 将 fsync 返回延迟 220 ms。借助两端时钟界限，可以区分停顿发生在内核调用内还是返回后。
@@ -55,9 +57,18 @@
 
 跟踪使用独立的 tracefs 实例，两个正式窗的内核缓冲区均记录零丢弃。各窗在初始线程枚举后都新增了一个未进入过滤集合的 OS 线程。第 2 窗的 109 个缺口均在新线程出现后；这些批次实际运行在哪个线程仍无法逐笔确认。四个正式窗均已退出并完成进程和端口检查。
 
-## 下一步怎样区分等待来源
+## 用一条普通 SET 区分两种睡眠
 
-本机已核实支持按设备和事务编号记录 JBD2 文件系统日志的提交阶段，也能在指定线程因 D 状态切出时取得内核调用栈。下一次先用单写夹具核对采集开销、运行栈和日志轮转，再用相同负载检验长同步的写者是否停在等待日志提交的函数。要把停顿归到某一个事务，需同时取得写者等待的事务编号和该事务的提交起止记录。仅时间重叠时将单独列出。随后用同一耐久级别做前后配对，检验候选改动对 95% 读尾延迟和 50% 写吞吐的影响。
+在独立的单写运行中，写者切出 D 状态时触发内核栈记录，同时采集同设备上 JBD2 文件系统日志的五个提交阶段。这笔 SET 属于批次 3，Go 同步为 2.679 ms，fd 8、inode 330071 的内核 fsync 为 2.675 ms。两段休眠都有同 CPU、同写线程的切出事件和紧随的栈。跟踪记录零丢弃。
+
+| 写者切出时的调用栈 | 睡眠至唤醒（ms） | 唤醒后等 CPU（µs） |
+|---|---:|---:|
+| `ext4_sync_file → file_write_and_wait_range → folio_wait_writeback`，等待文件数据写回 | 0.656 | 3 |
+| `ext4_sync_file → jbd2_complete_transaction → jbd2_log_wait_commit`，等待文件系统日志提交 | 1.971 | 2 |
+
+第二次睡眠期间，设备 `8:48` 上的事务 11030121 从开始到结束共 1.231 ms。事务结束后 14 µs，写者被唤醒。栈记录确定了等待函数，但没有记录该函数收到的事务编号。这是一次正常单写，不能据此给上面 269.653 ms 的自然尖峰分配写回和日志提交的时长。单写的原始跟踪单独保存在 `logs/golog-journal-20261126/single/single-write/kernel-trace.txt`。
+
+下一次先对条件栈开启和关闭做相同负载的短窗对照，核对吞吐、p99、每核缓冲占用和丢失量，再在自然尖峰中分别量化这两种等待。若需定位到特定事务，要同时取得写者等待的事务编号及提交记录。后续候选改动应在相同同步耐久级别下通过 95% 读尾延迟和 50% 写吞吐两档配对复验。
 
 ## 重放与再次采集
 
@@ -84,4 +95,16 @@ for stage in single single-delay smoke natural; do
   python3 -B scripts/golog_kernel_writer_capture.py --setup "$setup" --bin "$bin" \
     --binary-manifest "$manifest" --mirror "$out/$stage" --stage "$stage" || exit 1
 done
+```
+
+写回与日志提交的单写夹具有独立证据包 `dist/Kerniva-journal-single-20261126-evidence.zip`。从其解压根目录重放，或在上述 WSL 环境的同一 shell 内重新采集。
+
+```powershell
+$journal = 'logs/golog-journal-20261126'
+python -B scripts/golog_journal_stack_report.py --raw "$journal/single" --out "$journal/single-replay.json"
+```
+
+```bash
+python3 -B scripts/golog_kernel_writer_capture.py --setup "$setup" --bin "$bin" \
+  --binary-manifest "$manifest" --mirror "$out/journal-single" --stage single --journal-stacks
 ```
