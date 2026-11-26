@@ -95,6 +95,8 @@
 
 本窗揭示了同步写抖动经 WAL 排队和串行 TCP 连接放大的过程。若要判断 Windows 的哪次磁盘操作造成了刷新等待，需要在同一现场同步记录宿主与来宾的逐请求事件，并校验设备与时间对应关系。诊断目录为 `logs/golog-production-adaptive16-20261126/residual-20261126T085420Z`，单笔结果是 `worst-request-join.json`。启动脚本 `residual.sh` 和离线重算脚本 `residual_join.py` 在其上一级目录。
 
+Windows 能列出 `Microsoft-Windows-Kernel-Disk` 提供程序。当前会话尝试用 `logman` 启动独立的磁盘跟踪，系统返回 `0x80070005`（拒绝访问）。采集宿主事件需要具备启动该跟踪权限的 Windows 会话。权限试验回执在 `logs/golog-production-adaptive16-20261126/host-permission/Kerniva-Disk-Permission-087973dac071414fbd464e57b5551d72.json`。
+
 ## 给活动日志滚动预留磁盘空间
 
 第二个实验版在文件即将跨越 128 KiB 边界时调用 `fallocate(KEEP_SIZE)`。文件的可见长度仍随写入增长，磁盘上已分配的块提前增加。每条写的确认时机和日志格式与原版一致。高写正反两对在相同的同步上限 8 下实测，中间插入两个原版详细跟踪窗。
