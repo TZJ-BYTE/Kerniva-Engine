@@ -281,3 +281,140 @@ func TestCommitQueueRollsBackFailedGroup(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitQueueReady32(t *testing.T) {
+	const cap32 = 32
+	for _, failGroup := range []bool{false, true} {
+		t.Run(fmt.Sprintf("fail_group_%t", failGroup), func(t *testing.T) {
+			dir := t.TempDir()
+			w := openTestWriter(t, dir, Options{Sync: true, GroupMax: cap32})
+			trace, err := writetrace.Open(filepath.Join(t.TempDir(), "trace.jsonl"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = trace.Close() })
+			groupEntered := make(chan struct{})
+			releaseGroup := make(chan struct{})
+			release := sync.OnceFunc(func() { close(releaseGroup) })
+			t.Cleanup(release)
+			firstEntered, releaseFirst := holdFirstSync(t, w, func(n int) error {
+				if n == 2 {
+					close(groupEntered)
+					<-releaseGroup
+					if failGroup {
+						return errInjectedCommit
+					}
+				}
+				return nil
+			}, nil)
+			type pendingWrite struct {
+				key, value []byte
+				row        *writetrace.Request
+				result     chan error
+			}
+			writes := make([]pendingWrite, cap32+2)
+			for i := range writes {
+				p := &writes[i]
+				p.key = []byte(fmt.Sprintf("key-%02d", i))
+				p.value = []byte(fmt.Sprintf("value-%02d", i))
+				p.row = trace.Begin(45678, uint64(i+1), "SET", trace.Stamp())
+				p.result = make(chan error, 1)
+				go func() {
+					p.result <- w.WriteBatchTraced([]rustengine.WriteOp{{Key: p.key, Value: p.value}}, p.row)
+				}()
+				if i == 0 {
+					awaitSync(t, firstEntered)
+				} else {
+					waitWriteQueue(t, w, i)
+				}
+			}
+			releaseFirst()
+			awaitSync(t, groupEntered)
+			waitWriteQueue(t, w, 1)
+			for i := 1; i < len(writes); i++ {
+				select {
+				case err := <-writes[i].result:
+					t.Fatalf("write %d completed before grouped sync returned: %v", i, err)
+				default:
+				}
+			}
+			release()
+			wantFrames := []byte(logMagic)
+			wantValues := make(map[string]string)
+			var seq uint64
+			for i, p := range writes {
+				grouped := i > 0 && i <= cap32
+				err := awaitPut(t, p.result)
+				if grouped && failGroup {
+					if !errors.Is(err, errInjectedCommit) {
+						t.Fatalf("grouped write %d returned %v", i, err)
+					}
+				} else if err != nil {
+					t.Fatalf("write %d: %v", i, err)
+				}
+				wantSize := 1
+				if grouped {
+					wantSize = cap32
+					if p.row.Batch.ID != writes[1].row.Batch.ID {
+						t.Fatalf("write %d used a different batch: %+v", i, p.row.Batch)
+					}
+				}
+				wantSequence := uint64(i + 1)
+				if i == len(writes)-1 && failGroup {
+					wantSequence = 2
+				}
+				if p.row.Batch.Size != wantSize || p.row.Batch.Sequence != wantSequence ||
+					p.row.Batch.Failed != (grouped && failGroup) || p.row.Batch.ID == 0 {
+					t.Fatalf("write %d: %+v", i, p.row.Batch)
+				}
+				if grouped && failGroup {
+					continue
+				}
+				seq++
+				frame, err := encodeFrame(nil, seq, []rustengine.WriteOp{{Key: p.key, Value: p.value}}, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wantFrames = append(wantFrames, frame...)
+				wantValues[string(p.key)] = string(p.value)
+			}
+			stats := w.Stats()
+			wantSyncs, wantBatches, wantRequests := uint64(3), uint64(1), uint64(cap32)
+			if failGroup {
+				wantSyncs, wantBatches, wantRequests = 2, 0, 0
+			}
+			if stats.LastSequence != seq || stats.SyncCount != wantSyncs ||
+				stats.GroupBatches != wantBatches || stats.GroupRequests != wantRequests || stats.Fault != "" {
+				t.Fatalf("unexpected stats: %+v", stats)
+			}
+			if got := requireFile(t, filepath.Join(dir, activeName)); !bytes.Equal(got, wantFrames) {
+				t.Fatal("active WAL differs from independent, contiguous acknowledged frames")
+			}
+			if err := w.Close(); err != nil {
+				t.Fatal(err)
+			}
+			t.Run("RustRecovery", func(t *testing.T) {
+				if os.Getenv("KERNIVA_ENGINE_LIBRARY") == "" {
+					t.Skip("Run the project test script to provide the native Rust library")
+				}
+				got := make(map[string]string)
+				reopened, err := Open(dir, Options{Sync: true, GroupMax: 16}, func(key, value []byte) error {
+					got[string(key)] = string(value)
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = reopened.Close() })
+				if reopened.Stats().LastSequence != seq || len(got) != len(wantValues) {
+					t.Fatalf("recovery returned %d values and sequence %d, want %d and %d", len(got), reopened.Stats().LastSequence, len(wantValues), seq)
+				}
+				for key, want := range wantValues {
+					if got[key] != want {
+						t.Fatalf("recovered %s = %q, want %q", key, got[key], want)
+					}
+				}
+			})
+		})
+	}
+}

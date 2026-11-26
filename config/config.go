@@ -245,8 +245,8 @@ func (c *Config) Validate() error {
 	if c.GoLogSegmentAgeSeconds < 0 || c.GoLogSegmentAgeSeconds > 86400 {
 		return fmt.Errorf("go_log_segment_age_seconds must be from 0 to 86400")
 	}
-	if c.GoLogGroupMax < 0 || c.GoLogGroupMax > 16 {
-		return fmt.Errorf("go_log_group_max must be from 0 to 16")
+	if c.GoLogGroupMax < 0 || c.GoLogGroupMax > 32 {
+		return fmt.Errorf("go_log_group_max must be from 0 to 32")
 	}
 	if c.GoLogGroupMax > 1 && (c.StorageBackend != StorageGoLog || c.UsesGoLog() && c.PersistenceDurability == "none") {
 		return fmt.Errorf("go_log_group_max above 1 requires go-log with sync durability")

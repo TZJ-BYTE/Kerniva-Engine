@@ -443,7 +443,7 @@ def parse_arguments(argv=None):
     parser.add_argument("--budget-seconds", type=int, default=43200)
     parser.add_argument("--experiments", action=argparse.BooleanOptionalAction, default=True,
                         help="Include historical Rust-memory variants")
-    parser.add_argument("--go-log-group-max", type=int, choices=range(1, 17), default=1,
+    parser.add_argument("--go-log-group-max", type=int, choices=range(1, 33), default=1,
                         help="Add a paired Go-log sync run with this maximum group size")
     parser.add_argument("--go-log-grouped-baseline", type=Path,
                         help="Compare a frozen Go server with matching grouping and Rust library")

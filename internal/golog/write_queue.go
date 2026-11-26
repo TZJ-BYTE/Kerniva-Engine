@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	groupMaximum       = 16
+	groupMaximum       = 32
 	groupMaxBytes      = 1 << 20
 	writeQueueCapacity = 64
 )

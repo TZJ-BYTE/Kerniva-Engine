@@ -45,7 +45,13 @@ func TestGoLogGroupConfiguration(t *testing.T) {
 		t.Fatal("expected group sync to reject none durability")
 	}
 	cfg.PersistenceDurability = "sync"
-	cfg.GoLogGroupMax = 17
+	for _, n := range []int{0, 1, 8, 16, 17, 32} {
+		cfg.GoLogGroupMax = n
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("rejected synchronous group size %d: %v", n, err)
+		}
+	}
+	cfg.GoLogGroupMax = 33
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected oversized group to fail validation")
 	}

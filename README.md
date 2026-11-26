@@ -86,7 +86,7 @@ redis-cli -p 16379 GET sample
 | 持久化 | go-log | 每库位于 `data/go-log-v1/db_N` |
 | 冷启动 | load_all | Rust 从快照和日志恢复，Go 装入分片内存 |
 | durability | sync | Go 同步日志文件后确认写入 |
-| go_log_group_max | 8 | 一个同步批次最多合并 8 个已排队请求 |
+| go_log_group_max | 8 | 每次磁盘同步最多合并的已排队请求数 |
 | go_log_enabled / snapshot_enabled | 均省略 | 保留既有 Go 日志和外部 Rust 整理行为。显式设置可独立选择增量日志与定时全量快照 |
 | snapshot_interval_seconds | 300 | 开启独立快照时两次定时保存的间隔，单位为秒 |
 | 封存条件 | 4 MiB 或 30 秒 | 非空日志达到任意条件可封存 |
@@ -94,7 +94,7 @@ redis-cli -p 16379 GET sample
 
 `none` 在追加完成后确认，掉电可丢失未同步的数据。`sync` 等待文件同步。`max_memory` 按键和值的近似大小统计，每库应用 `noeviction`。TTL 由 Go 判定，快照保留绝对到期时间。
 
-`go_log_group_max` 取 0 或 1 时逐请求同步。2 到 16 仅适用于 Go 日志的 `sync` 模式。合并只处理已经排队的请求，每条请求保留独立提交序号和日志帧。
+`go_log_group_max` 取 0 或 1 时逐请求同步。同步 Go 日志可以设置 2 到 32。写者只取已经排队的请求，每条保留独立提交序号和日志帧，整批同步成功后才确认。切回仅支持上限 16 的旧服务端前，先把配置调到 16 或以下。
 
 ## 整体框架
 
