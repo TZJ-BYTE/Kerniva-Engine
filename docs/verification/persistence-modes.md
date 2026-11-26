@@ -1,6 +1,6 @@
 # 配置增量日志与全量快照
 
-在 `config.golog.yaml` 中设置两个开关，重启主库生效。下面的例子只保存全量快照，每 60 秒一次。也可以用 `KERNIVA_GO_LOG_ENABLED`、`KERNIVA_SNAPSHOT_ENABLED` 和 `KERNIVA_SNAPSHOT_INTERVAL_SECONDS` 覆盖同名 YAML 字段。
+在 `config.golog.yaml` 中按需设置 `go_log_enabled` 和 `snapshot_enabled`，重启主库生效。每个开关都可以单独设置。Go 主库默认开启增量日志、关闭独立的全量快照，因此要在默认日志基础上增加快照，只需写 `snapshot_enabled: true`。下面的例子关闭日志，每 60 秒保存一次全量快照。也可以用 `KERNIVA_GO_LOG_ENABLED`、`KERNIVA_SNAPSHOT_ENABLED` 和 `KERNIVA_SNAPSHOT_INTERVAL_SECONDS` 覆盖同名 YAML 字段。
 
 ```yaml
 storage_backend: go-log
