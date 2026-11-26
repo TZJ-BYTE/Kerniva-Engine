@@ -132,6 +132,7 @@ def stage_windows_engine(work, bundle, version, arch):
         raise RuntimeError(f"Windows engine binaries must both target {arch}")
     manifest = {
         "schema_version": 1, "product": "kerniva-engine", "version": version, "os": "windows", "arch": arch,
+        "capabilities": {"go_persistence_switches": True, "startup_error_file": True},
         "files": {path.name: {"sha256": sha256(path), "size": path.stat().st_size} for path in (server, library)},
     }
     (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

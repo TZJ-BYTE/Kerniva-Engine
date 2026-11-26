@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,10 +23,21 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "configuration file")
 	stopFile := flag.String("stop-file", "", "local stop request file used by the control script")
+	startupErrorFile := flag.String("startup-error-file", "", "optional file for the fatal engine error")
 	platform := platformFlags()
 	flag.Parse()
 	if err := platform(*configPath, *stopFile); err != nil {
-		fmt.Fprintf(os.Stderr, "Kerniva: %v\n", err)
+		message := fmt.Sprintf("Kerniva: %v\n", err)
+		fmt.Fprint(os.Stderr, message)
+		if *startupErrorFile != "" {
+			const limit = 8 * 1024
+			if len(message) > limit {
+				message = strings.ToValidUTF8(message[:limit-4], "") + "...\n"
+			}
+			if writeErr := os.WriteFile(*startupErrorFile, []byte(message), 0o600); writeErr != nil {
+				fmt.Fprintf(os.Stderr, "Kerniva: write startup error: %v\n", writeErr)
+			}
+		}
 		os.Exit(1)
 	}
 }
