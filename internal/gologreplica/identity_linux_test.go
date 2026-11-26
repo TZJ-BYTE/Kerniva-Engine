@@ -74,6 +74,9 @@ func TestSourceOpeningChecksManagedWALAuthority(t *testing.T) {
 }
 
 func TestNewSourceSharesLeaseDuringIdentityCreation(t *testing.T) {
+	if _, err := NewSource(""); err == nil {
+		t.Fatal("legacy opening accepted a missing root")
+	}
 	data := t.TempDir()
 	check(t, os.WriteFile(filepath.Join(data, gologstate.ModeFile), []byte("snapshot 1\n"), 0600))
 	root := filepath.Join(data, "custom-wal")

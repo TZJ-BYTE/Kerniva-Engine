@@ -105,6 +105,9 @@ func rotateSourceID(root string, syncRoot func(string) error) (string, error) {
 }
 
 func resolveSourceRoot(root string) (string, error) {
+	if root == "" {
+		return "", errors.New("replication source root is required")
+	}
 	absolute, err := filepath.Abs(root)
 	if err != nil {
 		return "", err
