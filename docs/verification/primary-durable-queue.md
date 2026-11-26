@@ -148,6 +148,39 @@ Windows 另外用旧服务端与上限已扩展的服务端在同一数据目录
 
 最长的前序请求在途 101.684 ms，其中一次 Go 同步唯一对应到 46.885 ms 的客体 ext4 `fsync`。写者有 44.846 ms 在等 JBD2 日志提交，其间两次虚拟 SCSI 刷新分别持续 22.895、21.517 ms。17 个相关批次均匹配到相同设备和 inode 上的同步调用，34 条刷新中有 18 条与来宾块层事件唯一对应。内核记录零丢失。该组逐笔证据只解释本诊断窗口。继续区分宿主排队与物理设备响应，需要在同一次慢写中关联 Windows 磁盘事件。回执及逐笔计算位于 `logs/golog-production-cap32-20261126/residual-20261126T094311Z/cap32-residual-join.json`。
 
+### 把同一次慢写对齐到 Windows 磁盘事件
+
+这台机器的 `Kerniva-Restored` 使用 `F:\WSL\Kerniva-Restored\ext4.vhdx`，F: 是磁盘 1。以下命令把 ETL 写在 C: 的磁盘 0。换机或迁移后，应重新用发行版注册信息和 `Get-Partition` 核对 VHDX、卷和磁盘号。本机的 WPR 文件录制配置包含 DiskIO、DiskIOInit、DiskFlushInit 和 StorPort，可用 `wpr -profiledetails DiskIO -filemode` 核对配置。
+
+同一份 ETL 还请求两组虚拟磁盘事件。VHDMP 的 IO 关键字（0x2）提供虚拟盘 I/O 起止。Hyper-V StorageVSP 的 SCSI_OP_COMPLETED（0x1）事件含设备名、命令、通道、队列标签、排队时间和服务时间。本机 WPR 已解析这两项，实际是否产出事件和能否唯一关联要逐窗核实。[虚拟盘录制配置](../../scripts/golog_host_vhd.wprp)
+
+从有磁盘跟踪权限的 Windows PowerShell 单独启动录制。脚本输出本次新建的目录，WPR 启动成功才写入 `host.ready`。完成或超时后，录制器停止自己的命名实例并保存 `disk.etl` 与 `host.json`，默认时限为 420 秒。以下命令的脚本执行策略仅对这次 PowerShell 进程生效。[宿主录制脚本](../../scripts/golog_host_disk_record.ps1)
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File 'E:\project\go\Kerniva Engine\scripts\golog_host_disk_record.ps1'
+```
+
+普通用户在同一个已准备好残余跟踪脚本和构建的 WSL 仓库中运行下列命令。把首行替换为录制器实际输出的目录，并按本机位置设置 Windows Python 与已复验的构建目录。整个命令前后各做 12 次握手，`guest-run/run.log` 留存本次来宾采集输出和证据目录。最后一次对时结束后再通知宿主停录。[WSL 与 Windows 时钟桥](../../scripts/golog_host_clock.py)
+
+```bash
+capture=$(wslpath -u 'C:\Users\30611\AppData\Local\Kerniva\diagnostics\KernivaWal<本次实例>')
+(
+  set -euo pipefail
+  test -f "$capture/host.ready"
+  mkdir "$capture/guest-run"
+  trap 'printf "%s\n" "$?" > "$capture/guest.done"' EXIT
+  python3 -B scripts/golog_host_clock.py \
+    --windows-python /mnt/c/Users/30611/AppData/Local/Programs/Python/Python312/python.exe \
+    --output "$capture/guest-run/clocks.json" -- \
+    bash logs/golog-production-cap32-20261126/residual32.sh /home/lemon/kerniva-production-no-probe.jsehLkQ4 \
+    2>&1 | tee "$capture/guest-run/run.log"
+)
+```
+
+2026-11-26 用轻量命令实测了这条时钟桥，24 次握手完整，命令前后的时差区间宽度为 121.961 µs 和 71.756 µs。另行验证了子命令失败、同名输出竞争和已有文件保护。收据在 `logs/host-clock-final-uvf6lp_i/`。用模拟 WPR 和真实 Windows Python 又跑通了同实例握手、超时保存、停止失败回收和启动拒绝，结果在 `logs/golog-host-recorder-vhd-stub-qa-final/`。当前普通会话通过 WPR 与 logman 实际启动磁盘跟踪均返回 `0x80070005`，本次未取得新的宿主 ETL。
+
+关联时先检查 `guest.done` 为 0、`host.json` 中 `end_reason` 为 `guest_done`、起停均成功，并核对 ETL 的时钟类型、频率、丢事件数、目标磁盘与采样覆盖。用同窗时钟区间和来宾 tracefs 的单调时钟定位慢刷新，再检查宿主 I/O 的起止、请求编号及设备或 VHDX 归属。若同一时间有多个可能的宿主 I/O，结果只能报告对应区间和候选数。磁盘上的时间重叠本身不能证明物理 SSD 导致这笔请求变慢。
+
 ## 给活动日志滚动预留磁盘空间
 
 第二个实验版在文件即将跨越 128 KiB 边界时调用 `fallocate(KEEP_SIZE)`。文件的可见长度仍随写入增长，磁盘上已分配的块提前增加。每条写的确认时机和日志格式与原版一致。高写正反两对在相同的同步上限 8 下实测，中间插入两个原版详细跟踪窗。

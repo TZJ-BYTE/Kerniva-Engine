@@ -156,6 +156,8 @@ scripts/                    构建、清理、测试和 TCP benchmark
 
 WSL gnet 单主、同步 WAL、关闭独立快照，在 64 连接、10 万个键、50% 写、3,000 请求/s 的两组反序实测中，把 `go_log_group_max` 从 16 调至 32，耗时至少 500 ms 的请求分别减少约 78% 和 94%。四个 125 秒生产窗口各完成 375,000 次请求，零失败，强杀重启后两个库的序号和抽样值一致。上限 32 的两窗仍各有 552–559、236–245 次请求达到 500 ms。另四个带同步计数的高读对照窗（95% 读、6,000/s）GET p99 为 1.27–1.34 ms，均无请求达到 100 ms。[逐窗对照、单笔跟踪与复现方法](docs/verification/primary-durable-queue.md)
 
+若要追查单笔慢写在 Windows 和 WSL 各层花费的时间，可以在同一次 gnet 负载前后对时，并用 Windows Performance Recorder 录制宿主磁盘事件。[联合采集命令与判读条件](docs/verification/primary-durable-queue.md#把同一次慢写对齐到-windows-磁盘事件)
+
 ~~~powershell
 ./scripts/test.ps1 -Race
 ~~~
