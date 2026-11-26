@@ -1,0 +1,1063 @@
+{
+  "formal_queue_majority_windows": {
+    "A": [],
+    "E": []
+  },
+  "schema_version": 1,
+  "stages": {
+    "calibration": {
+      "count": 8,
+      "pairs": {
+        "A": {
+          "pairs": [
+            {
+              "off": "01-r95-q6000-A",
+              "on": "02-r95-q6000-A",
+              "on_minus_off": {
+                "actual_success_rate": -0.08347988896912284,
+                "set_p999_us": -425.9840000000004,
+                "set_p99_us": -491.52000000000044
+              },
+              "outside_tolerance": []
+            },
+            {
+              "off": "04-r95-q6000-A",
+              "on": "03-r95-q6000-A",
+              "on_minus_off": {
+                "actual_success_rate": -0.023307151765038725,
+                "set_p999_us": -425.9840000000004,
+                "set_p99_us": 163.83999999999924
+              },
+              "outside_tolerance": []
+            }
+          ],
+          "thresholds": {
+            "actual_success_rate": 120,
+            "set_p999_us": 2236.41575,
+            "set_p99_us": 1000
+          }
+        },
+        "E": {
+          "pairs": [
+            {
+              "off": "05-r95-q6000-E",
+              "on": "06-r95-q6000-E",
+              "on_minus_off": {
+                "actual_success_rate": -0.16715672962709505,
+                "set_p999_us": 1179.6479999999992,
+                "set_p99_us": 344.0640000000003
+              },
+              "outside_tolerance": []
+            },
+            {
+              "off": "08-r95-q6000-E",
+              "on": "07-r95-q6000-E",
+              "on_minus_off": {
+                "actual_success_rate": -0.029309966671462462,
+                "set_p999_us": -396263.424,
+                "set_p99_us": -199114.75199999998
+              },
+              "outside_tolerance": [
+                "set_p99_us",
+                "set_p999_us"
+              ]
+            }
+          ],
+          "thresholds": {
+            "actual_success_rate": 120,
+            "set_p999_us": 51884.03175,
+            "set_p99_us": 15903.129449999999
+          }
+        }
+      },
+      "replay_sha256": "6361d065e6ffa7d750b70ae6441cf93d75df97b40bb4198f1162a69a8c0e9242",
+      "trigger_seconds": 2,
+      "trigger_windows": 1,
+      "windows": [
+        {
+          "actual_success_rate": 5999.973064920918,
+          "arm": "A",
+          "case": "01-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "4d00372f337eb4fcc2824b8dbd67bbc8bace19480dce52f14942f00ec2fec0dc",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1323.007,
+          "in_offer_success": 179999,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 9076.735,
+          "set_p99_us": 6438.911,
+          "started_utc": "2026-11-25T23:02:06.327719913Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.889585031949,
+          "arm": "A",
+          "case": "02-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "260cbaf4e3bc48efebae94b63ba40e3cb13718b5a941a01a15186094523998db",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1384.447,
+          "host_minus_guest_utc_bracket_ns": [
+            -20909099,
+            94841248
+          ],
+          "in_offer_success": 179999,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 8650.751,
+          "set_p99_us": 5947.391,
+          "started_utc": "2026-11-25T23:02:43.040864485Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.956394916903,
+          "arm": "A",
+          "case": "03-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "4f011a94e56323b7b9baa8a6d32dc25ab0840a855a5dbeaaa13d922d9453ded8",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1396.735,
+          "host_minus_guest_utc_bracket_ns": [
+            -57133399,
+            168059613
+          ],
+          "in_offer_success": 179999,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 8388.607,
+          "set_p99_us": 5931.007,
+          "started_utc": "2026-11-25T23:03:20.893265457Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.979702068668,
+          "arm": "A",
+          "case": "04-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "348214c5ba1bf95278fab0784b7bed00d77b92062f4ebc6021cb95a910c1a5bb",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1417.215,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 8814.591,
+          "set_p99_us": 5767.167,
+          "started_utc": "2026-11-25T23:03:57.548460079Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.9818140551215,
+          "arm": "E",
+          "case": "05-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "864c80de6d6bf55604b5444bc20f0ba93de9dcad6249ed25f315b1ee00a78538",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1339.391,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 9273.343,
+          "set_p99_us": 6520.831,
+          "started_utc": "2026-11-25T23:04:35.430600317Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.814657325494,
+          "arm": "E",
+          "case": "06-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "d381409b6d425976d9623116639df983976d07afaabe02e9f3f85a46166d376f",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1355.775,
+          "host_minus_guest_utc_bracket_ns": [
+            -105439599,
+            14157893
+          ],
+          "in_offer_success": 179997,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 10452.991,
+          "set_p99_us": 6864.895,
+          "started_utc": "2026-11-25T23:05:13.852448627Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.961463047518,
+          "arm": "E",
+          "case": "07-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "7c103a7455f3a1e78426f962f289b968b33616047820cb72960d040056975771",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1351.679,
+          "host_minus_guest_utc_bracket_ns": [
+            -63321299,
+            57381722
+          ],
+          "in_offer_success": 179999,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 9535.487,
+          "set_p99_us": 6406.143,
+          "started_utc": "2026-11-25T23:05:52.843680518Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.9907730141895,
+          "arm": "E",
+          "case": "08-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "1394b063667186e7bfb05f86221cd1992efacf68a3826ed929755ff5e2d72b63",
+          "control_seconds": {
+            "0": [
+              null,
+              2
+            ],
+            "1": [
+              null,
+              2
+            ]
+          },
+          "failures": 0,
+          "get_p99_us": 139460.607,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 405798.911,
+          "set_p99_us": 205520.895,
+          "started_utc": "2026-11-25T23:06:31.491667855Z",
+          "success": 180000,
+          "trigger_seconds": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    "formal-1": {
+      "count": 8,
+      "pairs": {
+        "A": {
+          "pairs": [
+            {
+              "off": "01-r95-q6000-A",
+              "on": "02-r95-q6000-A",
+              "on_minus_off": {
+                "actual_success_rate": -0.02534059675417666,
+                "set_p999_us": 262.14400000000023,
+                "set_p99_us": -131.07200000000012
+              },
+              "outside_tolerance": []
+            },
+            {
+              "off": "08-r95-q6000-A",
+              "on": "07-r95-q6000-A",
+              "on_minus_off": {
+                "actual_success_rate": -0.0004235972928654519,
+                "set_p999_us": -32.76800000000003,
+                "set_p99_us": 458.7519999999995
+              },
+              "outside_tolerance": []
+            }
+          ],
+          "thresholds": {
+            "actual_success_rate": 120,
+            "set_p999_us": 2121.72775,
+            "set_p99_us": 1000
+          }
+        },
+        "E": {
+          "pairs": [
+            {
+              "off": "03-r95-q6000-E",
+              "on": "04-r95-q6000-E",
+              "on_minus_off": {
+                "actual_success_rate": -0.15590821074056294,
+                "set_p999_us": -32.76800000000003,
+                "set_p99_us": -16.384000000000015
+              },
+              "outside_tolerance": []
+            },
+            {
+              "off": "06-r95-q6000-E",
+              "on": "05-r95-q6000-E",
+              "on_minus_off": {
+                "actual_success_rate": -0.007290958532394143,
+                "set_p999_us": 1114.1119999999992,
+                "set_p99_us": 229.3760000000002
+              },
+              "outside_tolerance": []
+            }
+          ],
+          "thresholds": {
+            "actual_success_rate": 120,
+            "set_p999_us": 2400.2557500000003,
+            "set_p99_us": 1000
+          }
+        }
+      },
+      "replay_sha256": "89b95618662468c5e9fbc5171038d2e56aef1fbf3f375395b90f2e4270b1c94d",
+      "trigger_seconds": 0,
+      "trigger_windows": 0,
+      "windows": [
+        {
+          "actual_success_rate": 5999.988608821626,
+          "arm": "A",
+          "case": "01-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "c21d245bba8ec8e1d15de30abefd8995c51996e507ae7a61b76e4edc817b616a",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1351.679,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 8224.767,
+          "set_p99_us": 6143.999,
+          "started_utc": "2026-11-25T23:08:48.282477045Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.963268224872,
+          "arm": "A",
+          "case": "02-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "0ad1ceb6789918a281d1f7667538e12112a62228913ce8baab0840fdf5a5874a",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1384.447,
+          "host_minus_guest_utc_bracket_ns": [
+            -72265299,
+            143733213
+          ],
+          "in_offer_success": 180000,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 8486.911,
+          "set_p99_us": 6012.927,
+          "started_utc": "2026-11-25T23:09:26.077484414Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.958863882031,
+          "arm": "E",
+          "case": "03-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "ab97aad5b2568f6aac04b2f74dc85be34e1a66d613ce4b249f3939ef8143f78d",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1294.335,
+          "in_offer_success": 179999,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 9863.167,
+          "set_p99_us": 6782.975,
+          "started_utc": "2026-11-25T23:10:03.295101655Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.802955671291,
+          "arm": "E",
+          "case": "04-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "76c7808cdd431bdf111ab90719770e29c5c2ca1bbb616100a8ffcc0b13257c5b",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1327.103,
+          "host_minus_guest_utc_bracket_ns": [
+            -84270499,
+            142429283
+          ],
+          "in_offer_success": 179999,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 9830.399,
+          "set_p99_us": 6766.591,
+          "started_utc": "2026-11-25T23:10:41.86112979Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.97929207147,
+          "arm": "E",
+          "case": "05-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "aa5a2a6a18a3ccac0fa1eb8b86546ab82f3e512018d8e6f017f43324932a34e4",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1314.815,
+          "host_minus_guest_utc_bracket_ns": [
+            -40554999,
+            183182008
+          ],
+          "in_offer_success": 180000,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 10452.991,
+          "set_p99_us": 6569.983,
+          "started_utc": "2026-11-25T23:11:20.634555867Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.986583030002,
+          "arm": "E",
+          "case": "06-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "fb613ac20799142d1abb30ad817a6530851b8e0dbcc81a6c0f8390ce3ef270bb",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1388.543,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 9338.879,
+          "set_p99_us": 6340.607,
+          "started_utc": "2026-11-25T23:11:59.442628687Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.980620262596,
+          "arm": "A",
+          "case": "07-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "6713e41e2ed8b0b41fd117e1434c9de9e4a6b8e28e69dd5c9d9b9052617fd333",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1347.583,
+          "host_minus_guest_utc_bracket_ns": [
+            -73232199,
+            49517658
+          ],
+          "in_offer_success": 180000,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 8716.287,
+          "set_p99_us": 6258.687,
+          "started_utc": "2026-11-25T23:12:37.863574349Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.981043859889,
+          "arm": "A",
+          "case": "08-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "9c9a22c4d1a8feea4855ce343e7a823ae1535afad07bfb6493189e9416add5b4",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1277.951,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 8749.055,
+          "set_p99_us": 5799.935,
+          "started_utc": "2026-11-25T23:13:14.462096949Z",
+          "success": 180000,
+          "trigger_seconds": []
+        }
+      ]
+    },
+    "formal-2": {
+      "count": 8,
+      "pairs": {
+        "A": {
+          "pairs": [
+            {
+              "off": "04-r95-q6000-A",
+              "on": "03-r95-q6000-A",
+              "on_minus_off": {
+                "actual_success_rate": -0.11557992448160803,
+                "set_p999_us": 163.84000000000015,
+                "set_p99_us": 49.152000000000044
+              },
+              "outside_tolerance": []
+            },
+            {
+              "off": "05-r95-q6000-A",
+              "on": "06-r95-q6000-A",
+              "on_minus_off": {
+                "actual_success_rate": 0.045769136876515404,
+                "set_p999_us": 720.8960000000006,
+                "set_p99_us": 835.5839999999998
+              },
+              "outside_tolerance": []
+            }
+          ],
+          "thresholds": {
+            "actual_success_rate": 120,
+            "set_p999_us": 2256.8957499999997,
+            "set_p99_us": 1000
+          }
+        },
+        "E": {
+          "pairs": [
+            {
+              "off": "02-r95-q6000-E",
+              "on": "01-r95-q6000-E",
+              "on_minus_off": {
+                "actual_success_rate": 0.4283841091501017,
+                "set_p999_us": -262.14400000000023,
+                "set_p99_us": -262.1439999999993
+              },
+              "outside_tolerance": []
+            },
+            {
+              "off": "07-r95-q6000-E",
+              "on": "08-r95-q6000-E",
+              "on_minus_off": {
+                "actual_success_rate": -0.011958278648307896,
+                "set_p999_us": -819.1999999999989,
+                "set_p99_us": -557.0560000000005
+              },
+              "outside_tolerance": []
+            }
+          ],
+          "thresholds": {
+            "actual_success_rate": 120,
+            "set_p999_us": 2588.67175,
+            "set_p99_us": 1023.5902499999999
+          }
+        }
+      },
+      "replay_sha256": "3535fcfca87e7d9e077e3db2f8b2a9e68462e45cae3e702308042b34276de56b",
+      "trigger_seconds": 0,
+      "trigger_windows": 0,
+      "windows": [
+        {
+          "actual_success_rate": 5999.967067180763,
+          "arm": "E",
+          "case": "01-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "ca9bad4031d132843323ad84267bed28f3ea0fe1bcbfcb4b7e281b468b5f2f9f",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1306.623,
+          "host_minus_guest_utc_bracket_ns": [
+            -51592399,
+            71184920
+          ],
+          "in_offer_success": 180000,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 10387.455,
+          "set_p99_us": 6651.903,
+          "started_utc": "2026-11-25T23:53:54.938571218Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.5386830716125,
+          "arm": "E",
+          "case": "02-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "e684e5c26e82bb11138f118f4d97e5b16a7b47fd1d8811342d026f1829244254",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1306.623,
+          "in_offer_success": 179999,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 10649.599,
+          "set_p99_us": 6914.047,
+          "started_utc": "2026-11-25T23:54:33.841695306Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.820855948925,
+          "arm": "A",
+          "case": "03-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "2b5ae421054865c4577ed5c55924ef36453a9c2b2bcc9c08826e9b529657381d",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1437.695,
+          "host_minus_guest_utc_bracket_ns": [
+            -40093099,
+            174601067
+          ],
+          "in_offer_success": 179987,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 9633.791,
+          "set_p99_us": 6520.831,
+          "started_utc": "2026-11-25T23:55:12.329994235Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.9364358734065,
+          "arm": "A",
+          "case": "04-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "44b898efb47036b1baabdc10c73a263fcba95351e3e4ab8afbd76c5aafbdff77",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1449.983,
+          "in_offer_success": 179997,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 9469.951,
+          "set_p99_us": 6471.679,
+          "started_utc": "2026-11-25T23:55:48.939420147Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.946759672426,
+          "arm": "A",
+          "case": "05-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "84ae8c5f131614b70cd839fba5ad1fdf00744313c299601debb45ff34acac351",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1355.775,
+          "in_offer_success": 179995,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 8585.215,
+          "set_p99_us": 5734.399,
+          "started_utc": "2026-11-25T23:56:26.630294974Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.992528809303,
+          "arm": "A",
+          "case": "06-r95-q6000-A",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "884edde5c146d4b9bbee94241f19e0dcdcac42a6f6b47598d88596a0eed3091a",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1335.295,
+          "host_minus_guest_utc_bracket_ns": [
+            -91923999,
+            125482267
+          ],
+          "in_offer_success": 180000,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 9306.111,
+          "set_p99_us": 6569.983,
+          "started_utc": "2026-11-25T23:57:03.54527015Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        },
+        {
+          "actual_success_rate": 5999.975535499752,
+          "arm": "E",
+          "case": "07-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "e2611915cf911810c0495f0913bbb8b6b0682fe09294abe3767d8918104110b8",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1404.927,
+          "in_offer_success": 180000,
+          "mode": "OFF",
+          "offered": 180000,
+          "set_p999_us": 10059.775,
+          "set_p99_us": 6733.823,
+          "started_utc": "2026-11-25T23:57:41.91458444Z",
+          "success": 180000,
+          "trigger_seconds": []
+        },
+        {
+          "actual_success_rate": 5999.963577221104,
+          "arm": "E",
+          "case": "08-r95-q6000-E",
+          "client_gc": {
+            "collections": 0,
+            "pause_ns": 0
+          },
+          "client_sha256": "8ad595ba95209bf24f9f0314c8cd43ecb377ee25287d51a3d239c4b04e6f82b6",
+          "control_seconds": {},
+          "failures": 0,
+          "get_p99_us": 1314.815,
+          "host_minus_guest_utc_bracket_ns": [
+            -80684899,
+            33622086
+          ],
+          "in_offer_success": 179999,
+          "mode": "ON",
+          "offered": 180000,
+          "request_capture": {
+            "drops": 0,
+            "exact_slow": {
+              "get": 0,
+              "set": 0
+            },
+            "retained": 11228,
+            "sampled_workers": 64,
+            "uniform": 11228
+          },
+          "resource_intervals": {
+            "guest": 30,
+            "host": 31
+          },
+          "set_p999_us": 9240.575,
+          "set_p99_us": 6176.767,
+          "started_utc": "2026-11-25T23:58:20.144224103Z",
+          "success": 180000,
+          "trigger_seconds": [],
+          "trigger_slow": {
+            "get": {
+              "count": 0
+            },
+            "set": {
+              "count": 0
+            }
+          }
+        }
+      ]
+    }
+  },
+  "totals": {
+    "client_gc_collections": 0,
+    "client_gc_pause_ns": 0,
+    "drops": 0,
+    "exact_slow_on": {
+      "get": 0,
+      "set": 0
+    },
+    "failures": 0,
+    "in_offer_success": 4319968,
+    "offered": 4320000,
+    "planned_seconds": 720,
+    "retained": 134736,
+    "success": 4320000,
+    "trigger_seconds": 2,
+    "trigger_windows": 1,
+    "uniform": 134736,
+    "windows": 24
+  }
+}
