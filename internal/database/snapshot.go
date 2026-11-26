@@ -20,14 +20,37 @@ import (
 	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 )
 
-const snapshotMagic = "KVSNAP01"
+const (
+	snapshotMagic        = "KVSNAP01"
+	snapshotFirstChunk   = 32
+	snapshotMaximumChunk = 1024
+)
 
 type snapshotEntry struct {
 	key   string
 	value []byte
 }
 
-type snapshotImage [][]snapshotEntry
+type snapshotImage []snapshotDBImage
+
+type snapshotDBImage struct {
+	chunks [][]snapshotEntry
+	count  uint64
+}
+
+func (db *snapshotDBImage) append(entry snapshotEntry) {
+	last := len(db.chunks) - 1
+	if last < 0 {
+		db.chunks = append(db.chunks, make([]snapshotEntry, 0, snapshotFirstChunk))
+		last = 0
+	} else if len(db.chunks[last]) == cap(db.chunks[last]) {
+		capacity := min(cap(db.chunks[last])*2, snapshotMaximumChunk)
+		db.chunks = append(db.chunks, make([]snapshotEntry, 0, capacity))
+		last++
+	}
+	db.chunks[last] = append(db.chunks[last], entry)
+	db.count++
+}
 
 // SaveSnapshot publishes a complete image of the supplied logical databases.
 // The databases must be in ID order and fully resident. Capture acquires the
@@ -188,7 +211,7 @@ func captureSnapshotLocked(dbs []*Database) (snapshotImage, error) {
 				if err != nil {
 					return nil, fmt.Errorf("encode database %d key %q: %w", i, key, err)
 				}
-				image[i] = append(image[i], snapshotEntry{key: key, value: encoded})
+				image[i].append(snapshotEntry{key: key, value: encoded})
 			}
 		}
 	}
@@ -299,22 +322,24 @@ func writeSnapshot(w io.Writer, image snapshotImage) error {
 	if _, err := w.Write(header[:8]); err != nil {
 		return err
 	}
-	for _, entries := range image {
-		binary.LittleEndian.PutUint64(header[:8], uint64(len(entries)))
+	for _, db := range image {
+		binary.LittleEndian.PutUint64(header[:8], db.count)
 		if _, err := w.Write(header[:8]); err != nil {
 			return err
 		}
-		for _, entry := range entries {
-			binary.LittleEndian.PutUint64(header[:8], uint64(len(entry.key)))
-			binary.LittleEndian.PutUint64(header[8:], uint64(len(entry.value)))
-			if _, err := w.Write(header[:]); err != nil {
-				return err
-			}
-			if _, err := io.WriteString(w, entry.key); err != nil {
-				return err
-			}
-			if _, err := w.Write(entry.value); err != nil {
-				return err
+		for _, chunk := range db.chunks {
+			for _, entry := range chunk {
+				binary.LittleEndian.PutUint64(header[:8], uint64(len(entry.key)))
+				binary.LittleEndian.PutUint64(header[8:], uint64(len(entry.value)))
+				if _, err := w.Write(header[:]); err != nil {
+					return err
+				}
+				if _, err := io.WriteString(w, entry.key); err != nil {
+					return err
+				}
+				if _, err := w.Write(entry.value); err != nil {
+					return err
+				}
 			}
 		}
 	}
