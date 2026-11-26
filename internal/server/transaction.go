@@ -27,10 +27,10 @@ func dispatchCommand(dst []byte, ctx *ConnectionContext, manager *database.DBMan
 		return appendBlockingListResponse(dst, ctx, cmd, args), false
 	}
 	hotKey := (cmd == "GET" && len(args) == 1) || (cmd == "SET" && len(args) == 2) || (cmd == "INCR" && len(args) == 1)
-	// SELECT changes only this connection. INFO samples counters under the
-	// database's own locks. Neither should queue an exclusive gate waiter
-	// behind a durable write and consequently stall unrelated GETs.
-	observer := cmd == "INFO" || (cmd == "SELECT" && len(args) == 1)
+	// PING only builds a reply, SELECT changes the connection, and INFO
+	// samples counters under the database's own locks. They can share the
+	// execution gate with a durable write without stalling unrelated GETs.
+	observer := cmd == "INFO" || (cmd == "SELECT" && len(args) == 1) || (cmd == "PING" && len(args) <= 1)
 	if hotKey || (observer && (ctx.Tx == nil || !ctx.Tx.InMulti)) {
 		database.LockSharedExecution()
 		defer database.UnlockSharedExecution()
