@@ -89,6 +89,16 @@ func TestWriteTraceJoinsTCPOrdinalAndCommit(t *testing.T) {
 			if _, err := io.ReadFull(connection, received); err != nil || string(received) != reply {
 				t.Fatalf("replies = %q, %v", received, err)
 			}
+			// A client can read the bytes before gnet's async write callback
+			// completes. The next reply proves this worker recorded the batch
+			// before closing the connection can cancel that callback wait.
+			if _, err := io.WriteString(connection, "*1\r\n$4\r\nPING\r\n"); err != nil {
+				t.Fatal(err)
+			}
+			pong := make([]byte, len("+PONG\r\n"))
+			if _, err := io.ReadFull(connection, pong); err != nil || string(pong) != "+PONG\r\n" {
+				t.Fatalf("worker barrier reply = %q, %v", pong, err)
+			}
 			port := connection.LocalAddr().(*net.TCPAddr).Port
 			_ = connection.Close()
 			if err := srv.Stop(); err != nil {
