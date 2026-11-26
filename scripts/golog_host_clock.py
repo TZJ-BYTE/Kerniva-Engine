@@ -2,6 +2,7 @@
 import argparse
 from contextlib import ExitStack, contextmanager
 import json
+import os
 from pathlib import Path
 import select
 import subprocess
@@ -47,9 +48,15 @@ def offset_bounds(rows):
     return lo, hi
 
 
+def clock_report(pre, post):
+    return {'schema': 1, 'offset': 'Windows perf_counter_ns minus WSL CLOCK_MONOTONIC ns',
+            'pre': pre, 'post': post, 'pre_bounds_ns': offset_bounds(pre),
+            'post_bounds_ns': offset_bounds(post)}
+
+
 def close_helper(process):
-    process.stdin.close()
     try:
+        process.stdin.close()
         if process.wait(timeout=5):
             raise RuntimeError('Windows clock helper failed')
     finally:
@@ -97,14 +104,70 @@ def HostWindow(windows_python, directory, sampler_script, drive='F', interval_ms
             yield
         finally:
             post = probe(helper, len(pre))
-            report = {'schema': 1, 'offset': 'Windows perf_counter_ns minus WSL CLOCK_MONOTONIC ns',
-                      'pre': pre, 'post': post, 'pre_bounds_ns': offset_bounds(pre),
-                      'post_bounds_ns': offset_bounds(post)}
+            report = clock_report(pre, post)
             (directory / 'clocks.json').write_text(json.dumps(report, indent=2) + '\n')
 
 
-if __name__ == '__main__':
+def run_command(windows_python, output, command):
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(output)
+    partial = output.with_name(output.name + '.partial')
+    stream = partial.open('x', encoding='utf-8')
+    try:
+        with stream:
+            if output.exists() or output.is_symlink():
+                raise FileExistsError(output)
+            status, report = bracket_command(windows_python, command)
+            if status:
+                return status
+            stream.write(json.dumps(report, indent=2) + '\n')
+        os.link(partial, output)
+        return 0
+    finally:
+        partial.unlink()
+
+
+def bracket_command(windows_python, command):
+    with subprocess.Popen([str(windows_python), '-I', '-u', windows_path(__file__), '--respond'],
+                          stdin=subprocess.PIPE, stdout=subprocess.PIPE) as helper:
+        report = None
+        try:
+            pre = probe(helper, 0)
+            offset_bounds(pre)
+            result = subprocess.run(command)
+            if result.returncode:
+                status = result.returncode if result.returncode > 0 else 128 - result.returncode
+                return status, None
+            report = clock_report(pre, probe(helper, len(pre)))
+        finally:
+            try:
+                close_helper(helper)
+            except (OSError, RuntimeError, subprocess.SubprocessError):
+                if report is not None:
+                    raise
+    return 0, report
+
+
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--respond', action='store_true', required=True)
-    parser.parse_args()
-    respond()
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--respond', action='store_true')
+    mode.add_argument('--windows-python', type=Path, help='WSL path to Windows python.exe')
+    parser.add_argument('--output', type=Path, help='new clock receipt file')
+    parser.add_argument('command', nargs=argparse.REMAINDER, help='command and its arguments after --')
+    args = parser.parse_args()
+    if args.respond:
+        respond()
+        return 0
+    command = args.command[1:] if args.command[:1] == ['--'] else args.command
+    if args.output is None or not command:
+        parser.error('--windows-python requires --output and a command after --')
+    try:
+        return run_command(args.windows_python, args.output, command)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f'{parser.prog}: {error}', file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
