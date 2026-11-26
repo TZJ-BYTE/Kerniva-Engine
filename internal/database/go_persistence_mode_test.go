@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/golog"
+	"github.com/TZJ-BYTE/Kerniva/internal/gologstate"
 )
 
 func goPersistenceTestConfig(t *testing.T, log, snapshot bool) *config.Config {
@@ -159,6 +161,64 @@ func TestManagerGoPersistenceHandoff(t *testing.T) {
 	db1, _ = m.GetDBByIndex(1)
 	if _, ok := db1.Get("removed"); ok {
 		t.Fatal("WAL restart resurrected a key missing from the snapshot")
+	}
+}
+
+func TestManagerRetainedWALImportRejectsUnsafeHistory(t *testing.T) {
+	for _, scenario := range []string{"source-identity", "source-lease", "writer-lock", "corrupt-segment", "excluded-db"} {
+		t.Run(scenario, func(t *testing.T) {
+			wal, snapshot := prepareWALExportTest(t)
+			m := openGoPersistenceTestManager(t, &snapshot)
+			closeGoPersistenceTestManager(t, m)
+			root := filepath.Join(wal.DataDir, gologstate.WALDir)
+			db1 := filepath.Join(root, "db_1")
+			switch scenario {
+			case "source-identity":
+				if err := os.WriteFile(filepath.Join(root, gologstate.SourceIDFile), []byte("source"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "source-lease":
+				lease, err := os.OpenFile(filepath.Join(root, gologstate.SourceLeaseFile), os.O_CREATE|os.O_RDWR, 0o600)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = lease.Close() })
+				if err := tryLockSnapshotFile(lease); err != nil {
+					t.Fatal(err)
+				}
+			case "writer-lock":
+				lock, err := golog.LockWriterDirectory(db1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = lock.Close() })
+			case "corrupt-segment":
+				segments, err := filepath.Glob(filepath.Join(db1, "log-*.seg"))
+				if err != nil || len(segments) != 1 {
+					t.Fatalf("expected one retained segment, got %v (%v)", segments, err)
+				}
+				if err := os.WriteFile(segments[0], []byte("damaged retained segment"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "excluded-db":
+				wal.DBCount = 1
+			}
+			before, gen, _, err := gologstate.Read(wal.DataDir)
+			if err != nil || before != goModeSnapshot || gen == 0 {
+				t.Fatalf("expected committed snapshot, got %q %d (%v)", before, gen, err)
+			}
+			if m, err := NewDBManagerChecked(wal); err == nil {
+				_ = m.Close()
+				t.Fatal("accepted unsafe WAL import")
+			}
+			after, genAfter, _, err := gologstate.Read(wal.DataDir)
+			if err != nil || after != before || genAfter != gen {
+				t.Fatalf("failed import changed authority to %q %d (%v)", after, genAfter, err)
+			}
+			m = openGoPersistenceTestManager(t, &snapshot)
+			db, _ := m.GetDBByIndex(1)
+			requireString(t, db, "key", "db one")
+		})
 	}
 }
 

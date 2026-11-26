@@ -252,6 +252,13 @@ func (s *source) pull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deferSnapshot := query.Get(deferSnapshotQuery) == "1"
+	// A primary can disable its WAL while this source is still listening.
+	// Only admit a new pull while the sealed history is authoritative.
+	if err := checkSourceAuthority(s.root); err != nil {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Error(w, "replication WAL is unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	current, err := s.capture(r.Context(), db, after, rebase, forceSnapshot, deferSnapshot)
 	if err != nil {
 		if errors.Is(err, errSnapshotRequired) {

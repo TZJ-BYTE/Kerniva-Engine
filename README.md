@@ -2,7 +2,7 @@
 
 Kerniva 是 Go 实现的 Redis 协议兼容内存数据库，支持标准库 net 与 gnet 两种网络入口。当前毕设方案由 Go 处理请求和追加分段日志，独立 Rust 进程生成全量快照并回收旧段，Go 启动时通过 C ABI 复用 Rust 恢复逻辑。
 
-Go 主库提供两个持久化开关。`go_log_enabled` 控制每次变更是否写入增量日志，`snapshot_enabled` 控制定时保存全量快照。两个设置分别生效，也可以同时开启。只开快照时可以在没有 Rust 动态库的情况下启动和恢复。项目处于原型工程化阶段。[持久化开关、恢复及切换示例](docs/verification/persistence-modes.md)
+Go 主库提供两个持久化开关。`go_log_enabled` 控制每次变更是否写入增量日志，`snapshot_enabled` 控制定时保存全量快照。可在 YAML 或 Windows 受管实例的设置中分别开关。单机从已有 WAL 首次切到仅快照时，主库用同版 Rust 动态库读取旧日志，之后可直接从全量快照启动。重新开启日志时，主库会从最新快照为各逻辑库建立基线。[持久化开关、恢复及切换示例](docs/verification/persistence-modes.md)
 
 数据库工作台提供原生桌面窗口、鼠标终端、浏览器和命令式终端。可连接本地或远程 Kerniva、Redis 单机和 Redis Cluster，在「数据浏览」切换当前逻辑库、分页查看键值。Windows x64 离线安装器自带工作台和单机引擎。在「连接 → 本机实例」选引擎和数据位置后即可部署，关掉桌面窗口仍能使用数据库。Windows 便携包的两个入口是 `Kerniva Workbench.exe` 和 `Kerniva-TUI.cmd`，Linux 包的两个入口是 `./kerniva-workbench` 和 `./kerniva-tui`。[工作台用法](docs/database_workbench.md) · [桌面打包与验收](docs/verification/native-workbench.md) · [Windows 安装与系统服务](packaging/desktop/windows-installation.md)
 

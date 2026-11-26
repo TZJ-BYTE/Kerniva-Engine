@@ -389,6 +389,8 @@ def start_instance(record, processes, configurable):
                 hint = "请同时开启增量日志和定时快照，启动后正常停止，再关闭增量日志。"
             elif "Go snapshots are authoritative" in detail:
                 hint = "请先将原 go-log-v1 目录完整备份并移出数据根目录，再开启增量日志。"
+            elif "snapshot import requires a standalone WAL" in detail:
+                hint = "此目录曾作为复制源。请停用复制源、完整保留旧日志，并为副本重新建立基线。"
             elif "lock Go persistence directory" in detail:
                 hint = "请先停止使用同一数据目录的其他引擎。"
             else:

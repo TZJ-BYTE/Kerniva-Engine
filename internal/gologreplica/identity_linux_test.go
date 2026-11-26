@@ -73,6 +73,32 @@ func TestSourceOpeningChecksManagedWALAuthority(t *testing.T) {
 	}
 }
 
+func TestRunningSourceStopsServingAfterWALHandoff(t *testing.T) {
+	data := t.TempDir()
+	root := filepath.Join(data, gologstate.WALDir)
+	check(t, os.MkdirAll(filepath.Join(root, dbName(0)), 0700))
+	handler, lease, err := OpenLeasedSource(root)
+	check(t, err)
+	defer lease.Close()
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	for _, tc := range []struct {
+		phase string
+		want  int
+	}{
+		{"wal 0 1", http.StatusOK}, {"handoff 2 1", http.StatusOK},
+		{"snapshot 2 0", http.StatusServiceUnavailable}, {"snapshot-import 2 0", http.StatusServiceUnavailable},
+	} {
+		check(t, os.WriteFile(filepath.Join(data, gologstate.ModeFile), []byte(tc.phase), 0600))
+		resp, err := server.Client().Get(server.URL + "/pull?db=0&after=0")
+		check(t, err)
+		check(t, resp.Body.Close())
+		if resp.StatusCode != tc.want {
+			t.Fatalf("pull in %q returned %d, want %d", tc.phase, resp.StatusCode, tc.want)
+		}
+	}
+}
+
 func TestNewSourceSharesLeaseDuringIdentityCreation(t *testing.T) {
 	if _, err := NewSource(""); err == nil {
 		t.Fatal("legacy opening accepted a missing root")

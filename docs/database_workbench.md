@@ -6,6 +6,8 @@
 
 Windows x64 用户可运行离线安装器，选择工作台的安装目录。安装包和带引擎的 Windows 便携包可以在「连接 → 本机实例」部署 Kerniva 单机。[Windows 安装与系统服务](../packaging/desktop/windows-installation.md)
 
+使用支持独立持久化开关的引擎包时，可在这里分别勾选「增量日志」和「定时快照」。新实例默认勾选增量日志。已有实例先停止，编辑开关并保存，下次启动生效。两项都关闭后，新写入只保存在内存。这里的设置作用于当前受管实例，旧引擎包会显示其支持情况。[开关与数据恢复](verification/persistence-modes.md)
+
 解压桌面便携包后，Windows 双击 `Kerniva Workbench.exe`，Linux 运行 `./kerniva-workbench`。窗口、浏览器和终端共用连接配置。桌面程序会在回环地址启动自己的管理服务，关闭窗口即释放该服务。若已有工作台，可给桌面程序传 `--url http://127.0.0.1:18782` 附着。目标数据库的本地或远程地址填在「新建连接」中。Windows 窗口需要系统 WebView2，Linux 窗口使用 GTK 4 与 WebKitGTK 6。[桌面构建与实测](verification/native-workbench.md)
 
 从源码使用浏览器工作台或原有交互终端，需要 Python 3.9 或更新版本和标准库。在仓库根目录启动后，打开终端打印的地址，默认是 `http://127.0.0.1:18782/`。Windows 上的普通工作台由 Windows Python 原生运行。
