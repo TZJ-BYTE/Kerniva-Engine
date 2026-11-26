@@ -20,6 +20,29 @@ function input(label, name, value, type = "text") {
   return box;
 }
 
+function persistenceControls({goLogEnabled = true, snapshotEnabled = false}, disabled) {
+  const group = node("fieldset", undefined, "instance-persistence");
+  group.disabled = disabled;
+  group.append(node("legend", "持久化"));
+  const checks = {};
+  for (const [key, label, checked] of [["goLogEnabled", "增量日志", goLogEnabled],
+                                       ["snapshotEnabled", "定时快照", snapshotEnabled]]) {
+    const field = node("label", undefined, "checkbox");
+    const toggle = node("input");
+    Object.assign(toggle, {type: "checkbox", name: key, checked});
+    field.append(toggle, document.createTextNode(label));
+    group.append(field);
+    checks[key] = toggle;
+  }
+  const values = () => Object.fromEntries(Object.entries(checks).map(([key, toggle]) => [key, toggle.checked]));
+  const memory = node("p", "仅内存运行。重启时不会加载旧持久化数据。", "quiet instance-memory-note");
+  const showMemory = () => { memory.hidden = checks.goLogEnabled.checked || checks.snapshotEnabled.checked; };
+  showMemory();
+  group.addEventListener("change", showMemory);
+  group.append(memory);
+  return {group, values};
+}
+
 function pathList(record) {
   const result = node("dl", undefined, "instance-paths");
   for (const [name, value] of [["数据目录", record.dataDir], ["引擎目录", record.engineDir],
@@ -70,7 +93,9 @@ export async function renderInstances(container, {api, connect}) {
     const port = input("本机端口", "port", String(state.suggestedPort), "number");
     Object.assign(port.querySelector("input"), {min: 1, max: 65535});
     row.append(name, port);
-    panel.append(row, node("p", "Go-log 持久化 · 仅监听 127.0.0.1 · 版本 " + state.version, "quiet"));
+    const persistence = persistenceControls({}, !state.persistenceConfigurable);
+    panel.append(row, persistence.group, node("p", "仅监听 127.0.0.1 · 版本 " + state.version, "quiet"));
+    if (!state.persistenceConfigurable) panel.append(node("p", "此引擎仅支持默认增量日志。", "quiet"));
     const paths = node("details");
     paths.append(node("summary", "安装和数据位置"));
     for (const field of [input("引擎安装目录", "engineRoot", state.engineRoot),
@@ -100,8 +125,11 @@ export async function renderInstances(container, {api, connect}) {
     panel.addEventListener("submit", event => {
       event.preventDefault();
       const spec = Object.fromEntries(new FormData(panel));
+      delete spec.goLogEnabled;
+      delete spec.snapshotEnabled;
+      const options = state.persistenceConfigurable ? persistence.values() : {};
       run(async () => {
-        await api("/api/instances/deploy", {...spec, id, port: Number(spec.port)});
+        await api("/api/instances/deploy", {...spec, ...options, id, port: Number(spec.port)});
         await refresh();
         message.textContent = "实例已启动，可以浏览数据。";
       });
@@ -144,7 +172,24 @@ export async function renderInstances(container, {api, connect}) {
     details.append(node("summary", "位置与启动方式"), pathList(record),
                    node("p", "以当前用户运行，关闭工作台后继续提供服务。需要无人登录时启动，可由管理员配置 Windows 系统服务。", "quiet"));
     if (record.installed) details.append(button("打开数据目录", () => run(() => api("/api/instances/open-data", {id: record.id}))));
-    panel.append(heading, actions, details, logs);
+    const editable = record.persistenceConfigurable && record.state === "stopped";
+    const persistence = persistenceControls(record, !editable);
+    const persistenceHint = !record.persistenceConfigurable ? "此引擎仅支持默认增量日志。" :
+      editable ? "保存后在下次启动时生效。" : "停止实例后可修改。";
+    panel.append(heading, actions, persistence.group, node("p", persistenceHint, "quiet"));
+    if (editable) {
+      const save = button("保存持久化设置", () => run(async () => {
+        await api("/api/instances/persistence", {id: record.id, ...persistence.values()});
+        await refresh();
+        message.textContent = "持久化设置已保存。";
+      }));
+      save.disabled = true;
+      persistence.group.addEventListener("change", () => {
+        save.disabled = Object.entries(persistence.values()).every(([key, value]) => value === record[key]);
+      });
+      panel.append(save);
+    }
+    panel.append(details, logs);
     return panel;
   }
   async function refresh() {

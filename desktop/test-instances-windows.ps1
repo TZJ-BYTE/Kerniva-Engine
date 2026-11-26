@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)][string]$App,
     [string]$SourceEngine,
+    [switch]$SkipDirectoryDialogs,
     [switch]$TestLoginStartup,
     [string]$Evidence = (Join-Path ([IO.Path]::GetTempPath()) ('kerniva-native-instance-' + [guid]::NewGuid().ToString('N')))
 )
@@ -77,6 +78,10 @@ $Desktop = $null
 $devService = $null
 $windowArgs = @('--config', $settings)
 $report = [ordered]@{app=$App; appSHA256=(Get-FileHash -LiteralPath $App).Hash; started=(Get-Date -Format o)}
+$manifestPath = if ($SourceEngine) { Join-Path $SourceEngine 'manifest.json' }
+                else { Join-Path (Split-Path $App) 'engine/manifest.json' }
+$persistenceConfigurable = (Test-Path -LiteralPath $manifestPath) -and
+    ((Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json).capabilities.go_persistence_switches -eq $true)
 try {
     if ($SourceEngine) {
         $source = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../scripts/kerniva-workbench.py')).Path
@@ -90,6 +95,15 @@ try {
     Open-Desktop $windowArgs
     Invoke-ID 'instances-tab'
     Invoke-Name '部署 Kerniva' 'Button'
+    if ($persistenceConfigurable) {
+        $wal = Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '增量日志' 'CheckBox'
+        $snapshot = Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '定时快照' 'CheckBox'
+        if (!$wal.Current.IsEnabled -or !$snapshot.Current.IsEnabled -or
+            $wal.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -ne 'On' -or
+            $snapshot.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -ne 'Off') {
+            throw 'The deployment checkboxes do not match the engine defaults'
+        }
+    }
     Set-ControlValue '实例名称' 'Edit' '原生临时实例'
     $holder = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
     $holder.Start()
@@ -98,38 +112,44 @@ try {
     Set-ControlValue '本机端口' 'Spinner' $port
     $paths = Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '安装和数据位置' $null
     $paths.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
-    $original = (Input-ByID 'instance-engine-root').Current.Value
-    Click-WindowButton 'choose-engine-root'
-    $dialog = Wait-ForDialog
-    Finish-Dialog $dialog 2
-    Wait-ForPath 'instance-engine-root' $original
-    $report.cancelPreserved = $true
-    (Input-ByID 'instance-engine-root').SetValue($engine)
-    Click-WindowButton 'choose-data-dir'
-    $dialog = Wait-ForDialog
-    $scope = [Windows.Automation.TreeScope]::Descendants
-    $deadline = [datetime]::UtcNow.AddSeconds(6)
-    do {
-        $destination = $dialog.FindFirst($scope,[Windows.Automation.PropertyCondition]::new(
-            [Windows.Automation.AutomationElement]::AutomationIdProperty, '1152'))
-        if ($destination) { break }
-        Start-Sleep -Milliseconds 120
-    } while ([datetime]::UtcNow -lt $deadline)
-    if (!$destination) {
-        $dialog.FindAll($scope,[Windows.Automation.Condition]::TrueCondition) |
-            ForEach-Object { "$($_.Current.ControlType.ProgrammaticName) $($_.Current.AutomationId) $($_.Current.ClassName)" } |
-            Set-Content -LiteralPath (Join-Path $Evidence 'chooser-controls.txt') -Encoding utf8
-        throw 'Native folder name field was not found'
+    if ($SkipDirectoryDialogs) {
+        (Input-ByID 'instance-engine-root').SetValue($engine)
+        (Input-ByID 'instance-data-dir').SetValue($data)
+        $report.directoryDialogsSkipped = $true
+    } else {
+        $original = (Input-ByID 'instance-engine-root').Current.Value
+        Click-WindowButton 'choose-engine-root'
+        $dialog = Wait-ForDialog
+        Finish-Dialog $dialog 2
+        Wait-ForPath 'instance-engine-root' $original
+        $report.cancelPreserved = $true
+        (Input-ByID 'instance-engine-root').SetValue($engine)
+        Click-WindowButton 'choose-data-dir'
+        $dialog = Wait-ForDialog
+        $scope = [Windows.Automation.TreeScope]::Descendants
+        $deadline = [datetime]::UtcNow.AddSeconds(6)
+        do {
+            $destination = $dialog.FindFirst($scope,[Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty, '1152'))
+            if ($destination) { break }
+            Start-Sleep -Milliseconds 120
+        } while ([datetime]::UtcNow -lt $deadline)
+        if (!$destination) {
+            $dialog.FindAll($scope,[Windows.Automation.Condition]::TrueCondition) |
+                ForEach-Object { "$($_.Current.ControlType.ProgrammaticName) $($_.Current.AutomationId) $($_.Current.ClassName)" } |
+                Set-Content -LiteralPath (Join-Path $Evidence 'chooser-controls.txt') -Encoding utf8
+            throw 'Native folder name field was not found'
+        }
+        $inputWindow = [IntPtr]$destination.Current.NativeWindowHandle
+        if ($destination.Current.ClassName -ne 'Edit' -or $inputWindow -eq 0 -or
+            [WorkbenchChooser]::SendText($inputWindow, 0x000C, [IntPtr]::Zero, $data) -eq 0) {
+            throw 'Cannot populate the native dialog folder field'
+        }
+        Finish-Dialog $dialog 1
+        Wait-ForPath 'instance-data-dir' $data
     }
-    $inputWindow = [IntPtr]$destination.Current.NativeWindowHandle
-    if ($destination.Current.ClassName -ne 'Edit' -or $inputWindow -eq 0 -or
-        [WorkbenchChooser]::SendText($inputWindow, 0x000C, [IntPtr]::Zero, $data) -eq 0) {
-        throw 'Cannot populate the native dialog folder field'
-    }
-    Finish-Dialog $dialog 1
-    Wait-ForPath 'instance-data-dir' $data
     $report.chosenDataDirectory = $data
-    Click-WindowButton 'deploy-instance'
+    if ($SkipDirectoryDialogs) { Invoke-ID 'deploy-instance' } else { Click-WindowButton 'deploy-instance' }
     Invoke-Name '浏览数据' 'Button'
     [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '已连接「原生临时实例」 · 当前库 DB 0' 'Text')
     Set-TestMarker $port 0 'workbench:native' 'value-from-zero'
@@ -162,6 +182,18 @@ try {
         if ($probe.Connected) { throw 'Owned database port remained open' }
     } finally { $probe.Dispose() }
     $report.closedFromReopenedWorkbench = $true
+    if ($persistenceConfigurable) {
+        $snapshot = Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '定时快照' 'CheckBox'
+        $snapshot.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern).Toggle()
+        Invoke-Name '保存持久化设置' 'Button'
+        [void](Find-Control ([Windows.Automation.AutomationElement]::NameProperty) '持久化设置已保存。' 'Text')
+        $writtenConfig = Get-ChildItem -LiteralPath ($settings + '.instances/control') -Recurse -File -Filter 'server.json'
+        $writtenOptions = Get-Content -Raw -LiteralPath $writtenConfig.FullName | ConvertFrom-Json
+        if ($writtenOptions.go_log_enabled -ne $true -or $writtenOptions.snapshot_enabled -ne $true) {
+            throw 'Saving the snapshot checkbox did not preserve the WAL checkbox'
+        }
+        $report.persistenceCheckboxes = 'WAL on, snapshot off by default. Enabled snapshot while stopped and saved both on.'
+    }
     if ($TestLoginStartup) {
         if ($SourceEngine) { throw 'Login startup requires a packaged desktop' }
         if ($null -ne (Read-Startup)) { throw 'A login setting already exists; leaving it untouched' }

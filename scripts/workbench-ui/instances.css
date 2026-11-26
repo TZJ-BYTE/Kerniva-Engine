@@ -6,6 +6,9 @@
 .instance-card, .instance-form { padding: 1.2rem; margin-block: .8rem; }
 .instance-form { display: grid; gap: 1rem; max-width: 640px; }
 .instance-form details label, .instance-card details { margin-top: .8rem; }
+.instance-persistence { display: flex; flex-wrap: wrap; gap: .4rem 1rem; border: 0; padding: 0; margin: 0; }
+.instance-persistence legend { margin-bottom: .25rem; }
+.instance-memory-note { flex-basis: 100%; margin: .25rem 0; }
 .instance-directory { display: flex; gap: .5rem; align-items: end; }
 .instance-directory label { flex: 1; }
 .instance-page summary { cursor: pointer; font-weight: 550; }
