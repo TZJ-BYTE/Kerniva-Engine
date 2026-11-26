@@ -1,7 +1,6 @@
 package server
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +13,7 @@ func TestPingCanRunAlongsideOrdinaryWrite(t *testing.T) {
 	plain := NewConnectionContext(db, nil, nil)
 	hub := NewPubSubHub()
 	subscribed := NewConnectionContext(db, hub, nil)
-	if reply := dispatchTestCommand(subscribed, manager, "SUBSCRIBE", "witness"); !strings.HasPrefix(reply, "*3\r\n") {
-		t.Fatalf("SUBSCRIBE = %q", reply)
-	}
+	hub.Subscribe(subscribed, [][]byte{[]byte("witness")})
 	t.Cleanup(func() { hub.CleanupConnection(subscribed) })
 	for _, tc := range []struct {
 		name string
