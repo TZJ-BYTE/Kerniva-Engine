@@ -135,7 +135,7 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 			if err := mode.exportWAL(manager.databases); err != nil {
 				return nil, errors.Join(err, manager.closeDatabases())
 			}
-		} else if err := LoadSnapshot(mode.snapshotDir, manager.databases); err != nil {
+		} else if err := loadSnapshotGeneration(mode.snapshotDir, manager.databases, &mode.generation); err != nil {
 			return nil, errors.Join(fmt.Errorf("restore Go snapshot: %w", err), manager.closeDatabases())
 		}
 	}

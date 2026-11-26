@@ -85,10 +85,19 @@ func saveSnapshot(dir string, dbs []*Database, final bool) error {
 // Go databases. An absent snapshot is an empty startup. A corrupt latest
 // generation fails startup, since loading an older one can resurrect deletes.
 func LoadSnapshot(dir string, dbs []*Database) error {
+	return loadSnapshotGeneration(dir, dbs, nil)
+}
+
+// Managers pin the generation selected under the persistence root lock.
+// Recheck under the snapshot lock before restoring or treating a root as empty.
+func loadSnapshotGeneration(dir string, dbs []*Database, expected *uint64) error {
 	if err := validateSnapshotDatabases(dbs); err != nil {
 		return err
 	}
 	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		if expected != nil && *expected != 0 {
+			return fmt.Errorf("required Go snapshot generation %d is unavailable in %s", *expected, dir)
+		}
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("open snapshot directory: %w", err)
@@ -100,10 +109,20 @@ func LoadSnapshot(dir string, dbs []*Database) error {
 	defer lock.Close()
 
 	generations, err := snapshotGenerations(dir)
-	if err != nil || len(generations) == 0 {
+	if err != nil {
 		return err
 	}
-	path := snapshotPath(dir, generations[len(generations)-1])
+	var latest uint64
+	if len(generations) > 0 {
+		latest = generations[len(generations)-1]
+	}
+	if expected != nil && latest != *expected {
+		return fmt.Errorf("expected Go snapshot generation %d in %s, found %d", *expected, dir, latest)
+	}
+	if latest == 0 {
+		return nil
+	}
+	path := snapshotPath(dir, latest)
 	if err := restoreSnapshot(path, dbs); err != nil {
 		return fmt.Errorf("restore snapshot %q: %w", path, err)
 	}

@@ -271,6 +271,32 @@ func TestManagerFreshGoSnapshotImportsWALAfterInterruption(t *testing.T) {
 	requireString(t, db1, "key", "source snapshot")
 }
 
+func TestSnapshotImportRejectsVanishedSelectedGeneration(t *testing.T) {
+	cfg := goPersistenceTestConfig(t, false, true)
+	m := openGoPersistenceTestManager(t, cfg)
+	if err := m.GetDefaultDB().SetStringBytes([]byte("only-copy"), []byte("snapshot")); err != nil {
+		t.Fatal(err)
+	}
+	closeGoPersistenceTestManager(t, m)
+	mode, err := openGoPersistenceMode(cfg.DataDir, true, false, cfg.DBCount)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mode.close()
+	if err := os.Rename(snapshotPath(mode.snapshotDir, mode.generation), filepath.Join(t.TempDir(), "held-snapshot")); err != nil {
+		t.Fatal(err)
+	}
+	dbs := []*Database{NewDatabase(0), NewDatabase(1)}
+	if err := mode.importSnapshot(dbs); err == nil || !strings.Contains(err.Error(), "snapshot generation") {
+		t.Fatalf("missing selected snapshot should fail before opening a WAL: %v", err)
+	}
+	phase, generation, _, err := gologstate.Read(cfg.DataDir)
+	if err != nil || phase != goModeSnapshot || generation != mode.generation {
+		t.Fatalf("authority changed after failed import: %q %d (%v)", phase, generation, err)
+	}
+	requireNoGoPersistencePath(t, mode.logDir)
+}
+
 func TestManagerFreshGoSnapshotEnablesWAL(t *testing.T) {
 	cfg := goPersistenceTestConfig(t, false, true)
 	m := openGoPersistenceTestManager(t, cfg)

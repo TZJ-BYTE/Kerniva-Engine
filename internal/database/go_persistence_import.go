@@ -14,7 +14,7 @@ import (
 // importSnapshot keeps the existing history and its sequence numbers. All
 // writers remain owned by the live databases through publication and serving.
 func (m *goPersistenceMode) importSnapshot(dbs []*Database) (err error) {
-	if err := LoadSnapshot(m.snapshotDir, dbs); err != nil {
+	if err := loadSnapshotGeneration(m.snapshotDir, dbs, &m.generation); err != nil {
 		return fmt.Errorf("restore Go snapshot for WAL import: %w", err)
 	}
 	lease, err := os.OpenFile(filepath.Join(m.logDir, gologstate.SourceLeaseFile), os.O_CREATE|os.O_RDWR, 0o600)
