@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="Kerniva">
+  <Profiles>
+    <SystemCollector Id="NativeSyncKernel" Name="Kerniva Native Sync Kernel">
+      <BufferSize Value="256"/>
+      <Buffers Value="128"/>
+    </SystemCollector>
+    <SystemProvider Id="NativeSyncEvents">
+      <Keywords>
+        <Keyword Value="CSwitch"/>
+        <Keyword Value="ReadyThread"/>
+        <Keyword Value="ProcessThread"/>
+        <Keyword Value="FileIO"/>
+        <Keyword Value="FileIOInit"/>
+        <Keyword Value="Filename"/>
+        <Keyword Value="DiskIO"/>
+        <Keyword Value="DiskIOInit"/>
+      </Keywords>
+    </SystemProvider>
+    <Profile Id="KernivaNativeSync.Verbose.File" Name="KernivaNativeSync" Description="Native file sync, disk I/O and thread scheduling" LoggingMode="File" DetailLevel="Verbose">
+      <Collectors>
+        <SystemCollectorId Value="NativeSyncKernel">
+          <SystemProviderId Value="NativeSyncEvents"/>
+        </SystemCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>
