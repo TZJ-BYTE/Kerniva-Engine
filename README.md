@@ -158,6 +158,8 @@ WSL gnet 单主、同步 WAL、关闭独立快照，在 64 连接、10 万个键
 
 Windows 与 WSL 的一次联合录制复现了 611.8 ms 的慢写，其中 579.3 ms 在等同一连接上的前序请求。115 个半秒级请求集中在约 0.8 秒内；这段时间宿主数据盘的刷新中位数为 14.62 ms，其余正式时段为 0.56 ms。两个存储层都记录到长刷新，单笔来宾命令与宿主请求之间的对应关系尚未确认。[联合实测与证据索引](docs/verification/primary-durable-queue.md#真实联合窗口的结果) · [联合采集命令](docs/verification/primary-durable-queue.md#把同一次慢写对齐到-windows-磁盘事件)
 
+原生 Windows 在合写上限为 8 时也出现过 707 ms 的 SET。在同版本、同一块 SSD、上限为 32 的后续反序对照中，两次原生 Windows 的最慢 SET 为 222 和 284 ms，两次 WSL 为 20 和 36 ms。另用独立程序逐笔同步写文件，原生 Windows 的一个窗口在单次同步均低于 15 ms 的情况下产生了 1.47 秒的计划排队。[部署对照、原始数据与复现方法](docs/verification/primary-durable-queue.md#同一版本与同一块-ssd-上的反序对照)
+
 固定同步 WAL，分别关闭和开启 15 秒周期快照，8 个 WSL gnet 窗口共完成 234 万次请求，全部成功并通过强杀恢复。开快照时共观察到 16 次正式窗内发布，高写和高读的实测快照各有一份通过独立冷启动。该对照发现旧版在快照开启时，高读 GET p99.9 两组均上升。[快照开关对照和恢复核验](docs/verification/primary-snapshot-load.md)
 
 Go 主库现按存活条目分块收集快照，减少在全局执行锁内复制数组的时间。在同样开启快照、95% 读、6,000/s、10 万个压测键的无探针对照中，全窗 GET p99.9 两组分别从 11.01 降至 1.68 ms、从 13.11 降至 1.63 ms。GET p99 仍约为 1.3 ms。[持锁测量、无探针对照与兼容性核验](docs/verification/primary-snapshot-load.md#最终实现的无探针对照)
