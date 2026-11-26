@@ -1,0 +1,728 @@
+[
+  {
+    "window": "01-r95-q6000-A",
+    "gate_variant": "A",
+    "batch_trace": true,
+    "requests": 180000,
+    "failures": 0,
+    "success_rate": 5999.981584656521,
+    "slow": {
+      "get": 0,
+      "set": 0
+    },
+    "p99_us": {
+      "get": 1273.855,
+      "set": 6422.527
+    },
+    "joined_sets": 8884,
+    "joined_client_samples": 557,
+    "batches": 8016,
+    "group_sizes": {
+      "1": 7280,
+      "2": 627,
+      "3": 93,
+      "4": 12,
+      "5": 3,
+      "8": 1
+    },
+    "phases_ns": {
+      "dispatch_wait": {
+        "p50": 3899,
+        "p99": 47259,
+        "max": 137421
+      },
+      "execution_gate": {
+        "p50": 209,
+        "p99": 18597,
+        "max": 1924083
+      },
+      "key_admission": {
+        "p50": 700,
+        "p99": 3390,
+        "max": 67449
+      },
+      "prepare": {
+        "p50": 3023,
+        "p99": 22405,
+        "max": 147444
+      },
+      "batch_queue": {
+        "p50": 3192,
+        "p99": 2348344,
+        "max": 23698864
+      },
+      "writer_lock": {
+        "p50": 71,
+        "p99": 344,
+        "max": 5149480
+      },
+      "batch_start": {
+        "p50": 47,
+        "p99": 237,
+        "max": 1068
+      },
+      "frame_prepare": {
+        "p50": 819,
+        "p99": 3996,
+        "max": 23535
+      },
+      "write": {
+        "p50": 6501,
+        "p99": 33385,
+        "max": 869822
+      },
+      "before_sync": {
+        "p50": 46,
+        "p99": 118,
+        "max": 345
+      },
+      "sync": {
+        "p50": 1532102,
+        "p99": 3092402,
+        "max": 26628525
+      },
+      "release": {
+        "p50": 156,
+        "p99": 767,
+        "max": 24471
+      },
+      "caller_wakeup": {
+        "p50": 12772,
+        "p99": 97402,
+        "max": 206135
+      },
+      "publish_and_encode": {
+        "p50": 2473,
+        "p99": 9402,
+        "max": 58814
+      },
+      "submit_reply": {
+        "p50": 153,
+        "p99": 641,
+        "max": 23229
+      }
+    },
+    "client_minus_server_clock_bounds_ns": [
+      -6548564589,
+      -6548540966
+    ],
+    "slow_observers": [],
+    "observer_gate_ns": {
+      "INFO": {
+        "count": 69,
+        "p50": 241,
+        "p99": 2021713,
+        "max": 2021713
+      },
+      "SELECT": {
+        "count": 88,
+        "p50": 231,
+        "p99": 4173862,
+        "max": 4173862
+      }
+    },
+    "earliest_slow_sets": [],
+    "longest_exchange": null
+  },
+  {
+    "window": "02-r95-q6000-A",
+    "gate_variant": "B",
+    "batch_trace": true,
+    "requests": 180000,
+    "failures": 0,
+    "success_rate": 5999.980779861569,
+    "slow": {
+      "get": 0,
+      "set": 0
+    },
+    "p99_us": {
+      "get": 1269.759,
+      "set": 6225.919
+    },
+    "joined_sets": 8884,
+    "joined_client_samples": 557,
+    "batches": 7990,
+    "group_sizes": {
+      "1": 7225,
+      "2": 649,
+      "3": 104,
+      "4": 11,
+      "6": 1
+    },
+    "phases_ns": {
+      "dispatch_wait": {
+        "p50": 4127,
+        "p99": 49741,
+        "max": 213351
+      },
+      "execution_gate": {
+        "p50": 218,
+        "p99": 16862,
+        "max": 381159
+      },
+      "key_admission": {
+        "p50": 754,
+        "p99": 3507,
+        "max": 73844
+      },
+      "prepare": {
+        "p50": 3141,
+        "p99": 17795,
+        "max": 453380
+      },
+      "batch_queue": {
+        "p50": 3702,
+        "p99": 2234888,
+        "max": 7351363
+      },
+      "writer_lock": {
+        "p50": 67,
+        "p99": 339,
+        "max": 4844714
+      },
+      "batch_start": {
+        "p50": 67,
+        "p99": 286,
+        "max": 11483
+      },
+      "frame_prepare": {
+        "p50": 862,
+        "p99": 3971,
+        "max": 20533
+      },
+      "write": {
+        "p50": 6507,
+        "p99": 32628,
+        "max": 267210
+      },
+      "before_sync": {
+        "p50": 45,
+        "p99": 131,
+        "max": 6540
+      },
+      "sync": {
+        "p50": 1547449,
+        "p99": 3005475,
+        "max": 7566673
+      },
+      "release": {
+        "p50": 159,
+        "p99": 828,
+        "max": 21122
+      },
+      "caller_wakeup": {
+        "p50": 13429,
+        "p99": 104114,
+        "max": 282792
+      },
+      "publish_and_encode": {
+        "p50": 2541,
+        "p99": 9395,
+        "max": 67895
+      },
+      "submit_reply": {
+        "p50": 158,
+        "p99": 724,
+        "max": 19997
+      }
+    },
+    "client_minus_server_clock_bounds_ns": [
+      -7433326689,
+      -7433301076
+    ],
+    "slow_observers": [],
+    "observer_gate_ns": {
+      "INFO": {
+        "count": 69,
+        "p50": 194,
+        "p99": 11648,
+        "max": 11648
+      },
+      "SELECT": {
+        "count": 88,
+        "p50": 192,
+        "p99": 18063,
+        "max": 18063
+      }
+    },
+    "earliest_slow_sets": [],
+    "longest_exchange": null
+  },
+  {
+    "window": "03-r95-q6000-A",
+    "gate_variant": "B",
+    "batch_trace": true,
+    "requests": 180000,
+    "failures": 0,
+    "success_rate": 5999.969801151996,
+    "slow": {
+      "get": 0,
+      "set": 0
+    },
+    "p99_us": {
+      "get": 1277.951,
+      "set": 6275.071
+    },
+    "joined_sets": 8884,
+    "joined_client_samples": 557,
+    "batches": 7986,
+    "group_sizes": {
+      "1": 7228,
+      "2": 641,
+      "3": 97,
+      "4": 18,
+      "5": 1,
+      "6": 1
+    },
+    "phases_ns": {
+      "dispatch_wait": {
+        "p50": 4776,
+        "p99": 50013,
+        "max": 156515
+      },
+      "execution_gate": {
+        "p50": 256,
+        "p99": 16834,
+        "max": 165794
+      },
+      "key_admission": {
+        "p50": 890,
+        "p99": 3291,
+        "max": 119194
+      },
+      "prepare": {
+        "p50": 3672,
+        "p99": 18867,
+        "max": 211170
+      },
+      "batch_queue": {
+        "p50": 3111,
+        "p99": 2183512,
+        "max": 10948033
+      },
+      "writer_lock": {
+        "p50": 67,
+        "p99": 300,
+        "max": 9421571
+      },
+      "batch_start": {
+        "p50": 68,
+        "p99": 225,
+        "max": 15050
+      },
+      "frame_prepare": {
+        "p50": 997,
+        "p99": 3680,
+        "max": 98752
+      },
+      "write": {
+        "p50": 7264,
+        "p99": 32373,
+        "max": 166816
+      },
+      "before_sync": {
+        "p50": 42,
+        "p99": 95,
+        "max": 715
+      },
+      "sync": {
+        "p50": 1598433,
+        "p99": 2805246,
+        "max": 7157931
+      },
+      "release": {
+        "p50": 159,
+        "p99": 770,
+        "max": 25887
+      },
+      "caller_wakeup": {
+        "p50": 14872,
+        "p99": 107406,
+        "max": 190289
+      },
+      "publish_and_encode": {
+        "p50": 2816,
+        "p99": 9726,
+        "max": 129170
+      },
+      "submit_reply": {
+        "p50": 191,
+        "p99": 672,
+        "max": 81893
+      }
+    },
+    "client_minus_server_clock_bounds_ns": [
+      -6552557165,
+      -6552542870
+    ],
+    "slow_observers": [],
+    "observer_gate_ns": {
+      "INFO": {
+        "count": 71,
+        "p50": 229,
+        "p99": 8212,
+        "max": 8212
+      },
+      "SELECT": {
+        "count": 90,
+        "p50": 218,
+        "p99": 11234,
+        "max": 11234
+      }
+    },
+    "earliest_slow_sets": [],
+    "longest_exchange": null
+  },
+  {
+    "window": "04-r95-q6000-A",
+    "gate_variant": "A",
+    "batch_trace": true,
+    "requests": 180000,
+    "failures": 0,
+    "success_rate": 5999.972061530093,
+    "slow": {
+      "get": 3490,
+      "set": 206
+    },
+    "p99_us": {
+      "get": 273678.335,
+      "set": 360710.143
+    },
+    "joined_sets": 8884,
+    "joined_client_samples": 756,
+    "batches": 7715,
+    "group_sizes": {
+      "1": 6900,
+      "2": 652,
+      "3": 108,
+      "4": 16,
+      "5": 4,
+      "6": 1,
+      "7": 5,
+      "8": 29
+    },
+    "phases_ns": {
+      "dispatch_wait": {
+        "p50": 4381,
+        "p99": 48763,
+        "max": 409109
+      },
+      "execution_gate": {
+        "p50": 231,
+        "p99": 32363,
+        "max": 150114133
+      },
+      "key_admission": {
+        "p50": 815,
+        "p99": 3325,
+        "max": 55982
+      },
+      "prepare": {
+        "p50": 3515,
+        "p99": 20910,
+        "max": 143355
+      },
+      "batch_queue": {
+        "p50": 10439,
+        "p99": 72860738,
+        "max": 228883870
+      },
+      "writer_lock": {
+        "p50": 44,
+        "p99": 283,
+        "max": 4872905
+      },
+      "batch_start": {
+        "p50": 71,
+        "p99": 276,
+        "max": 8313
+      },
+      "frame_prepare": {
+        "p50": 1015,
+        "p99": 4817,
+        "max": 43523
+      },
+      "write": {
+        "p50": 7055,
+        "p99": 38289,
+        "max": 155706
+      },
+      "before_sync": {
+        "p50": 39,
+        "p99": 111,
+        "max": 1485
+      },
+      "sync": {
+        "p50": 1589269,
+        "p99": 31595075,
+        "max": 87486691
+      },
+      "release": {
+        "p50": 167,
+        "p99": 847,
+        "max": 23202
+      },
+      "caller_wakeup": {
+        "p50": 16273,
+        "p99": 112269,
+        "max": 259868
+      },
+      "publish_and_encode": {
+        "p50": 2743,
+        "p99": 9601,
+        "max": 54239
+      },
+      "submit_reply": {
+        "p50": 178,
+        "p99": 784,
+        "max": 45819
+      }
+    },
+    "client_minus_server_clock_bounds_ns": [
+      -6600068088,
+      -6600044193
+    ],
+    "slow_observers": [
+      {
+        "op": "SELECT",
+        "port": 56268,
+        "ordinal": 1,
+        "start_on_client_ns": [
+          346509222,
+          346533117
+        ],
+        "admission_ns": 103907067,
+        "after_lock_to_reply_ready_ns": 17945,
+        "slow_exchanges_definitely_intersecting": 50
+      },
+      {
+        "op": "SELECT",
+        "port": 56276,
+        "ordinal": 1,
+        "start_on_client_ns": [
+          346543780,
+          346567675
+        ],
+        "admission_ns": 198466603,
+        "after_lock_to_reply_ready_ns": 19733,
+        "slow_exchanges_definitely_intersecting": 112
+      },
+      {
+        "op": "SELECT",
+        "port": 49362,
+        "ordinal": 1,
+        "start_on_client_ns": [
+          547565409,
+          547589304
+        ],
+        "admission_ns": 150001263,
+        "after_lock_to_reply_ready_ns": 19519,
+        "slow_exchanges_definitely_intersecting": 94
+      },
+      {
+        "op": "SELECT",
+        "port": 49366,
+        "ordinal": 1,
+        "start_on_client_ns": [
+          548200332,
+          548224227
+        ],
+        "admission_ns": 232696410,
+        "after_lock_to_reply_ready_ns": 17212,
+        "slow_exchanges_definitely_intersecting": 142
+      },
+      {
+        "op": "SELECT",
+        "port": 49380,
+        "ordinal": 1,
+        "start_on_client_ns": [
+          998668169,
+          998692064
+        ],
+        "admission_ns": 79009466,
+        "after_lock_to_reply_ready_ns": 12402,
+        "slow_exchanges_definitely_intersecting": 101
+      },
+      {
+        "op": "SELECT",
+        "port": 49384,
+        "ordinal": 1,
+        "start_on_client_ns": [
+          1089282562,
+          1089306457
+        ],
+        "admission_ns": 14423890,
+        "after_lock_to_reply_ready_ns": 7833,
+        "slow_exchanges_definitely_intersecting": 85
+      }
+    ],
+    "observer_gate_ns": {
+      "INFO": {
+        "count": 69,
+        "p50": 263,
+        "p99": 5072474,
+        "max": 5072474
+      },
+      "SELECT": {
+        "count": 88,
+        "p50": 301,
+        "p99": 232696410,
+        "max": 232696410
+      }
+    },
+    "earliest_slow_sets": [
+      {
+        "index": 1515,
+        "worker": 43,
+        "local_port": 56052,
+        "ordinal": 24,
+        "batch": 1380,
+        "size": 8,
+        "sequence": 2015,
+        "total_ns": 129214916,
+        "before_send_ns": 52348822,
+        "exchange_ns": 76866094,
+        "outside_server_ns": 229836,
+        "phases_ns": {
+          "dispatch_wait": 1893,
+          "execution_gate": 189,
+          "key_admission": 534,
+          "prepare": 2802,
+          "batch_queue": 39622318,
+          "writer_lock": 43,
+          "batch_start": 104,
+          "frame_prepare": 3337,
+          "write": 12163,
+          "before_sync": 37,
+          "sync": 36893261,
+          "release": 518,
+          "caller_wakeup": 96198,
+          "publish_and_encode": 2492,
+          "submit_reply": 369
+        }
+      },
+      {
+        "index": 1543,
+        "worker": 7,
+        "local_port": 55726,
+        "ordinal": 25,
+        "batch": 1380,
+        "size": 8,
+        "sequence": 2016,
+        "total_ns": 124542799,
+        "before_send_ns": 47704542,
+        "exchange_ns": 76838257,
+        "outside_server_ns": 187998,
+        "phases_ns": {
+          "dispatch_wait": 1498,
+          "execution_gate": 196,
+          "key_admission": 695,
+          "prepare": 2501,
+          "batch_queue": 39615781,
+          "writer_lock": 43,
+          "batch_start": 104,
+          "frame_prepare": 3337,
+          "write": 12163,
+          "before_sync": 37,
+          "sync": 36893261,
+          "release": 518,
+          "caller_wakeup": 116947,
+          "publish_and_encode": 2887,
+          "submit_reply": 291
+        }
+      },
+      {
+        "index": 1652,
+        "worker": 52,
+        "local_port": 56108,
+        "ordinal": 26,
+        "batch": 1380,
+        "size": 8,
+        "sequence": 2018,
+        "total_ns": 106365026,
+        "before_send_ns": 29840912,
+        "exchange_ns": 76524114,
+        "outside_server_ns": 101269,
+        "phases_ns": {
+          "dispatch_wait": 1568,
+          "execution_gate": 212,
+          "key_admission": 768,
+          "prepare": 2452,
+          "batch_queue": 39355499,
+          "writer_lock": 43,
+          "batch_start": 104,
+          "frame_prepare": 3337,
+          "write": 12163,
+          "before_sync": 37,
+          "sync": 36893261,
+          "release": 518,
+          "caller_wakeup": 150470,
+          "publish_and_encode": 2111,
+          "submit_reply": 302
+        }
+      }
+    ],
+    "longest_exchange": {
+      "index": 4253,
+      "worker": 29,
+      "local_port": 55932,
+      "ordinal": 67,
+      "batch": 1400,
+      "size": 8,
+      "sequence": 2117,
+      "total_ns": 319889315,
+      "before_send_ns": 81299914,
+      "exchange_ns": 238589401,
+      "outside_server_ns": 134455,
+      "phases_ns": {
+        "dispatch_wait": 1296,
+        "execution_gate": 222,
+        "key_admission": 424,
+        "prepare": 2204,
+        "batch_queue": 228883870,
+        "writer_lock": 86,
+        "batch_start": 114,
+        "frame_prepare": 3563,
+        "write": 16786,
+        "before_sync": 37,
+        "sync": 9479208,
+        "release": 161,
+        "caller_wakeup": 65112,
+        "publish_and_encode": 1751,
+        "submit_reply": 112
+      }
+    }
+  },
+  {
+    "window": "05-r95-q6000-A",
+    "gate_variant": "A",
+    "batch_trace": false,
+    "requests": 180000,
+    "failures": 0,
+    "success_rate": 5999.986675229592,
+    "slow": {
+      "get": 0,
+      "set": 0
+    },
+    "p99_us": {
+      "get": 1273.855,
+      "set": 6045.695
+    }
+  },
+  {
+    "window": "06-r95-q6000-A",
+    "gate_variant": "B",
+    "batch_trace": false,
+    "requests": 180000,
+    "failures": 0,
+    "success_rate": 5999.98400304265,
+    "slow": {
+      "get": 2275,
+      "set": 222
+    },
+    "p99_us": {
+      "get": 162529.279,
+      "set": 295698.431
+    }
+  }
+]

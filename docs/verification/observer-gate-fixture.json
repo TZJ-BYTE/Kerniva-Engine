@@ -1,0 +1,125 @@
+{
+  "pass": true,
+  "cases": {
+    "controlled-A-fsync-delay": {
+      "arm": "A",
+      "delay_ms": 350,
+      "server_origin_in_client_monotonic_ns": [
+        126054651143879,
+        126054651458172
+      ],
+      "samples": [
+        {
+          "observer": null,
+          "read_duration_upper_ns": 565251,
+          "db0_fsync_entry_utc_ns": 1795664385404729000,
+          "sync_ns": 353355487,
+          "earliest_sync_return_minus_latest_read_end_ns": 202426245,
+          "earliest_read_end_minus_latest_sync_return_ns": -202741094
+        },
+        {
+          "observer": "SELECT",
+          "read_duration_upper_ns": 204212330,
+          "db0_fsync_entry_utc_ns": 1795664385759091000,
+          "sync_ns": 353526616,
+          "earliest_sync_return_minus_latest_read_end_ns": -812862,
+          "earliest_read_end_minus_latest_sync_return_ns": 497580,
+          "observer_response_ready_minus_sync_return_ns": 332419,
+          "observer_gate_wait_ns": 278745535,
+          "observer_gate_acquired_minus_sync_return_ns": 328036
+        },
+        {
+          "observer": "INFO",
+          "read_duration_upper_ns": 205220401,
+          "db0_fsync_entry_utc_ns": 1795664386114275000,
+          "sync_ns": 353441632,
+          "earliest_sync_return_minus_latest_read_end_ns": -1921323,
+          "earliest_read_end_minus_latest_sync_return_ns": 1606786,
+          "observer_response_ready_minus_sync_return_ns": 1486024,
+          "observer_gate_wait_ns": 278509516,
+          "observer_gate_acquired_minus_sync_return_ns": 264387
+        }
+      ]
+    },
+    "controlled-B-fsync-delay": {
+      "arm": "B",
+      "delay_ms": 350,
+      "server_origin_in_client_monotonic_ns": [
+        126047230419935,
+        126047230721134
+      ],
+      "samples": [
+        {
+          "observer": null,
+          "read_duration_upper_ns": 592788,
+          "db0_fsync_entry_utc_ns": 1795664378012284000,
+          "sync_ns": 353206085,
+          "earliest_sync_return_minus_latest_read_end_ns": 202374164,
+          "earliest_read_end_minus_latest_sync_return_ns": -202675884
+        },
+        {
+          "observer": "SELECT",
+          "read_duration_upper_ns": 559553,
+          "db0_fsync_entry_utc_ns": 1795664378366772000,
+          "sync_ns": 352753291,
+          "earliest_sync_return_minus_latest_read_end_ns": 202188004,
+          "earliest_read_end_minus_latest_sync_return_ns": -202489754,
+          "observer_response_ready_minus_sync_return_ns": -277550119,
+          "observer_gate_wait_ns": 700,
+          "observer_gate_acquired_minus_sync_return_ns": -277556975
+        },
+        {
+          "observer": "INFO",
+          "read_duration_upper_ns": 774176,
+          "db0_fsync_entry_utc_ns": 1795664378720416000,
+          "sync_ns": 353302822,
+          "earliest_sync_return_minus_latest_read_end_ns": 202145495,
+          "earliest_read_end_minus_latest_sync_return_ns": -202447584,
+          "observer_response_ready_minus_sync_return_ns": 1470374,
+          "observer_gate_wait_ns": 699,
+          "observer_gate_acquired_minus_sync_return_ns": -277711896
+        }
+      ]
+    },
+    "controlled-B-fsync-baseline": {
+      "arm": "B",
+      "delay_ms": 0,
+      "server_origin_in_client_monotonic_ns": [
+        126046125279002,
+        126046125525725
+      ],
+      "samples": [
+        {
+          "observer": null,
+          "read_duration_upper_ns": 649919,
+          "db0_fsync_entry_utc_ns": 1795664372659461000,
+          "sync_ns": 1490478,
+          "earliest_sync_return_minus_latest_read_end_ns": -149288079,
+          "earliest_read_end_minus_latest_sync_return_ns": 149040514
+        },
+        {
+          "observer": "SELECT",
+          "read_duration_upper_ns": 587735,
+          "db0_fsync_entry_utc_ns": 1795664372810765000,
+          "sync_ns": 2973931,
+          "earliest_sync_return_minus_latest_read_end_ns": -147641843,
+          "earliest_read_end_minus_latest_sync_return_ns": 147394625,
+          "observer_response_ready_minus_sync_return_ns": 72351976,
+          "observer_gate_wait_ns": 944,
+          "observer_gate_acquired_minus_sync_return_ns": 72348239
+        },
+        {
+          "observer": "INFO",
+          "read_duration_upper_ns": 687617,
+          "db0_fsync_entry_utc_ns": 1795664372961925000,
+          "sync_ns": 3103176,
+          "earliest_sync_return_minus_latest_read_end_ns": -147654208,
+          "earliest_read_end_minus_latest_sync_return_ns": 147406964,
+          "observer_response_ready_minus_sync_return_ns": 74052094,
+          "observer_gate_wait_ns": 896,
+          "observer_gate_acquired_minus_sync_return_ns": 72532812
+        }
+      ]
+    }
+  }
+}

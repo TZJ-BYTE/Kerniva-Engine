@@ -1,0 +1,363 @@
+{
+  "production_revision": "bf6da5fb92748ebe2843a2654ce05a0761977983",
+  "raw_receipts": {
+    "logs/golog-batch-20261126/reviews/group-cap-retest/run.json": "188383129e2ac24b47079c83decec66c58aa069a4431cdf253bec53106405939",
+    "logs/golog-batch-20261126/reviews/ping-gate/raw/run.json": "6a377a6639482bf4847f675c9d8897adb247b67d91a7633b5604fda3ade3465a",
+    "logs/golog-group-check-20261126T034950Z/raw/run.json": "3be268efd98d5ec751e2a7947c3f290ba807d2bb09900a8c6e9ea4a30f8e6701",
+    "logs/golog-sync-C-20261126T034342Z/raw/run.json": "5bccac406be011228d546202bd43a719e027ca483505da57c67b32520c7628f2"
+  },
+  "ping_control": {
+    "A": {
+      "none": {
+        "read_completed_during_hold": true,
+        "ping_completed_during_hold": null,
+        "elapsed_ns": {
+          "write": 353774875,
+          "read": 899324
+        }
+      },
+      "PING": {
+        "read_completed_during_hold": false,
+        "ping_completed_during_hold": false,
+        "elapsed_ns": {
+          "write": 354711458,
+          "read": 204067991,
+          "observer": 279370187
+        }
+      }
+    },
+    "B": {
+      "none": {
+        "read_completed_during_hold": true,
+        "ping_completed_during_hold": null,
+        "elapsed_ns": {
+          "write": 353949986,
+          "read": 562672
+        }
+      },
+      "PING": {
+        "read_completed_during_hold": false,
+        "ping_completed_during_hold": false,
+        "elapsed_ns": {
+          "write": 354596427,
+          "read": 204197285,
+          "observer": 279468383
+        }
+      }
+    },
+    "C": {
+      "none": {
+        "read_completed_during_hold": true,
+        "ping_completed_during_hold": null,
+        "elapsed_ns": {
+          "write": 354169843,
+          "read": 567062
+        }
+      },
+      "PING": {
+        "read_completed_during_hold": true,
+        "ping_completed_during_hold": true,
+        "elapsed_ns": {
+          "write": 355064765,
+          "read": 576397,
+          "observer": 997746
+        }
+      }
+    }
+  },
+  "controlled_fsync_delay": [
+    {
+      "folder": "01-group8-delay0ms",
+      "cap": 8,
+      "delay_ms": 0,
+      "offered": 30000,
+      "succeeded": 30000,
+      "failures": 0,
+      "slow_ge_100ms": {
+        "get": 0,
+        "set": 0
+      },
+      "window_success_rate": 5998.4,
+      "success_rate": 5992.497921141048,
+      "server_queue_ns": {
+        "p50": 5865,
+        "p99": 2279829,
+        "max": 5762819
+      },
+      "sync_ns": {
+        "p50": 1631002,
+        "p99": 3141652,
+        "max": 6338525
+      },
+      "sizes": {
+        "1": 1230,
+        "2": 122,
+        "3": 18
+      },
+      "matched_fsyncs": 1370
+    },
+    {
+      "folder": "02-group8-delay32ms",
+      "cap": 8,
+      "delay_ms": 32,
+      "offered": 30000,
+      "succeeded": 28623,
+      "failures": 1377,
+      "slow_ge_100ms": {
+        "get": 21293,
+        "set": 1486
+      },
+      "window_success_rate": 4706.4,
+      "success_rate": 4094.9531399159882,
+      "server_queue_ns": {
+        "p50": 161118063,
+        "p99": 203135250,
+        "max": 215484153
+      },
+      "sync_ns": {
+        "p50": 33947548,
+        "p99": 37048805,
+        "max": 38793626
+      },
+      "sizes": {
+        "1": 10,
+        "2": 2,
+        "3": 4,
+        "4": 2,
+        "5": 2,
+        "7": 1,
+        "8": 178
+      },
+      "matched_fsyncs": 199
+    },
+    {
+      "folder": "03-group16-delay32ms",
+      "cap": 16,
+      "delay_ms": 32,
+      "offered": 30000,
+      "succeeded": 30000,
+      "failures": 0,
+      "slow_ge_100ms": {
+        "get": 502,
+        "set": 206
+      },
+      "window_success_rate": 5980.4,
+      "success_rate": 5841.0587244168155,
+      "server_queue_ns": {
+        "p50": 21879503,
+        "p99": 33628947,
+        "max": 41265582
+      },
+      "sync_ns": {
+        "p50": 33847232,
+        "p99": 36905908,
+        "max": 37086634
+      },
+      "sizes": {
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 1,
+        "5": 4,
+        "6": 5,
+        "7": 8,
+        "8": 10,
+        "9": 21,
+        "10": 22,
+        "11": 24,
+        "12": 24,
+        "13": 15,
+        "14": 3,
+        "15": 2,
+        "16": 6
+      },
+      "matched_fsyncs": 151
+    },
+    {
+      "folder": "04-group16-delay32ms",
+      "cap": 16,
+      "delay_ms": 32,
+      "offered": 30000,
+      "succeeded": 30000,
+      "failures": 0,
+      "slow_ge_100ms": {
+        "get": 949,
+        "set": 263
+      },
+      "window_success_rate": 5934.8,
+      "success_rate": 5728.543082529079,
+      "server_queue_ns": {
+        "p50": 22301528,
+        "p99": 33955803,
+        "max": 42821005
+      },
+      "sync_ns": {
+        "p50": 34028058,
+        "p99": 37311247,
+        "max": 38049670
+      },
+      "sizes": {
+        "1": 4,
+        "2": 1,
+        "3": 1,
+        "5": 5,
+        "6": 11,
+        "7": 8,
+        "8": 12,
+        "9": 20,
+        "10": 16,
+        "11": 24,
+        "12": 17,
+        "13": 12,
+        "14": 9,
+        "15": 6,
+        "16": 6
+      },
+      "matched_fsyncs": 152
+    },
+    {
+      "folder": "05-group8-delay32ms",
+      "cap": 8,
+      "delay_ms": 32,
+      "offered": 30000,
+      "succeeded": 28758,
+      "failures": 1242,
+      "slow_ge_100ms": {
+        "get": 21569,
+        "set": 1488
+      },
+      "window_success_rate": 4727.8,
+      "success_rate": 4111.269440477904,
+      "server_queue_ns": {
+        "p50": 164496940,
+        "p99": 211206217,
+        "max": 228726239
+      },
+      "sync_ns": {
+        "p50": 34045773,
+        "p99": 36171869,
+        "max": 38305481
+      },
+      "sizes": {
+        "1": 7,
+        "2": 5,
+        "3": 2,
+        "4": 2,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 178
+      },
+      "matched_fsyncs": 197
+    },
+    {
+      "folder": "06-group16-delay0ms",
+      "cap": 16,
+      "delay_ms": 0,
+      "offered": 30000,
+      "succeeded": 30000,
+      "failures": 0,
+      "slow_ge_100ms": {
+        "get": 0,
+        "set": 0
+      },
+      "window_success_rate": 5998.2,
+      "success_rate": 5997.3547719196395,
+      "server_queue_ns": {
+        "p50": 4475,
+        "p99": 1889173,
+        "max": 5444114
+      },
+      "sync_ns": {
+        "p50": 1646605,
+        "p99": 2368691,
+        "max": 7549303
+      },
+      "sizes": {
+        "1": 1227,
+        "2": 127,
+        "3": 13,
+        "4": 2
+      },
+      "matched_fsyncs": 1369
+    }
+  ],
+  "profiles_without_injection": [
+    {
+      "window": "01-r50-q3000-A",
+      "read_percent": 50,
+      "rate": 3000,
+      "group_max": 8,
+      "offered": 90000,
+      "succeeded": 90000,
+      "failures": 0,
+      "within_window_success_rate": 2999.866666666667,
+      "success_rate_including_drain": 2999.75574508844,
+      "p99_us": {
+        "get": 1220.607,
+        "set": 7274.495
+      },
+      "p999_us": {
+        "get": 1323.007,
+        "set": 9797.631
+      }
+    },
+    {
+      "window": "02-r95-q6000-A",
+      "read_percent": 95,
+      "rate": 6000,
+      "group_max": 16,
+      "offered": 180000,
+      "succeeded": 180000,
+      "failures": 0,
+      "within_window_success_rate": 5999.966666666666,
+      "success_rate_including_drain": 5999.967766173171,
+      "p99_us": {
+        "get": 1269.759,
+        "set": 5586.943
+      },
+      "p999_us": {
+        "get": 1380.351,
+        "set": 8241.151
+      }
+    },
+    {
+      "window": "03-r50-q3000-A",
+      "read_percent": 50,
+      "rate": 3000,
+      "group_max": 16,
+      "offered": 90000,
+      "succeeded": 90000,
+      "failures": 0,
+      "within_window_success_rate": 2999.866666666667,
+      "success_rate_including_drain": 2999.602878975329,
+      "p99_us": {
+        "get": 1220.607,
+        "set": 6881.279
+      },
+      "p999_us": {
+        "get": 1323.007,
+        "set": 8716.287
+      }
+    },
+    {
+      "window": "04-r95-q6000-A",
+      "read_percent": 95,
+      "rate": 6000,
+      "group_max": 8,
+      "offered": 180000,
+      "succeeded": 180000,
+      "failures": 0,
+      "within_window_success_rate": 5999.966666666666,
+      "success_rate_including_drain": 5999.96974215259,
+      "p99_us": {
+        "get": 1286.143,
+        "set": 5537.791
+      },
+      "p999_us": {
+        "get": 1388.543,
+        "set": 8454.143
+      }
+    }
+  ]
+}
