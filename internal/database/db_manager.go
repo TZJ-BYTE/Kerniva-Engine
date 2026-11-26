@@ -131,7 +131,12 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	}
 
 	if snapshotEnabled && !goLogEnabled {
-		if err := LoadSnapshot(manager.goPersistence.snapshotDir, manager.databases); err != nil {
+		mode := manager.goPersistence
+		if mode.walExportDBCount != 0 {
+			if err := mode.exportWAL(manager.databases); err != nil {
+				return nil, errors.Join(err, manager.closeDatabases())
+			}
+		} else if err := LoadSnapshot(mode.snapshotDir, manager.databases); err != nil {
 			return nil, errors.Join(fmt.Errorf("restore Go snapshot: %w", err), manager.closeDatabases())
 		}
 	}
@@ -141,8 +146,10 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 				return nil, errors.Join(err, manager.closeDatabases())
 			}
 		}
-		if err := manager.goPersistence.startWriting(); err != nil {
-			return nil, errors.Join(err, manager.closeDatabases())
+		if manager.goPersistence.walExportDBCount == 0 {
+			if err := manager.goPersistence.startWriting(); err != nil {
+				return nil, errors.Join(err, manager.closeDatabases())
+			}
 		}
 	}
 	for _, db := range manager.databases {

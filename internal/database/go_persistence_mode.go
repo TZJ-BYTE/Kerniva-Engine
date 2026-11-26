@@ -22,15 +22,16 @@ const (
 // paths. WAL remains authoritative until a successful combined shutdown marks
 // the exact committed snapshot generation available for handoff.
 type goPersistenceMode struct {
-	root        string
-	logDir      string
-	snapshotDir string
-	lock        *os.File
-	useWAL      bool
-	needsImport bool
-	state       string
-	generation  uint64
-	walDBCount  int
+	root             string
+	logDir           string
+	snapshotDir      string
+	lock             *os.File
+	useWAL           bool
+	needsImport      bool
+	walExportDBCount int
+	state            string
+	generation       uint64
+	walDBCount       int
 }
 
 func openGoPersistenceMode(dir string, useWAL, useSnapshot bool, dbCount int) (*goPersistenceMode, error) {
@@ -102,14 +103,21 @@ func (m *goPersistenceMode) checkStartup(useSnapshot bool, dbCount int) error {
 
 	switch m.state {
 	case goModeWAL:
-		return fmt.Errorf("Go WAL is authoritative in %s; start with both options and shut down cleanly before disabling the WAL", m.root)
+		return m.checkWALDatabases(true, dbCount)
 	case "":
 		exists, err := m.hasExistingWAL()
 		if err != nil {
 			return err
 		}
 		if exists {
-			return fmt.Errorf("Go WAL data exists in %s; start with both options and shut down cleanly before disabling the WAL", m.logDir)
+			generation, err := m.latestSnapshot()
+			if err != nil {
+				return err
+			}
+			if generation != 0 {
+				return fmt.Errorf("Go WAL and snapshots have no recorded authority in %s", m.root)
+			}
+			return m.checkWALDatabases(true, dbCount)
 		}
 	}
 	return m.checkSnapshotGeneration()
@@ -165,7 +173,7 @@ func (m *goPersistenceMode) checkWALDatabases(useSnapshot bool, dbCount int) err
 		}
 		err = checkWALDatabase(filepath.Join(m.logDir, entry.Name()))
 		databases[id] = err
-		if err == nil {
+		if err == nil || !m.useWAL {
 			known = max(known, id+1)
 		}
 	}
@@ -180,6 +188,12 @@ func (m *goPersistenceMode) checkWALDatabases(useSnapshot bool, dbCount int) err
 	}
 	if useSnapshot && dbCount < known {
 		return fmt.Errorf("db_count=%d excludes WAL database %d from the Go snapshot", dbCount, known-1)
+	}
+	if !m.useWAL {
+		if known == 0 {
+			return fmt.Errorf("no authoritative WAL databases found in %s", m.logDir)
+		}
+		m.walExportDBCount = known
 	}
 	m.walDBCount = max(known, dbCount)
 	return nil

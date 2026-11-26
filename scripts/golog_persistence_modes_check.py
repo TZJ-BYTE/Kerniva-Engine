@@ -30,27 +30,37 @@ def wait_for(check, description, timeout=15):
     raise TimeoutError(description)
 
 
-def command(port, *args):
+def resp_request(*args):
     payload = [arg if isinstance(arg, bytes) else str(arg).encode() for arg in args]
-    request = b"*%d\r\n" % len(payload)
-    request += b"".join(b"$%d\r\n%s\r\n" % (len(arg), arg) for arg in payload)
+    return b"*%d\r\n" % len(payload) + b"".join(
+        b"$%d\r\n%s\r\n" % (len(arg), arg) for arg in payload)
+
+
+def resp_reply(reader, verb):
+    line = reader.readline()
+    require(line.endswith(b"\r\n"), f"truncated reply for {verb}")
+    prefix, value = line[:1], line[1:-2]
+    if prefix == b"-":
+        raise RuntimeError(f"{verb} failed: {value.decode(errors='replace')}")
+    if prefix == b"$":
+        size = int(value)
+        if size == -1:
+            return None
+        data = reader.read(size + 2)
+        require(len(data) == size + 2 and data.endswith(b"\r\n"), "truncated bulk reply")
+        return data[:-2].decode()
+    require(prefix in (b"+", b":"), f"unexpected reply {line!r}")
+    return value.decode() if prefix == b"+" else int(value)
+
+
+def command(port, *args, db=0):
     with socket.create_connection(("127.0.0.1", port), timeout=3) as connection:
-        connection.sendall(request)
         with connection.makefile("rb") as reader:
-            line = reader.readline()
-            require(line.endswith(b"\r\n"), f"truncated reply for {args[0]}")
-            prefix, value = line[:1], line[1:-2]
-            if prefix == b"-":
-                raise RuntimeError(f"{args[0]} failed: {value.decode(errors='replace')}")
-            if prefix == b"$":
-                size = int(value)
-                if size == -1:
-                    return None
-                data = reader.read(size + 2)
-                require(len(data) == size + 2 and data.endswith(b"\r\n"), "truncated bulk reply")
-                return data[:-2].decode()
-            require(prefix in (b"+", b":"), f"unexpected reply {line!r}")
-            return value.decode() if prefix == b"+" else int(value)
+            if db:
+                connection.sendall(resp_request("SELECT", db))
+                require(resp_reply(reader, "SELECT") == "OK", f"cannot select database {db}")
+            connection.sendall(resp_request(*args))
+            return resp_reply(reader, args[0])
 
 
 class Case:
@@ -64,7 +74,7 @@ class Case:
         self.process = None
         self.port = None
 
-    def start(self, label, wal, snapshot, interval=3600, expect_failure=False):
+    def start(self, label, wal, snapshot, interval=3600, expect_failure=False, export_wal=False):
         require(self.process is None, "previous server active")
         stage = self.folder / label
         stage.mkdir()
@@ -88,9 +98,8 @@ class Case:
         config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
         argv = [str(self.options.server), "-config", str(config_path), "-stop-file", str(self.stop_file)]
         environment = dict(self.environment)
-        library = self.options.library if wal else stage / "missing-kerniva-engine"
-        if library is not None:
-            environment["KERNIVA_ENGINE_LIBRARY"] = str(library)
+        library = self.options.library if wal or export_wal else stage / "missing-kerniva-engine"
+        environment["KERNIVA_ENGINE_LIBRARY"] = str(library)
         with (logs / "console.log").open("wb") as output:
             self.process = subprocess.Popen(argv, cwd=stage, env=environment, stdout=output,
                                             stderr=subprocess.STDOUT)
@@ -123,11 +132,11 @@ class Case:
             expected_dir = self.data / ("go-log-v1" if wal else "go-snapshot-v1")
             require(Path(fields["data_dir"]) == expected_dir, f"{label}: INFO data_dir does not match configuration")
 
-    def request(self, *args, expected):
-        response = command(self.port, *args)
+    def request(self, *args, expected, db=0):
+        response = command(self.port, *args, db=db)
         display = [f"<{len(arg)} bytes>" if isinstance(arg, bytes) else arg for arg in args]
         detail = self.evidence[self.stage.name]
-        detail.setdefault("checks", []).append({"args": display, "response": response, "expected": expected})
+        detail.setdefault("checks", []).append({"db": db, "args": display, "response": response, "expected": expected})
         require(response == expected, f"{display}: got {response!r}, expected {expected!r}")
 
     def stop(self, crash=False, cleanup=False):
@@ -206,6 +215,7 @@ def seal_wal(case):
 def wal_only(case):
     case.start("write", True, False)
     case.request("SET", "recovery", "durable-wal", expected="OK")
+    case.request("SET", "recovery", "durable-wal-db1", db=1, expected="OK")
     seal_wal(case)
     case.stop(crash=True)
     if case.run_maintainer("forced_maintainer"):
@@ -214,11 +224,27 @@ def wal_only(case):
                 "WAL-only Rust maintenance was enabled or published a snapshot")
     case.start("restart", True, False)
     case.request("GET", "recovery", expected="durable-wal")
+    case.request("GET", "recovery", db=1, expected="durable-wal-db1")
+    case.stop(crash=True)
+    before = case.runtime_state()
+    require(before.startswith("wal "), "the WAL did not remain authoritative")
+    rejection = case.start("export_without_library", False, True, expect_failure=True)
+    require("restore WAL database" in rejection, "missing library did not fail during WAL recovery")
+    require(case.runtime_state() == before, "failed export changed WAL authority")
+    require(not case.snapshot_names(), "failed export published a standalone snapshot")
+
+    case.start("export_to_snapshot", False, True, export_wal=True)
+    require(case.runtime_state().startswith("snapshot "), "export did not publish snapshot authority before listening")
+    require(case.snapshot_names(), "export did not publish a standalone snapshot")
+    case.request("GET", "recovery", expected="durable-wal")
+    case.request("GET", "recovery", db=1, expected="durable-wal-db1")
+    case.stop(crash=True)
+
+    case.start("exported_snapshot_without_library", False, True)
+    case.request("GET", "recovery", expected="durable-wal")
+    case.request("GET", "recovery", db=1, expected="durable-wal-db1")
     case.stop()
-    rejection = case.start("unsafe_switch", False, True, expect_failure=True)
-    require("WAL is authoritative" in rejection, "direct WAL-to-snapshot switch lacked expected rejection")
     case.evidence["disk"] = case.disk_files()
-    require(not case.snapshot_names(), "WAL-only created standalone snapshots")
 
 
 def snapshot_only(case):
@@ -254,6 +280,7 @@ def snapshot_only(case):
 def combined(case):
     case.start("write", True, True, interval=1)
     case.request("SET", "recovery", "published", expected="OK")
+    case.request("SET", "old-wal-key", "delete-in-snapshot", db=1, expected="OK")
     seal_wal(case)
     published = wait_for(case.snapshot_names, "combined mode did not publish a snapshot")
     case.evidence["before_late_ack"] = published
@@ -277,6 +304,8 @@ def combined(case):
     case.start("handoff", False, True)
     case.request("GET", "recovery", expected="handoff")
     case.request("SET", "recovery", "snapshot-authority", expected="OK")
+    case.request("DEL", "old-wal-key", db=1, expected=1)
+    case.request("SET", "snapshot-only-key", "backfilled", db=1, expected="OK")
     case.stop()
     after = {file.relative_to(wal_dir).as_posix(): digest(file) for file in wal_dir.rglob("*")
              if file.is_file() and file.name != ".snapshot-maintenance"}
@@ -290,16 +319,17 @@ def combined(case):
     case.start("handoff_restart", False, True)
     case.request("GET", "recovery", expected="snapshot-authority")
     case.stop()
-    rejection = case.start("stale_wal_switch", True, False, expect_failure=True)
-    require("snapshots are authoritative" in rejection, "stale WAL switch lacked expected rejection")
-    preserved = case.folder / "preserved-go-log-v1"
-    wal_dir.rename(preserved)
+    require(wal_dir.exists(), "pre-existing WAL missing before reverse transition")
     case.start("handoff_import_wal", True, False)
     case.request("GET", "recovery", expected="snapshot-authority")
+    case.request("GET", "old-wal-key", db=1, expected=None)
+    case.request("GET", "snapshot-only-key", db=1, expected="backfilled")
     case.request("SET", "recovery", "migrated-wal", expected="OK")
     case.stop(crash=True)
     case.start("handoff_import_restart", True, False)
     case.request("GET", "recovery", expected="migrated-wal")
+    case.request("GET", "old-wal-key", db=1, expected=None)
+    case.request("GET", "snapshot-only-key", db=1, expected="backfilled")
     case.stop()
     case.evidence["disk"] = case.disk_files()
 
@@ -308,19 +338,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server", required=True, type=Path)
     parser.add_argument("--maintainer", type=Path)
-    parser.add_argument("--library", type=Path)
+    parser.add_argument("--library", required=True, type=Path)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--network", required=True, choices=("std", "gnet"))
     options = parser.parse_args()
     options.server = options.server.resolve(strict=True)
     options.maintainer = options.maintainer.resolve(strict=True) if options.maintainer else None
-    options.library = options.library.resolve(strict=True) if options.library else None
+    options.library = options.library.resolve(strict=True)
     root = options.root.resolve()
     root.mkdir(parents=True, exist_ok=False)
     result = {"network": options.network, "root": str(root), "cases": {},
               "script_sha256": digest(Path(__file__)),
-              "library": {"path": str(options.library), "sha256": digest(options.library)}
-              if options.library else None,
+              "library": {"path": str(options.library), "sha256": digest(options.library)},
               "server": {"path": str(options.server), "sha256": digest(options.server)},
               "maintainer": {"path": str(options.maintainer), "sha256": digest(options.maintainer)}
               if options.maintainer else None}

@@ -110,12 +110,9 @@ func openWithRecovery(directory string, options Options, restore func(key, value
 	if err := makeDirectoryDurable(directory); err != nil {
 		return nil, fmt.Errorf("prepare Go-log directory: %w", err)
 	}
-	lock, err := os.OpenFile(filepath.Join(directory, writerLock), os.O_RDWR|os.O_CREATE, 0o600)
+	lock, err := LockWriterDirectory(directory)
 	if err != nil {
-		return nil, fmt.Errorf("open Go-log writer lock: %w", err)
-	}
-	if err := lockWriter(lock); err != nil {
-		return nil, errors.Join(fmt.Errorf("lock Go-log directory %s: %w", directory, err), lock.Close())
+		return nil, err
 	}
 	recovered, err := recover(directory, restore)
 	if err != nil {

@@ -116,13 +116,6 @@ func TestManagerGoPersistenceHandoff(t *testing.T) {
 	snapshotOnly := *cfg
 	disabled, enabled := false, true
 	snapshotOnly.GoLogEnabled, snapshotOnly.SnapshotEnabled = &disabled, &enabled
-	if m, err := NewDBManagerChecked(&snapshotOnly); err == nil {
-		_ = m.Close()
-		t.Fatal("snapshot-only ignored authoritative WAL")
-	} else if !strings.Contains(err.Error(), "WAL is authoritative") {
-		t.Fatal(err)
-	}
-
 	both := *cfg
 	both.SnapshotEnabled = &enabled
 	m = openGoPersistenceTestManager(t, &both)
