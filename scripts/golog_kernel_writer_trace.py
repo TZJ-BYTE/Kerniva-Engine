@@ -101,6 +101,7 @@ def run(args):
     r = dict(pid=args.pid, exe=str(exe), active_log=str(active), instance=str(instance),
              filters={}, fd_observations=[], thread_changes=[], kernel=os.uname().release)
     instance.mkdir()
+    stack_trigger = None
     try:
         put(instance, "tracing_on", 0)
         put(instance, "trace_clock", "mono")
@@ -121,8 +122,17 @@ def run(args):
                         "sched/sched_switch": matching("prev_pid")+" || "+matching("next_pid"),
                         "sched/sched_process_fork": matching("parent_pid"),
                         "block/block_rq_issue": disk, "block/block_rq_complete": disk})
+        if args.journal_stacks:
+            for phase in ("start_commit", "commit_locking", "commit_flushing", "commit_logging", "end_commit"):
+                filters[f"jbd2/jbd2_{phase}"] = disk
         for name, expr in filters.items():
             r["filters"][name] = filter_event(instance, name, expr)
+        if args.journal_stacks:
+            switch = instance / "events/sched/sched_switch"
+            expression = f'stacktrace if {matching("prev_pid")} && prev_state == 2'
+            put(switch, "trigger", expression)
+            stack_trigger = switch
+            r["journal_stack_trigger"] = (switch / "trigger").read_text().strip()
         last = fd_state(proc, active, [])
         if not last["active_fds"]:
             raise RuntimeError("target has no open active log")
@@ -156,11 +166,19 @@ def run(args):
         with (instance/"trace").open("rb") as src, (out/"trace.txt").open("xb") as dst:
             while data := src.read(1024*1024):
                 dst.write(data)
+    except Exception as error:
+        if args.journal_stacks:
+            r["error"] = f"{type(error).__name__}: {error}"
+        raise
     finally:
-        put(instance, "tracing_on", 0)
-        instance.rmdir()
-        r["instance_removed"] = not instance.exists()
-        atomic_json(out/"receipt.json",r)
+        try:
+            put(instance, "tracing_on", 0)
+            if stack_trigger is not None:
+                put(stack_trigger, "trigger", "!stacktrace")
+            instance.rmdir()
+        finally:
+            r["instance_removed"] = not instance.exists()
+            atomic_json(out/"receipt.json",r)
 
 
 if __name__ == "__main__":
@@ -169,4 +187,5 @@ if __name__ == "__main__":
     p.add_argument("--active-log", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--duration-sec", type=int, default=55, choices=range(1,121), metavar="1..120")
+    p.add_argument("--journal-stacks", action="store_true")
     run(p.parse_args())

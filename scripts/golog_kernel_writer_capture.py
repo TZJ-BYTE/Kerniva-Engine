@@ -32,6 +32,8 @@ class KernelTrace:
                      "python3", "-B", str(script), "--pid", str(primary.pid), "--active-log",
                      str(storage / "db_0" / "active.log"), "--output", str(self.output),
                      "--duration-sec", str(duration + 20)]
+        if args.journal_stacks:
+            self.argv.append("--journal-stacks")
         self.child = None
 
     def start(self):
@@ -200,7 +202,10 @@ def main():
     parser.add_argument("--mirror", type=Path, required=True)
     parser.add_argument("--distribution", default=os.environ.get("WSL_DISTRO_NAME"))
     parser.add_argument("--stage", choices=("single", "single-delay", "smoke", "natural"), required=True)
+    parser.add_argument("--journal-stacks", action="store_true", help="record DB0 writer D-state stacks and journal phases")
     args = parser.parse_args()
+    if args.journal_stacks and args.stage != "single":
+        parser.error("--journal-stacks requires --stage single")
     require(args.distribution and gc.live.check.RUNNER.filesystem_type(Path.home()) == "ext4",
             "WSL ext4 and distribution identity required")
     inherited = {"GODEBUG", "GOGC", "GOMEMLIMIT", "GOMAXPROCS", "GOTRACEBACK", "KERNIVA_GOLOG_BATCH_TRACE"}
