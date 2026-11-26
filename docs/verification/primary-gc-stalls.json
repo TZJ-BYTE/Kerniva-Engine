@@ -1,0 +1,433 @@
+{
+  "calibration": {
+    "gc_stw_complete_inside_heap_request": 4,
+    "pre_request_control_length_ns": 573642471,
+    "pre_request_overlap_ns": 0,
+    "primary_info_delta": {
+      "gc_pause_total_ns": 524948,
+      "num_gc": 2
+    }
+  },
+  "schema": 1,
+  "scope": "same-worker ordinary controls; GC STW includes rendezvous. Counter endpoints encompass the measured offer and drain. Wall sensitivity is separate from causal epoch bounds.",
+  "slow_on_detail_sha256": "20607b284fa8af465b28c28d19810781b79cfe2d4b0c0bb72288b64deae9aa66",
+  "slow_on_rows": 3978,
+  "windows": [
+    {
+      "case": "01-r95-q6000-A",
+      "client_gc_count": 0,
+      "client_gc_pause_ns": 0,
+      "drops": 0,
+      "failures": 0,
+      "get_p99_us": 1331.199,
+      "offered": 180000,
+      "primary_info_delta": {
+        "gc_pause_total_ns": 1145495,
+        "num_gc": 5
+      },
+      "raw_sha256": {
+        "capture.json": "c44b48f7175476a410960dafa4fc8feb43369c114055712be81a077acde58093",
+        "case.json": "6c1ebf5b504b99ce231f785610e3fe09825aea3d9ddf6b6363e471288c7e10bb",
+        "client-hist.json": "61c7ba6464f0e8788effafaf61219c8d1c4fb89047f3ac6cef132d6bcc41f65e",
+        "client-trace.jsonl": "8ac89380630f9a4bdc17f1f350f9d3d6deae5104c71670310fa8c5cccd0e0d23",
+        "client.json": "4f79e35ef64bf7211e2961af575550f32f941a7d0a27472e87b83ee1dcafc1af"
+      },
+      "retained": 11228,
+      "server_trace": "OFF",
+      "set_max_us": 13957.93,
+      "set_p999_us": 9797.631,
+      "set_p99_us": 6602.751,
+      "slow": {
+        "get": 0,
+        "set": 0
+      },
+      "succeeded": 180000,
+      "success_rate": 5999.986451630593,
+      "trigger_seconds": [],
+      "uniform": 11228
+    },
+    {
+      "case": "02-r95-q6000-A",
+      "client_gc_count": 0,
+      "client_gc_pause_ns": 0,
+      "drops": 0,
+      "failures": 0,
+      "get_p99_us": 286261.247,
+      "offered": 180000,
+      "primary_info_delta": {
+        "gc_pause_total_ns": 544072,
+        "num_gc": 3
+      },
+      "raw_sha256": {
+        "capture.json": "1fb24dc50aa4d675f004a6fcbb1cb70778378b418646474edb5fbd072a30c902",
+        "case.json": "1480bfd85780e9a88169247d6888d2dca72e3b778f586d8228e1881b7ad99813",
+        "client-hist.json": "777b45c0df08e98869e78bc597e802823b4a0efa209d1ad724f8c565f6834e6b",
+        "client-trace.jsonl": "5ea93c74c5f0d0eeda73d2ed8057c11d2e5a14af940d67932cfe2a1785c5250d",
+        "client.json": "8bc612f2e402cf86ad3096f1800329eaa71c2a03638d86cbfe0125eb8e1e7e1a",
+        "server-runtime.trace": "8d4d87f449f3f06babed1f04455ed39f58040256f64f090dbc3bb95a1d3df248",
+        "server-stw.jsonl": "5a2409b893617a19e99592458bf7e6c0430def7004a20cc4669d541839f690ff"
+      },
+      "retained": 14978,
+      "server_trace": "ON",
+      "set_max_us": 629534.791,
+      "set_p999_us": 568328.191,
+      "set_p99_us": 362807.295,
+      "slow": {
+        "get": 3749,
+        "set": 229
+      },
+      "slow_timing": {
+        "exchange_at_least_100ms": 204,
+        "exchange_below_50ms": 3640,
+        "first_gc_start_minus_latest_slow_end_ns": 6086180206,
+        "first_slow_per_worker_exchange_at_least_100ms": 61,
+        "first_slow_per_worker_queue_below_50ms": 59,
+        "possible_slow_envelope_monotonic_ns": [
+          123474635815363,
+          123475614249645
+        ],
+        "queue_at_least_100ms": 3874,
+        "slow_requests": 3978,
+        "slow_workers": 64
+      },
+      "succeeded": 180000,
+      "success_rate": 5999.946266681216,
+      "trace_analysis": {
+        "alignment_padding_ns": 1105,
+        "anchors": 35,
+        "epoch_causal_ns": [
+          123474383315363,
+          123474458005427
+        ],
+        "epoch_wall_5ms_ns": [
+          123474385347318,
+          123474395348341
+        ],
+        "gc_phase_exposure": {
+          "gc_concurrent_mark": {
+            "full_capture": {
+              "complete_count": 3,
+              "incomplete_count": 0,
+              "max_complete_ns": 2587520,
+              "total_complete_ns": 6791296
+            },
+            "slow_requests_with_possible_overlap": 0
+          },
+          "gc_mark_assist": {
+            "full_capture": {
+              "complete_count": 3,
+              "incomplete_count": 0,
+              "max_complete_ns": 1008832,
+              "total_complete_ns": 1045632
+            },
+            "slow_requests_with_possible_overlap": 0
+          }
+        },
+        "gc_stw_count": 6,
+        "gc_stw_max_ns": 178304,
+        "gc_stw_union_ns": 665344,
+        "inside_trace_monotonic_ns": [
+          123473832210467,
+          123508832403462
+        ],
+        "overlap_by_group": {
+          "causal/all_slow/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 3749,
+            "sum_exchange_ns": 28639792137,
+            "upper_overlap_ns": 0
+          },
+          "causal/all_slow/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 229,
+            "sum_exchange_ns": 20497048437,
+            "upper_overlap_ns": 0
+          },
+          "causal/matched_normal/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 126,
+            "sum_exchange_ns": 21426978,
+            "upper_overlap_ns": 0
+          },
+          "causal/matched_normal/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 65,
+            "sum_exchange_ns": 174898763,
+            "upper_overlap_ns": 0
+          },
+          "causal/uniform_normal/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 81,
+            "possibly_at_least_half_exchange": 80,
+            "requests": 10452,
+            "sum_exchange_ns": 994413188,
+            "upper_overlap_ns": 7931510
+          },
+          "causal/uniform_normal/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 6,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 548,
+            "sum_exchange_ns": 1150515954,
+            "upper_overlap_ns": 1286616
+          },
+          "wall_5ms_sensitivity/all_slow/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 3749,
+            "sum_exchange_ns": 28639792137,
+            "upper_overlap_ns": 0
+          },
+          "wall_5ms_sensitivity/all_slow/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 229,
+            "sum_exchange_ns": 20497048437,
+            "upper_overlap_ns": 0
+          },
+          "wall_5ms_sensitivity/matched_normal/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 126,
+            "sum_exchange_ns": 21426978,
+            "upper_overlap_ns": 0
+          },
+          "wall_5ms_sensitivity/matched_normal/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 65,
+            "sum_exchange_ns": 174898763,
+            "upper_overlap_ns": 0
+          },
+          "wall_5ms_sensitivity/uniform_normal/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 7,
+            "possibly_at_least_half_exchange": 6,
+            "requests": 10452,
+            "sum_exchange_ns": 994413188,
+            "upper_overlap_ns": 1035614
+          },
+          "wall_5ms_sensitivity/uniform_normal/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 548,
+            "sum_exchange_ns": 1150515954,
+            "upper_overlap_ns": 0
+          }
+        },
+        "stw_in_possible_measurement": {
+          "GC mark termination": {
+            "count": 3,
+            "max_ns": 96832,
+            "sum_ns": 167680
+          },
+          "GC sweep termination": {
+            "count": 3,
+            "max_ns": 178304,
+            "sum_ns": 497664
+          },
+          "read mem stats": {
+            "count": 59,
+            "max_ns": 131456,
+            "sum_ns": 2809664
+          }
+        }
+      },
+      "trigger_seconds": [
+        0,
+        1
+      ],
+      "uniform": 11228
+    },
+    {
+      "case": "03-r95-q6000-A",
+      "client_gc_count": 0,
+      "client_gc_pause_ns": 0,
+      "drops": 0,
+      "failures": 0,
+      "get_p99_us": 1339.391,
+      "offered": 180000,
+      "primary_info_delta": {
+        "gc_pause_total_ns": 543394,
+        "num_gc": 3
+      },
+      "raw_sha256": {
+        "capture.json": "a1f3556ca909a3d19fba268c85143fc45543cd2db2887d67ebd7d2a6c418d991",
+        "case.json": "e8d85dcbfc1e36cc547261c2b4346c9dbdd1102c874e397476d86d758da3f461",
+        "client-hist.json": "ee61c55f5ed754590be57edf856675cb82b9f2f120b2b45181736c049b1cd154",
+        "client-trace.jsonl": "92fcd27c81a786b6bb60522f4d7d54f60536be1efd2749d973e981110fe09bc0",
+        "client.json": "e34f8600082ca570a94aeb641774d14331f461501569c7922e47435054392065",
+        "server-runtime.trace": "7f032d9e61ede12174ad69f9b0cacf98722b4b5c83643daa7b4d5e0e57dec2be",
+        "server-stw.jsonl": "6d3bde7bce26fe0cdf4947dc30520a4e1257549393b4ef2af93cb4a1be291f6e"
+      },
+      "retained": 11228,
+      "server_trace": "ON",
+      "set_max_us": 14693.725,
+      "set_p999_us": 8749.055,
+      "set_p99_us": 6225.919,
+      "slow": {
+        "get": 0,
+        "set": 0
+      },
+      "slow_timing": {
+        "slow_requests": 0
+      },
+      "succeeded": 180000,
+      "success_rate": 5999.943264136498,
+      "trace_analysis": {
+        "alignment_padding_ns": 1150,
+        "anchors": 35,
+        "epoch_causal_ns": [
+          123516024540389,
+          123516047432238
+        ],
+        "epoch_wall_5ms_ns": [
+          123516025582286,
+          123516035583461
+        ],
+        "gc_phase_exposure": {
+          "gc_concurrent_mark": {
+            "full_capture": {
+              "complete_count": 3,
+              "incomplete_count": 0,
+              "max_complete_ns": 4688064,
+              "total_complete_ns": 10429952
+            },
+            "slow_requests_with_possible_overlap": 0
+          },
+          "gc_mark_assist": {
+            "full_capture": {
+              "complete_count": 13,
+              "incomplete_count": 0,
+              "max_complete_ns": 277440,
+              "total_complete_ns": 1531136
+            },
+            "slow_requests_with_possible_overlap": 0
+          }
+        },
+        "gc_stw_count": 6,
+        "gc_stw_max_ns": 227072,
+        "gc_stw_union_ns": 664960,
+        "inside_trace_monotonic_ns": [
+          123515475209698,
+          123550475932359
+        ],
+        "overlap_by_group": {
+          "causal/uniform_normal/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 31,
+            "possibly_at_least_half_exchange": 28,
+            "requests": 10671,
+            "sum_exchange_ns": 1034641948,
+            "upper_overlap_ns": 2732458
+          },
+          "causal/uniform_normal/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 557,
+            "sum_exchange_ns": 1145037194,
+            "upper_overlap_ns": 0
+          },
+          "wall_5ms_sensitivity/uniform_normal/GET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 18,
+            "possibly_at_least_half_exchange": 14,
+            "requests": 10671,
+            "sum_exchange_ns": 1034641948,
+            "upper_overlap_ns": 1596304
+          },
+          "wall_5ms_sensitivity/uniform_normal/SET": {
+            "lower_overlap_ns": 0,
+            "overlap_certain": 0,
+            "overlap_possible": 0,
+            "possibly_at_least_half_exchange": 0,
+            "requests": 557,
+            "sum_exchange_ns": 1145037194,
+            "upper_overlap_ns": 0
+          }
+        },
+        "stw_in_possible_measurement": {
+          "GC mark termination": {
+            "count": 3,
+            "max_ns": 98176,
+            "sum_ns": 165888
+          },
+          "GC sweep termination": {
+            "count": 3,
+            "max_ns": 227072,
+            "sum_ns": 499072
+          },
+          "read mem stats": {
+            "count": 59,
+            "max_ns": 110528,
+            "sum_ns": 2515776
+          }
+        }
+      },
+      "trigger_seconds": [],
+      "uniform": 11228
+    },
+    {
+      "case": "04-r95-q6000-A",
+      "client_gc_count": 0,
+      "client_gc_pause_ns": 0,
+      "drops": 0,
+      "failures": 0,
+      "get_p99_us": 1318.911,
+      "offered": 180000,
+      "primary_info_delta": {
+        "gc_pause_total_ns": 1018559,
+        "num_gc": 5
+      },
+      "raw_sha256": {
+        "capture.json": "1052e33691bb812cf7105706257699eff5052d8e3e2dae295bd69a083b31537b",
+        "case.json": "2356bc9cd2c818c3b915845c5670b6ee1f7a4f432c67988a93a5b5825d10860e",
+        "client-hist.json": "80a2933450920fa6c702119780f6195e74f04bb3f5eabd145bcf64ca7d0198b7",
+        "client-trace.jsonl": "0e4da7464036d0cd5c4359c2b6de50f38fd3f998427d4e494189bf08eb60ec14",
+        "client.json": "0e36d685dcb966eb0a42bb99b6b58d186ee25cddf18b36383ac3fd65b2096f5c"
+      },
+      "retained": 11228,
+      "server_trace": "OFF",
+      "set_max_us": 11155.377,
+      "set_p999_us": 9011.199,
+      "set_p99_us": 6307.839,
+      "slow": {
+        "get": 0,
+        "set": 0
+      },
+      "succeeded": 180000,
+      "success_rate": 5999.897629346655,
+      "trigger_seconds": [],
+      "uniform": 11228
+    }
+  ]
+}

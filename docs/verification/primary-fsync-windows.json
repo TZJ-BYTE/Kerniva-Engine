@@ -1,0 +1,122 @@
+{
+  "on2": {
+    "slow_requests": 3978,
+    "writer_frames_fsync_count_full_trace": 7758,
+    "writer_frames_fsync_max_ns_full_trace": 56109504,
+    "writer_frames_fsync_at_least_50ms_full_trace": 4,
+    "certain_offer_intervals": [
+      {
+        "interval_ns": [
+          0,
+          1200000000
+        ],
+        "count": 70,
+        "duration_sum_ns": 1145070847,
+        "max_ns": 56109504,
+        "p50_ns": 7200768,
+        "p99_ns": 56109504,
+        "at_least_10ms": 30,
+        "at_least_50ms": 4
+      },
+      {
+        "interval_ns": [
+          1200000000,
+          30000000000
+        ],
+        "count": 7656,
+        "duration_sum_ns": 12268287873,
+        "max_ns": 7782400,
+        "p50_ns": 1542400,
+        "p99_ns": 2618304,
+        "at_least_10ms": 0,
+        "at_least_50ms": 0
+      },
+      {
+        "interval_ns": [
+          0,
+          2000000000
+        ],
+        "count": 302,
+        "duration_sum_ns": 1520989563,
+        "max_ns": 56109504,
+        "p50_ns": 1617856,
+        "p99_ns": 51402176,
+        "at_least_10ms": 30,
+        "at_least_50ms": 4
+      },
+      {
+        "interval_ns": [
+          2000000000,
+          30000000000
+        ],
+        "count": 7425,
+        "duration_sum_ns": 11893487237,
+        "max_ns": 7782400,
+        "p50_ns": 1541056,
+        "p99_ns": 2618304,
+        "at_least_10ms": 0,
+        "at_least_50ms": 0
+      }
+    ]
+  },
+  "on3": {
+    "slow_requests": 0,
+    "writer_frames_fsync_count_full_trace": 7993,
+    "writer_frames_fsync_max_ns_full_trace": 11316864,
+    "writer_frames_fsync_at_least_50ms_full_trace": 0,
+    "certain_offer_intervals": [
+      {
+        "interval_ns": [
+          0,
+          1200000000
+        ],
+        "count": 315,
+        "duration_sum_ns": 638755002,
+        "max_ns": 11316864,
+        "p50_ns": 1956224,
+        "p99_ns": 3130944,
+        "at_least_10ms": 1,
+        "at_least_50ms": 0
+      },
+      {
+        "interval_ns": [
+          1200000000,
+          30000000000
+        ],
+        "count": 7661,
+        "duration_sum_ns": 12398857819,
+        "max_ns": 7581824,
+        "p50_ns": 1544000,
+        "p99_ns": 2816000,
+        "at_least_10ms": 0,
+        "at_least_50ms": 0
+      },
+      {
+        "interval_ns": [
+          0,
+          2000000000
+        ],
+        "count": 547,
+        "duration_sum_ns": 1007250557,
+        "max_ns": 11316864,
+        "p50_ns": 1707904,
+        "p99_ns": 3084160,
+        "at_least_10ms": 1,
+        "at_least_50ms": 0
+      },
+      {
+        "interval_ns": [
+          2000000000,
+          30000000000
+        ],
+        "count": 7430,
+        "duration_sum_ns": 12032838359,
+        "max_ns": 7581824,
+        "p50_ns": 1544320,
+        "p99_ns": 2825280,
+        "at_least_10ms": 0,
+        "at_least_50ms": 0
+      }
+    ]
+  }
+}

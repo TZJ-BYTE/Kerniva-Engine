@@ -142,6 +142,8 @@ scripts/                    构建、清理、测试和 TCP benchmark
 
 随后逐秒复算了 44 个旧窗，又在 95% GET、6,000 请求/s 下实测 24 个新窗，共 432 万请求，零失败。旧数据在 38 个慢秒出现大量客户端排队。新一轮仅在关闭新探针的校准窗复现尖峰，16 个正式窗的 SET p99 为 5.734–6.914 ms。[逐请求诊断、适用范围与复现命令](docs/verification/replica-request-stalls.md) 同一客户端又通过隔离回环服务验证，两次都区分了约 250 ms 的回包等待和后继约 241 ms 的发前排队。[已知慢回复的工具验收](docs/verification/replica-trace-fixture.md)
 
+一次新的主库运行时跟踪捕获了 3,978 个超过 100 ms 的请求。主库第一个 GC 暂停发生在它们全部完成至少 6.086 秒之后。同期日志写入出现四次超过 50 ms 的同步调用，仍需逐请求关联写入批次。[GC 与写入尖峰的逐请求核对](docs/verification/primary-gc-stalls.md)
+
 ~~~powershell
 ./scripts/test.ps1 -Race
 ~~~
