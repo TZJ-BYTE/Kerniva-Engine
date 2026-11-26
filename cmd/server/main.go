@@ -15,6 +15,7 @@ import (
 
 	"github.com/TZJ-BYTE/Kerniva/config"
 	"github.com/TZJ-BYTE/Kerniva/internal/server"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
@@ -33,7 +34,7 @@ func run(configPath, stopFile string) error {
 	return serve(configPath, stopFile, nil, nil)
 }
 
-func serve(configPath, stopFile string, serviceStop <-chan struct{}, ready func()) error {
+func serve(configPath, stopFile string, serviceStop <-chan struct{}, ready func()) (err error) {
 	cfg, loadErr := config.LoadFromFile(configPath)
 	if loadErr != nil {
 		if ready != nil || !os.IsNotExist(loadErr) {
@@ -51,6 +52,16 @@ func serve(configPath, stopFile string, serviceStop <-chan struct{}, ready func(
 	}
 	if err := cfg.Validate(); err != nil {
 		return err
+	}
+	if output := os.Getenv("KERNIVA_GOLOG_BATCH_TRACE"); output != "" {
+		if cfg.StorageBackend != config.StorageGoLog {
+			return errors.New("KERNIVA_GOLOG_BATCH_TRACE requires Go-log storage")
+		}
+		trace, traceErr := writetrace.Open(output)
+		if traceErr != nil {
+			return traceErr
+		}
+		defer func() { err = errors.Join(err, trace.Close()) }()
 	}
 	rotation := logger.Rotation{MaxSizeMB: cfg.LogMaxSizeMB, MaxBackups: cfg.LogMaxBackups, MaxAgeDays: cfg.LogMaxAgeDays}
 	if err := logger.InitWithRotation(cfg.LogPath, cfg.LogLevel, rotation); err != nil {

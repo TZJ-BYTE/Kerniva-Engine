@@ -566,6 +566,9 @@ func runRateWorker(trace *workerTrace, worker, clients int, total int64, duratio
 		}
 	}()
 	reader := bufio.NewReader(conn)
+	if trace != nil {
+		trace.localPort = conn.LocalAddr().(*net.TCPAddr).Port
+	}
 	get, set := new(operationAccumulator), new(operationAccumulator)
 	request, key := make([]byte, 0, 160), make([]byte, 0, 48)
 	var expected [32]byte
@@ -644,6 +647,10 @@ func runRateWorker(trace *workerTrace, worker, clients int, total int64, duratio
 			conn, err = net.DialTimeout("tcp", address, max(remaining, time.Nanosecond))
 			if err == nil {
 				reader.Reset(conn)
+				if trace != nil {
+					trace.localPort = conn.LocalAddr().(*net.TCPAddr).Port
+					trace.connOrdinal = 0
+				}
 			}
 		}
 		if err == nil {
@@ -657,6 +664,9 @@ func runRateWorker(trace *workerTrace, worker, clients int, total int64, duratio
 		sendStart := time.Duration(-1)
 		if err == nil {
 			operation.counts.Sent++
+			if trace != nil {
+				trace.connOrdinal++
+			}
 			sendStart = clockElapsed(*epoch)
 			if sendStart < duration {
 				operation.counts.SentInWindow++

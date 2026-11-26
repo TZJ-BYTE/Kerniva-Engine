@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 const (
@@ -19,6 +20,7 @@ type writeRequest struct {
 	operations []rustengine.WriteOp
 	reset      bool
 	result     chan error
+	trace      *writetrace.Request
 }
 
 type writeQueue struct {
@@ -33,16 +35,23 @@ func newWriteQueue() *writeQueue {
 
 // A synchronous caller keeps its inputs alive across the worker's append and
 // holds the queue read lock so Close cannot stop the worker before it replies.
-func (w *Writer) enqueueWrite(operations []rustengine.WriteOp, reset bool) error {
+func (w *Writer) enqueueWrite(operations []rustengine.WriteOp, reset bool, row *writetrace.Request) error {
 	queue := w.writes
+	if row != nil {
+		row.Queue = row.Stamp()
+	}
 	queue.mu.RLock()
 	defer queue.mu.RUnlock()
 	if w.closed {
 		return errWriterClosed
 	}
-	request := &writeRequest{operations: operations, reset: reset, result: make(chan error, 1)}
+	request := &writeRequest{operations: operations, reset: reset, result: make(chan error, 1), trace: row}
 	queue.requests <- request
-	return <-request.result
+	err := <-request.result
+	if row != nil {
+		row.Result = row.Stamp()
+	}
+	return err
 }
 
 func (w *Writer) runWriteQueue() {
@@ -51,6 +60,7 @@ func (w *Writer) runWriteQueue() {
 	var batch [groupMaximum]*writeRequest
 	for request := range queue.requests {
 		batch[0] = request
+		tracked := request.trace
 		n := 1
 	drain:
 		for n < w.options.GroupMax {
@@ -60,23 +70,50 @@ func (w *Writer) runWriteQueue() {
 					break drain
 				}
 				batch[n] = next
+				if next.trace != nil {
+					tracked = next.trace
+				}
 				n++
 			default:
 				break drain
 			}
 		}
-		w.commitQueue(batch[:n])
+		w.commitQueue(batch[:n], tracked)
 		clear(batch[:n])
 	}
 }
 
-func (w *Writer) commitQueue(batch []*writeRequest) {
+func (w *Writer) commitQueue(batch []*writeRequest, tracked *writetrace.Request) {
+	var drained, locked int64
+	if tracked != nil {
+		drained = tracked.Stamp()
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if tracked != nil {
+		locked = tracked.Stamp()
+	}
 	for len(batch) != 0 {
 		first := batch[0]
-		done, err := w.appendLocked(first.operations, first.reset, batch[1:])
-		for _, request := range batch[:done] {
+		var phases writetrace.Batch
+		var trace *writetrace.Batch
+		if tracked != nil {
+			phases = tracked.NewBatch()
+			phases.Dequeue, phases.Locked = drained, locked
+			trace = &phases
+		}
+		done, err := w.appendLocked(first.operations, first.reset, batch[1:], trace)
+		if trace != nil {
+			phases.Failed = err != nil
+			phases.Release = trace.Stamp()
+		}
+		for index, request := range batch[:done] {
+			if request.trace != nil {
+				request.trace.Batch = phases
+				if phases.Size != 0 {
+					request.trace.Batch.Sequence += uint64(index)
+				}
+			}
 			request.result <- err
 		}
 		batch = batch[done:]

@@ -7,13 +7,14 @@ import (
 
 	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 // setPersistentString enters and returns with the lifecycle read lock and the
 // stripe write lock held. The pending entry orders same-key operations while
 // other keys in this stripe can proceed during the durable write.
 // Returning handled=false asks the caller to recheck under operationMu.Lock.
-func (db *Database) setPersistentString(key, value []byte) (handled bool, err error) {
+func (db *Database) setPersistentString(key, value []byte, row *writetrace.Request) (handled bool, err error) {
 	k := bytesToString(key)
 	sh := db.getShard(k)
 	sh.lock.RLock()
@@ -81,7 +82,7 @@ func (db *Database) setPersistentString(key, value []byte) (handled bool, err er
 	db.pendingStringWrites[index][stableKey] = pendingDone
 	lock := &db.hotLocks[index]
 	lock.Unlock()
-	err = db.writeBatch([]rustengine.WriteOp{{Key: stringToBytesRO(stableKey), Value: encoded}})
+	err = db.writeBatchTraced([]rustengine.WriteOp{{Key: stringToBytesRO(stableKey), Value: encoded}}, row)
 	lock.Lock()
 	if err != nil {
 		db.recordLSMError(err)

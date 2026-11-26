@@ -38,6 +38,9 @@ func dispatchCommand(dst []byte, ctx *ConnectionContext, manager *database.DBMan
 		database.LockExecution()
 		defer database.UnlockExecution()
 	}
+	if row := ctx.traceRequest; row != nil {
+		row.ExecutionLock = row.Stamp()
+	}
 	if ctx.requestContext().Err() != nil {
 		return dst, true
 	}
@@ -164,6 +167,9 @@ func executeAndAppend(dst []byte, ctx *ConnectionContext, manager *database.DBMa
 	}
 
 	if allowFastPath {
+		if ctx.traceRequest != nil && cmd == "SET" && len(args) == 2 {
+			return appendPlainSet(dst, ctx.DB, args, ctx.traceRequest), false
+		}
 		if out, ok := fastPathExecute(dst, ctx.DB, cmd, args); ok {
 			return out, false
 		}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 type commitFile struct {
@@ -169,6 +170,63 @@ func TestCommitQueueSharesSyncWithinSegment(t *testing.T) {
 			t.Fatalf("unexpected recovered values or sequence: %v, %+v", values, reopened.Stats())
 		}
 	})
+}
+
+func TestWriteTraceRecordsActualGroupedSyncAndFailure(t *testing.T) {
+	trace, err := writetrace.Open(filepath.Join(t.TempDir(), "trace.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = trace.Close() })
+	w := openTestWriter(t, t.TempDir(), Options{Sync: true, GroupMax: 4})
+	entered, resume := holdFirstSync(t, w, func(n int) error {
+		if n == 2 {
+			return errInjectedCommit
+		}
+		return nil
+	}, nil)
+	write := func(ordinal uint64) (*writetrace.Request, <-chan error) {
+		row := trace.Begin(45678, ordinal, "SET", trace.Stamp())
+		result := make(chan error, 1)
+		go func() {
+			result <- w.WriteBatchTraced([]rustengine.WriteOp{{Key: []byte("key"), Value: []byte("value")}}, row)
+		}()
+		return row, result
+	}
+	first, firstResult := write(1)
+	awaitSync(t, entered)
+	second, secondResult := write(2)
+	waitWriteQueue(t, w, 1)
+	third, thirdResult := write(3)
+	waitWriteQueue(t, w, 2)
+	insideFirstSync := trace.Stamp()
+	resume()
+	if err := awaitPut(t, firstResult); err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range []<-chan error{secondResult, thirdResult} {
+		if err := awaitPut(t, result); !errors.Is(err, errInjectedCommit) {
+			t.Fatalf("group result = %v", err)
+		}
+	}
+	if first.Batch.Failed || first.Batch.ID == 0 || first.Batch.Size != 1 || first.Batch.Sequence != 1 || first.Batch.Sync > insideFirstSync || first.Batch.Synced < insideFirstSync {
+		t.Fatalf("first sync trace = %+v, held at %d", first.Batch, insideFirstSync)
+	}
+	for i, row := range []*writetrace.Request{second, third} {
+		batch := row.Batch
+		if !batch.Failed || batch.ID != second.Batch.ID || batch.ID == first.Batch.ID || batch.Size != 2 || batch.Sequence != uint64(i+2) || batch.Bytes != 2*first.Batch.Bytes || batch.Sync != second.Batch.Sync || batch.Synced != second.Batch.Synced {
+			t.Fatalf("unexpected group trace for request %d: %+v", row.Ordinal, batch)
+		}
+		phases := []int64{row.Queue, batch.Dequeue, batch.Locked, batch.Append, batch.Write, batch.Written, batch.Sync, batch.Synced, batch.Release, row.Result}
+		for j := 1; j < len(phases); j++ {
+			if phases[j-1] == 0 || phases[j-1] > phases[j] {
+				t.Fatalf("unordered group phases: %v", phases)
+			}
+		}
+	}
+	if got := w.Stats().LastSequence; got != 1 {
+		t.Fatalf("failed group advanced durable sequence to %d", got)
+	}
 }
 
 func TestCommitQueueRollsBackFailedGroup(t *testing.T) {

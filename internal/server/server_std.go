@@ -138,9 +138,11 @@ func (s *StdServer) StartWithReady(ready func()) error {
 
 // handleConnection 处理客户端连接
 func (s *StdServer) handleConnection(conn net.Conn) {
-	logger.Info("新连接：%s", conn.RemoteAddr().String())
+	remote := conn.RemoteAddr()
+	logger.Info("新连接：%s", remote.String())
 
 	connCtx := newConnectionContext(s.ctx, s.dbManager.GetDefaultDB(), s.pubsub, nil)
+	connCtx.initWriteTrace(remote)
 	writer := newStdPubSubWriter(conn, connCtx)
 	connCtx.pubsubWriter = writer
 	workerDone := make(chan struct{})

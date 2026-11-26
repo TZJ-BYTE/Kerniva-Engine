@@ -80,7 +80,7 @@ func TestMeasuredRequestTrace(t *testing.T) {
 		if err := json.Unmarshal(scanner.Bytes(), &row); err != nil {
 			t.Fatal(err)
 		}
-		if summary || row.Index%2 != int64(row.Worker) || row.Planned != scheduledOffset(row.Index, o.rate) || row.Planned > row.Dequeued || row.Dequeued > row.SendStart || row.SendStart > row.Completed || !row.Uniform || row.Outcome != "success" {
+		if summary || row.Index%2 != int64(row.Worker) || row.Planned != scheduledOffset(row.Index, o.rate) || row.Planned > row.Dequeued || row.Dequeued > row.SendStart || row.SendStart > row.Completed || !row.Uniform || row.Outcome != "success" || row.LocalPort == 0 || row.ConnOrdinal != uint64(row.Index/2+1) {
 			t.Fatalf("invalid timing %+v", row)
 		}
 		rows++

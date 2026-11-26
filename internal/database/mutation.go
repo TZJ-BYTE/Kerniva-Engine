@@ -9,6 +9,7 @@ import (
 
 	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 var errDatabaseClosed = errors.New("database is closed")
@@ -152,6 +153,7 @@ type mutationState struct {
 	versions   map[string]struct{}
 	usedMemory int64
 	err        error
+	trace      *writetrace.Request
 }
 
 func (db *Database) beginMutation() {
@@ -201,7 +203,7 @@ func (db *Database) finishMutation(operationErr error) error {
 		for _, operation := range tx.writes {
 			operations = append(operations, operation)
 		}
-		operationErr = db.writeBatch(operations)
+		operationErr = db.writeBatchTraced(operations, tx.trace)
 	}
 	db.mutation = nil
 	if operationErr != nil {
@@ -233,6 +235,13 @@ func (db *Database) finishMutation(operationErr error) error {
 	}
 	db.trimReadCache()
 	return nil
+}
+
+func (db *Database) writeBatchTraced(operations []rustengine.WriteOp, row *writetrace.Request) error {
+	if row != nil && db.goLog != nil {
+		return db.goLog.WriteBatchTraced(operations, row)
+	}
+	return db.writeBatch(operations)
 }
 
 func (db *Database) endReadOperation() {

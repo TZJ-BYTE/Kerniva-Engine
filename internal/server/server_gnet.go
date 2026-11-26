@@ -103,13 +103,15 @@ func (s *GnetServer) OnShutdown(eng gnet.Engine) {
 }
 
 func (s *GnetServer) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
-	logger.Info("New connection: %s", c.RemoteAddr().String())
+	remote := c.RemoteAddr()
+	logger.Info("New connection: %s", remote.String())
 	s.lifecycle.Lock()
 	defer s.lifecycle.Unlock()
 	if s.ctx.Err() != nil {
 		return nil, gnet.Close
 	}
 	ctx := newConnectionContext(s.ctx, s.dbManager.GetDefaultDB(), s.pubsub, nil)
+	ctx.initWriteTrace(remote)
 	ctx.pubsubWriter = &gnetPubSubWriter{conn: c, ctx: ctx}
 	c.SetContext(ctx)
 	s.workers.Add(1)

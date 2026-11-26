@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/TZJ-BYTE/Kerniva/internal/database"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 // ConnectionContext 连接上下文
@@ -38,6 +39,11 @@ type ConnectionContext struct {
 	Tx *TransactionState
 
 	writeMu sync.Mutex
+
+	trace        *writetrace.Recorder
+	tracePort    int
+	traceOrdinal uint64              // network reader only
+	traceRequest *writetrace.Request // command worker only
 
 	pubsubMu       sync.Mutex
 	pubsubChannels map[string]struct{}

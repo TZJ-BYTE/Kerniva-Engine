@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 const (
@@ -276,7 +277,11 @@ func truncateAndSync(file activeFile, size uint64) error {
 }
 
 func (w *Writer) WriteBatch(operations []rustengine.WriteOp) error {
-	return w.append(operations, false)
+	return w.append(operations, false, nil)
+}
+
+func (w *Writer) WriteBatchTraced(operations []rustengine.WriteOp, row *writetrace.Request) error {
+	return w.append(operations, false, row)
 }
 
 func (w *Writer) Put(key, value []byte) error {
@@ -288,23 +293,37 @@ func (w *Writer) Delete(key []byte) error {
 }
 
 func (w *Writer) Reset() error {
-	return w.append(nil, true)
+	return w.append(nil, true, nil)
 }
 
-func (w *Writer) append(operations []rustengine.WriteOp, reset bool) error {
+func (w *Writer) append(operations []rustengine.WriteOp, reset bool, row *writetrace.Request) error {
 	if w.writes != nil {
-		return w.enqueueWrite(operations, reset)
+		return w.enqueueWrite(operations, reset, row)
 	}
 
+	if row != nil {
+		row.Queue = row.Stamp()
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	_, err := w.appendLocked(operations, reset, nil)
+	var trace *writetrace.Batch
+	if row != nil {
+		row.Batch = row.NewBatch()
+		row.Batch.Locked = row.Batch.Append
+		trace = &row.Batch
+	}
+	_, err := w.appendLocked(operations, reset, nil, trace)
+	if trace != nil {
+		trace.Failed = err != nil
+		trace.Release = trace.Stamp()
+		row.Result = row.Stamp()
+	}
 	return err
 }
 
 // appendLocked takes one request and as many complete following requests as
 // fit in the same sync. The caller retains the suffix for the next append.
-func (w *Writer) appendLocked(operations []rustengine.WriteOp, reset bool, following []*writeRequest) (int, error) {
+func (w *Writer) appendLocked(operations []rustengine.WriteOp, reset bool, following []*writeRequest, trace *writetrace.Batch) (int, error) {
 	if w.closed {
 		return len(following) + 1, errWriterClosed
 	}
@@ -347,14 +366,22 @@ func (w *Writer) appendLocked(operations []rustengine.WriteOp, reset bool, follo
 		// Large batches should not become a permanent per-database allocation.
 		w.scratch = nil
 	}
-	return count, w.writeFramesLocked(frame, sequence, count)
+	return count, w.writeFramesLocked(frame, sequence, count, trace)
 }
 
-func (w *Writer) writeFramesLocked(frames []byte, lastSequence uint64, count int) error {
+func (w *Writer) writeFramesLocked(frames []byte, lastSequence uint64, count int, trace *writetrace.Batch) error {
 	if w.activeEnd > math.MaxInt64-uint64(len(frames)) {
 		return errors.New("Go-log active offset exhausted")
 	}
+	if trace != nil {
+		trace.Size, trace.Bytes = count, len(frames)
+		trace.Sequence = lastSequence - uint64(count-1)
+		trace.Write = trace.Stamp()
+	}
 	n, err := w.active.WriteAt(frames, int64(w.activeEnd))
+	if trace != nil {
+		trace.Written = trace.Stamp()
+	}
 	if err == nil && n != len(frames) {
 		err = io.ErrShortWrite
 	}
@@ -362,7 +389,14 @@ func (w *Writer) writeFramesLocked(frames []byte, lastSequence uint64, count int
 		return w.rollbackLocked(fmt.Errorf("append Go-log commit: %w", err))
 	}
 	if w.options.Sync {
-		if err := w.active.Sync(); err != nil {
+		if trace != nil {
+			trace.Sync = trace.Stamp()
+		}
+		err := w.active.Sync()
+		if trace != nil {
+			trace.Synced = trace.Stamp()
+		}
+		if err != nil {
 			return w.rollbackLocked(fmt.Errorf("sync Go-log commit: %w", err))
 		}
 		w.syncCount++

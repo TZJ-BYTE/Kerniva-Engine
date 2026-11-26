@@ -12,15 +12,17 @@ const maxTracePerWorker = 4096
 const traceSlowThreshold = 100 * time.Millisecond
 
 type requestTiming struct {
-	Worker    int           `json:"worker"`
-	Index     int64         `json:"index"`
-	Op        string        `json:"op"`
-	Planned   time.Duration `json:"planned_ns"`
-	Dequeued  time.Duration `json:"dequeued_ns"`
-	SendStart time.Duration `json:"send_start_ns"`
-	Completed time.Duration `json:"completed_ns"`
-	Outcome   string        `json:"outcome"`
-	Uniform   bool          `json:"uniform"`
+	Worker      int           `json:"worker"`
+	Index       int64         `json:"index"`
+	Op          string        `json:"op"`
+	Planned     time.Duration `json:"planned_ns"`
+	Dequeued    time.Duration `json:"dequeued_ns"`
+	SendStart   time.Duration `json:"send_start_ns"`
+	Completed   time.Duration `json:"completed_ns"`
+	Outcome     string        `json:"outcome"`
+	Uniform     bool          `json:"uniform"`
+	LocalPort   int           `json:"local_port,omitempty"`
+	ConnOrdinal uint64        `json:"conn_ordinal,omitempty"`
 }
 
 type traceCoverage struct {
@@ -34,10 +36,12 @@ type traceCoverage struct {
 }
 
 type workerTrace struct {
-	coverage   [][2]traceCoverage
-	rows       []requestTiming
-	candidates int64
-	drops      int64
+	coverage    [][2]traceCoverage
+	rows        []requestTiming
+	candidates  int64
+	drops       int64
+	localPort   int
+	connOrdinal uint64
 }
 
 func (t *workerTrace) add(index int64, write bool, planned, dequeued, sendStart, completed time.Duration, outcome string, o *mixedOptions) {
@@ -76,7 +80,11 @@ func (t *workerTrace) add(index int64, write bool, planned, dequeued, sendStart,
 	if write {
 		op = "SET"
 	}
-	t.rows = append(t.rows, requestTiming{Index: index, Op: op, Planned: planned, Dequeued: dequeued, SendStart: sendStart, Completed: completed, Outcome: outcome, Uniform: uniform})
+	row := requestTiming{Index: index, Op: op, Planned: planned, Dequeued: dequeued, SendStart: sendStart, Completed: completed, Outcome: outcome, Uniform: uniform}
+	if sendStart >= 0 {
+		row.LocalPort, row.ConnOrdinal = t.localPort, t.connOrdinal
+	}
+	t.rows = append(t.rows, row)
 }
 
 func writeRequestTrace(path, started string, total int64, o *mixedOptions, traces []workerTrace) (err error) {
@@ -87,7 +95,7 @@ func writeRequestTrace(path, started string, total int64, o *mixedOptions, trace
 	defer func() { err = errors.Join(err, file.Close()) }()
 	buffer := bufio.NewWriter(file)
 	encoder := json.NewEncoder(buffer)
-	meta := map[string]any{"type": "meta", "schema_version": 1, "started_utc": started, "offered": total, "clients": len(traces), "rate": o.rate, "seed": o.seed, "stride": o.traceStride, "slow_threshold_ns": traceSlowThreshold.Nanoseconds(), "cap_per_worker": maxTracePerWorker, "time_origin": "client measurement monotonic epoch", "send_start": "immediately before mixedExchange", "unsent_sentinel": -1}
+	meta := map[string]any{"type": "meta", "schema_version": 1, "started_utc": started, "offered": total, "clients": len(traces), "rate": o.rate, "seed": o.seed, "stride": o.traceStride, "slow_threshold_ns": traceSlowThreshold.Nanoseconds(), "cap_per_worker": maxTracePerWorker, "time_origin": "client measurement monotonic epoch", "send_start": "immediately before mixedExchange", "unsent_sentinel": -1, "connection_identity": "local TCP port and 1-based send ordinal, restarted on reconnect"}
 	if err := encoder.Encode(meta); err != nil {
 		return err
 	}

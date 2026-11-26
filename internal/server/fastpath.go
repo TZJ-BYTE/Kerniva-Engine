@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/TZJ-BYTE/Kerniva/internal/database"
 	"github.com/TZJ-BYTE/Kerniva/internal/protocol"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 )
 
 func fastPathExecute(dst []byte, db *database.Database, cmd string, args [][]byte) ([]byte, bool) {
@@ -24,10 +25,7 @@ func fastPathExecute(dst []byte, db *database.Database, cmd string, args [][]byt
 		if len(args) != 2 {
 			return dst, false
 		}
-		if err := db.SetStringBytes(args[0], args[1]); err != nil {
-			return protocol.AppendErrorString(dst, err.Error()), true
-		}
-		return protocol.AppendSimpleString(dst, "OK"), true
+		return appendPlainSet(dst, db, args, nil), true
 
 	case "INCR":
 		if len(args) != 1 {
@@ -41,4 +39,11 @@ func fastPathExecute(dst []byte, db *database.Database, cmd string, args [][]byt
 	}
 
 	return dst, false
+}
+
+func appendPlainSet(dst []byte, db *database.Database, args [][]byte, row *writetrace.Request) []byte {
+	if err := db.SetStringBytesTraced(args[0], args[1], row); err != nil {
+		return protocol.AppendErrorString(dst, err.Error())
+	}
+	return protocol.AppendSimpleString(dst, "OK")
 }

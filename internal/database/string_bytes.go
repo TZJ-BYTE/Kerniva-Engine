@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/TZJ-BYTE/Kerniva/internal/datastruct"
+	"github.com/TZJ-BYTE/Kerniva/internal/writetrace"
 	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
 
@@ -923,11 +924,19 @@ func (db *Database) bitPosStringBytesLocked(key []byte, bit int, start, end *int
 	return -1, nil
 }
 
-func (db *Database) SetStringBytes(key, value []byte) (err error) {
+func (db *Database) SetStringBytes(key, value []byte) error {
+	return db.SetStringBytesTraced(key, value, nil)
+}
+
+// SetStringBytesTraced executes plain SET with an optional primary timing record.
+func (db *Database) SetStringBytesTraced(key, value []byte, row *writetrace.Request) (err error) {
 	k := bytesToString(key)
 	parallel := db.beginSetOperation(k)
+	if row != nil {
+		row.KeyLock = row.Stamp()
+	}
 	if parallel && db.hasPersistence() && !db.closed {
-		handled, writeErr := db.setPersistentString(key, value)
+		handled, writeErr := db.setPersistentString(key, value, row)
 		if handled {
 			db.endKeyOperation(k, true, true)
 			return writeErr
@@ -937,6 +946,9 @@ func (db *Database) SetStringBytes(key, value []byte) (err error) {
 		db.endKeyOperation(k, true, true)
 		db.operationMu.Lock()
 		parallel = false
+		if row != nil {
+			row.KeyLock = row.Stamp()
+		}
 	}
 	defer db.endKeyOperation(k, true, parallel)
 	if db.closed {
@@ -948,6 +960,7 @@ func (db *Database) SetStringBytes(key, value []byte) (err error) {
 	}
 
 	db.beginMutation()
+	db.mutation.trace = row
 	defer func() {
 		err = db.finishMutation(err)
 	}()
