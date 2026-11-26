@@ -77,6 +77,9 @@ func TestGoPersistenceSwitches(t *testing.T) {
 		wantLog, wantSnapshot, wantMaintenance bool
 	}{
 		{name: "legacy", master: true, wantLog: true, wantMaintenance: true},
+		{name: "enable only WAL setting", log: &enabled, master: true, wantLog: true},
+		{name: "disable only WAL setting", log: &disabled, master: true},
+		{name: "disable only snapshot setting", snapshot: &disabled, master: true, wantLog: true},
 		{name: "default log with snapshots", snapshot: &enabled, master: true, wantLog: true, wantSnapshot: true, wantMaintenance: true},
 		{name: "both", log: &enabled, snapshot: &enabled, master: true, wantLog: true, wantSnapshot: true, wantMaintenance: true},
 		{name: "log only", log: &enabled, snapshot: &disabled, master: true, wantLog: true},
