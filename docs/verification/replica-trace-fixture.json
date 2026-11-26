@@ -1,0 +1,117 @@
+{
+  "attempts": [
+    {
+      "attempt": "control",
+      "exact_slow_count": 0,
+      "exact_slow_ids": [],
+      "input_sha256": {
+        "client-hist.json": "c4ef7aa9f3142f40aa81bed68ac2273dd6330f834edea092a628a378f63c3bd9",
+        "client-trace.jsonl": "40e63e6d7d53fd249290edd0fb7ca18fa608225a185410fa137e3a776ff4dd3a",
+        "client.json": "3abb70dfd834e9578bfa71f0bf761337156a3f91d916d59be3e42b4524fcdd18",
+        "server-events.jsonl": "acfd54cc4ed95d39732f3b0098c85756a972be4569af0cbfac167e3625bbe6cf"
+      },
+      "result": "pass",
+      "retained": 18,
+      "server_target_hold_ns": 7117,
+      "success": 300,
+      "successor": null,
+      "target": null,
+      "target_index": 50,
+      "uniform": 18
+    },
+    {
+      "attempt": "injected-1",
+      "exact_slow_count": 16,
+      "exact_slow_ids": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
+      ],
+      "input_sha256": {
+        "client-hist.json": "dbb888b4b1aac14eb21225c0c16219e45445af99a636432844c22ceddfbb5c67",
+        "client-trace.jsonl": "3a1384afb3f4fff00fb090d4690f23bc2e6b7724a7a590a42048b915a55f982b",
+        "client.json": "0e20480962c568fed39bcdcdd0d6d45438b9f29c7c42305224e3c87cf3db0c4f",
+        "server-events.jsonl": "b917b538e85a92914a6b0c6d5594022082b956da60f05ebb2ccbace31bfa55ad"
+      },
+      "result": "pass",
+      "retained": 34,
+      "server_target_hold_ns": 250164071,
+      "success": 300,
+      "successor": {
+        "exchange_ns": 61302,
+        "prepare_ns": 3674,
+        "queue_ns": 241253666,
+        "total_ns": 241318642
+      },
+      "target": {
+        "exchange_ns": 250344533,
+        "prepare_ns": 1526,
+        "queue_ns": 900541,
+        "total_ns": 251246600
+      },
+      "target_index": 50,
+      "uniform": 18
+    },
+    {
+      "attempt": "injected-2",
+      "exact_slow_count": 16,
+      "exact_slow_ids": [
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65
+      ],
+      "input_sha256": {
+        "client-hist.json": "e03b89ca18eebec60f37e554883e1f921d5c8eef124605675c7a343ab8651051",
+        "client-trace.jsonl": "66226b4b446c85601e1407d59a2cbb1c134a0ac50f4cf706e2c1235cbedc4ba0",
+        "client.json": "7ae6a2c36753428d277a863241a660f4a89ed461b1297bedfa4421fb95fe186b",
+        "server-events.jsonl": "48ffff75251fd23de1cc30cc71c27fbc67c95cb87b18d930cc525be2bf659c68"
+      },
+      "result": "pass",
+      "retained": 34,
+      "server_target_hold_ns": 250475112,
+      "success": 300,
+      "successor": {
+        "exchange_ns": 96346,
+        "prepare_ns": 3829,
+        "queue_ns": 241800068,
+        "total_ns": 241900243
+      },
+      "target": {
+        "exchange_ns": 250721852,
+        "prepare_ns": 1950,
+        "queue_ns": 1066899,
+        "total_ns": 251790701
+      },
+      "target_index": 50,
+      "uniform": 18
+    }
+  ],
+  "population": "isolated RESP fixture",
+  "schema_version": 1
+}
