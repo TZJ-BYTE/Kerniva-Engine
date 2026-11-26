@@ -160,26 +160,37 @@ Windows 另外用旧服务端与上限已扩展的服务端在同一数据目录
 powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File 'E:\project\go\Kerniva Engine\scripts\golog_host_disk_record.ps1'
 ```
 
-普通用户在同一个已准备好残余跟踪脚本和构建的 WSL 仓库中运行下列命令。把首行替换为录制器实际输出的目录，并按本机位置设置 Windows Python 与已复验的构建目录。整个命令前后各做 12 次握手，`guest-run/run.log` 留存本次来宾采集输出和证据目录。最后一次对时结束后再通知宿主停录。[WSL 与 Windows 时钟桥](../../scripts/golog_host_clock.py)
+普通用户在同一个已准备好残余跟踪脚本和构建的 WSL 仓库中运行下列命令。将第一个参数替换为录制器输出目录在 WSL 的路径，按本机位置设置 Windows Python 和已复验的构建目录。启动脚本检查实例名，在命令前后各做 12 次时钟握手，写入 `guest-run/run.log`，最后将实际退出码写入 `guest.done`。也可以从 Windows 以 `wsl.exe` 直接运行这个 Bash 文件。[来宾启动脚本](../../scripts/golog_host_disk_guest.sh) · [时钟桥](../../scripts/golog_host_clock.py)
 
 ```bash
-capture=$(wslpath -u 'C:\Users\30611\AppData\Local\Kerniva\diagnostics\KernivaWal<本次实例>')
-(
-  set -euo pipefail
-  test -f "$capture/host.ready"
-  mkdir "$capture/guest-run"
-  trap 'printf "%s\n" "$?" > "$capture/guest.done"' EXIT
-  python3 -B scripts/golog_host_clock.py \
-    --windows-python /mnt/c/Users/30611/AppData/Local/Programs/Python/Python312/python.exe \
-    --output "$capture/guest-run/clocks.json" -- \
-    bash logs/golog-production-cap32-20261126/residual32.sh /home/lemon/kerniva-production-no-probe.jsehLkQ4 \
-    2>&1 | tee "$capture/guest-run/run.log"
-)
+bash scripts/golog_host_disk_guest.sh \
+  '/mnt/c/Users/30611/AppData/Local/Kerniva/diagnostics/KernivaWal<本次实例>' \
+  /mnt/c/Users/30611/AppData/Local/Programs/Python/Python312/python.exe \
+  bash logs/golog-production-cap32-20261126/residual32.sh /home/lemon/kerniva-production-no-probe.jsehLkQ4
 ```
 
-2026-11-26 用轻量命令实测了这条时钟桥，24 次握手完整，命令前后的时差区间宽度为 121.961 µs 和 71.756 µs。另行验证了子命令失败、同名输出竞争和已有文件保护。收据在 `logs/host-clock-final-uvf6lp_i/`。用模拟 WPR 和真实 Windows Python 又跑通了同实例握手、超时保存、停止失败回收和启动拒绝，结果在 `logs/golog-host-recorder-vhd-stub-qa-final/`。当前普通会话通过 WPR 与 logman 实际启动磁盘跟踪均返回 `0x80070005`，本次未取得新的宿主 ETL。
+2026-11-26 用轻量命令实测了这条时钟桥，24 次握手完整，命令前后的时差区间宽度为 121.961 µs 和 71.756 µs。另行验证了子命令失败、同名输出竞争和已有文件保护。收据在 `logs/host-clock-final-uvf6lp_i/`。用模拟 WPR 和真实 Windows Python 又跑通了同实例握手、超时保存、停止失败回收和启动拒绝，结果在 `logs/golog-host-recorder-vhd-stub-qa-final/`。普通会话启动 WPR 与 logman 均返回 `0x80070005`。以下真实录制由同一用户在具备权限的 Windows 会话启动。
 
 关联时先检查 `guest.done` 为 0、`host.json` 中 `end_reason` 为 `guest_done`、起停均成功，并核对 ETL 的时钟类型、频率、丢事件数、目标磁盘与采样覆盖。用同窗时钟区间和来宾 tracefs 的单调时钟定位慢刷新，再检查宿主 I/O 的起止、请求编号及设备或 VHDX 归属。若同一时间有多个可能的宿主 I/O，结果只能报告对应区间和候选数。磁盘上的时间重叠本身不能证明物理 SSD 导致这笔请求变慢。
+
+### 真实联合窗口的结果
+
+2026-11-26 18:25（北京时间）在同一次 WSL gnet 高写负载中录制了 Windows ETL。同步 WAL 上限为 32，预热 17 秒，125 秒内按每秒 3,000 次投递。375,000 次请求全部成功，其中 13 次在截止后返回。GET / SET p99 为 1.475 / 23.921 ms。39 个 GET 和 76 个 SET 达到 500 ms，这 115 笔的计划投递至完成区间合并后仅占第 43.794–44.592 秒。本轮带逐笔观测，生产构建的前后效果见上文两组反序对照。
+
+最慢 SET 共 611.808 ms，发送前等待 579.343 ms，其中同一连接的八笔前序请求占用 579.328 ms。16 个相关 WAL 批次都在同一来宾设备和 inode 上独立匹配到 ext4 同步。批次 33179 的 `fsync` 耗时 51.807 ms，含 51.051 ms 的 JBD2 日志提交等待，期间两笔虚拟 SCSI 刷新分别持续 17.794 ms 和 31.923 ms。
+
+| Disk 1 刷新所处时段 | 完整取到起止的次数 | 刷新中位数 | 刷新 ≥10 ms | 刷新 ≥20 ms |
+|---|---:|---:|---:|---:|
+| 确定位于半秒级请求所跨的约 0.8 秒内 | 51 | 14.625 ms | 31 | 19 |
+| 确定位于其外的正式测量时段 | 83,770 | 0.564 ms | 63 | 2 |
+
+另外 25 次位于时钟不确定的边缘，未计入表中两行。数据来自 Disk 1 的 Windows DiskIO 刷新起止。作为交叉验证，独立使用 StorPort 端口 1 的成功缓存同步完成记录及其持续时间，得到相同的两行计数和阈值计数，中位数分别为 14.608 ms 和 0.547 ms。ETL 共 9,426,698 条事件，宿主报告零丢失；来宾内核记录 5,376,956 条，报告零丢失。
+
+32 个互不重叠的目标来宾刷新共 615.798 ms。用前后 24 次时钟握手、200 ppm 漂移上限及时间戳分辨率计算，在所有允许的偏移下，有 531.557–601.801 ms 与同一宿主磁盘上持续至少 10 ms 的刷新重叠。按 StorPort 同样计算得 530.611–600.798 ms。这证实本次尖峰期间 Windows 存储栈也出现了长刷新。ETL 中 VHDMP 与 StorageVSP 均为零条，因而无法唯一确定来宾命令与宿主请求的对应关系，也无法将其中的毫秒数拆成硬件排队、固件或介质处理时间。
+
+本次外层编排退出码为 **127**。PowerShell 文本管道在 Bash 命令末尾额外发送了一个回车，此时负载和两轮对时已经成功结束。原始 `guest.done` 保留 127，整条编排验收记为失败。客户端及压测驱动各自退出 0，24 个时钟样本完整且位于录制内，WPR 起停均为 0 并保存了 1,395,654,656 字节的 ETL。以上分项经独立复核。新的 Bash 文件入口已从 Windows 直接传参实测，轻量子命令返回 0、37 时，分别如实写回 0、37，错误实例和重复启动均被拒绝。
+
+本机 `dist/Kerniva-Go-WAL-20261126-host-joint-evidence.zip` 收录逐事件结果、阶段统计、复算脚本、紧凑宿主事件流、原始退出码、对时和大文件校验索引，SHA-256 为 `af441a53e34a4eab1da7cc123652c9c23ecb9c351e8f4562750112b8756c0490`。解压后按包内 README 运行 `python verify.py .`。原始 ETL 的 SHA-256 为 `3882abf1615a54d0726efc80126ac26a8efb7944c2cf04b78a7c72dbb54f3539`。
 
 ## 给活动日志滚动预留磁盘空间
 
