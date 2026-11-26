@@ -148,6 +148,8 @@ scripts/                    构建、清理、测试和 TCP benchmark
 
 修复版又完成 144 万次请求，两个自然窗口出现至少 100 ms 的延迟。其中一个窗口在 24 个长同步内取得 72 个完整的 Windows 整盘采样间隔，仅记录到一次 8 KiB 写入完成；另一个窗口的慢同步伴随来宾 I/O 压力。逐请求记录显示写队列和同连接后继请求的发送等待都会放大长尾。[Windows 与 WSL 同窗实测、已知延迟对照和复算](docs/verification/primary-host-disk.md)
 
+内核跟踪复验完成 72 万次请求，零失败。一条 SET 的回包用了 635.784 ms，其中在服务端写队列等待 365.817 ms，所在批次的同步耗时 269.653 ms。写线程在 ext4 内核路径睡眠等待了 269.593 ms，唤醒后等 CPU 合计 0.030 ms。两个追踪窗里，6 个达到 10 ms 的测量批次都核对到了同一活动日志的 fsync。[逐批内核时序、220 ms 对照与复现命令](docs/verification/primary-kernel-writer.md)
+
 ~~~powershell
 ./scripts/test.ps1 -Race
 ~~~
