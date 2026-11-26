@@ -30,9 +30,19 @@ func (c *InfoCommand) Execute(db *database.Database, args [][]byte) *protocol.Re
 
 	writeSection(&b, "database")
 	writeKV(&b, "db_id", fmt.Sprintf("%v", stats["db_id"]))
-	writeKV(&b, "mode", fmt.Sprintf("%v", stats["mode"]))
-	writeKV(&b, "storage_backend", fmt.Sprintf("%v", stats["storage_backend"]))
-	writeKV(&b, "persistence_durability", fmt.Sprintf("%v", stats["persistence_durability"]))
+	mode, backend, durability := stats["mode"], stats["storage_backend"], stats["persistence_durability"]
+	if wal, configured := mgrStats["go_log_enabled"].(bool); configured {
+		backend = mgrStats["storage_backend"]
+		if !wal {
+			durability = "none"
+			if mgrStats["snapshot_enabled"] == true {
+				mode, durability = "Snapshot", "snapshot"
+			}
+		}
+	}
+	writeKV(&b, "mode", fmt.Sprint(mode))
+	writeKV(&b, "storage_backend", fmt.Sprint(backend))
+	writeKV(&b, "persistence_durability", fmt.Sprint(durability))
 	writeKV(&b, "memory_keys", fmt.Sprintf("%v", stats["memory_keys"]))
 	writeKV(&b, "used_memory_bytes", fmt.Sprintf("%v", stats["used_memory_bytes"]))
 	writeKV(&b, "max_memory_bytes", fmt.Sprintf("%v", stats["max_memory_bytes"]))
@@ -42,6 +52,11 @@ func (c *InfoCommand) Execute(db *database.Database, args [][]byte) *protocol.Re
 		writeSection(&b, "db_manager")
 		writeKV(&b, "db_count", fmt.Sprintf("%v", mgrStats["db_count"]))
 		writeKV(&b, "persistence_enabled", fmt.Sprintf("%v", mgrStats["persistence_enabled"]))
+		for _, key := range []string{"go_log_enabled", "snapshot_enabled", "snapshot_interval_seconds", "log_maintenance_allowed"} {
+			if value, ok := mgrStats[key]; ok {
+				writeKV(&b, key, fmt.Sprint(value))
+			}
+		}
 		if v, ok := mgrStats["data_dir"]; ok {
 			writeKV(&b, "data_dir", fmt.Sprintf("%v", v))
 		}

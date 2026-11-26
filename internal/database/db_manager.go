@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/TZJ-BYTE/Kerniva/config"
+	"github.com/TZJ-BYTE/Kerniva/internal/golog"
 	"github.com/TZJ-BYTE/Kerniva/internal/rustengine"
 	"github.com/TZJ-BYTE/Kerniva/pkg/logger"
 )
@@ -18,12 +19,15 @@ import (
 type DBManager struct {
 	databases       []*Database
 	memoryDatabases []*rustengine.MemoryEngine
-	lock            sync.RWMutex
 	config          *config.Config
 
 	persistenceEnabled bool
 	dataDir            string
-	engineOptions      *EngineOptions
+	goPersistence      *goPersistenceMode
+	snapshotStop       chan struct{}
+	snapshotDone       chan struct{}
+	closeOnce          sync.Once
+	closeErr           error
 }
 
 // NewDBManager 创建数据库管理器
@@ -42,92 +46,158 @@ func NewDBManagerChecked(cfg *config.Config) (*DBManager, error) {
 	if cfg.StorageBackend == config.StorageRustMemory || cfg.StorageBackend == config.StorageRustMemorySync {
 		return newMemoryDBManager(cfg)
 	}
-	databases := make([]*Database, cfg.DBCount)
-
-	// 检查是否启用持久化
-	persistenceEnabled := cfg.PersistenceEnabled
-	var dataDir string
-	var engineOptions *EngineOptions
-
-	if persistenceEnabled {
-		dataDir = cfg.DataDir
-		if dataDir == "" {
-			dataDir = "./data"
+	goLogEnabled := cfg.UsesGoLog()
+	snapshotEnabled := cfg.UsesGoSnapshot()
+	writePersistence := goLogEnabled || cfg.PersistenceEnabled && cfg.StorageBackend != config.StorageGoLog
+	manager := &DBManager{
+		config:             cfg,
+		databases:          make([]*Database, 0, cfg.DBCount),
+		persistenceEnabled: writePersistence || snapshotEnabled,
+	}
+	if manager.persistenceEnabled {
+		manager.dataDir = cfg.DataDir
+		if manager.dataDir == "" {
+			manager.dataDir = "./data"
 		}
-
-		engineOptions = DefaultEngineOptions()
-		if cfg.EngineSegmentSize > 0 {
-			engineOptions.SegmentSizeBytes = uint64(cfg.EngineSegmentSize)
+	}
+	if goLogEnabled || snapshotEnabled {
+		mode, err := openGoPersistenceMode(cfg.DataDir, goLogEnabled, snapshotEnabled, cfg.DBCount)
+		if err != nil {
+			return nil, err
 		}
-		if cfg.EngineCheckpointAfterOps > 0 {
-			engineOptions.CheckpointAfterOps = uint64(cfg.EngineCheckpointAfterOps)
+		manager.goPersistence = mode
+		if err := setGoMaintenance(mode.logDir, goLogEnabled, cfg.AllowsGoLogMaintenance() && !mode.needsImport); err != nil {
+			return nil, errors.Join(err, mode.close())
 		}
-
-		if cfg.StorageBackend == config.StorageGoLog {
-			dataDir = filepath.Join(dataDir, "go-log-v1")
+		if goLogEnabled {
+			manager.dataDir = mode.logDir
+		} else {
+			manager.dataDir = mode.snapshotDir
 		}
-		logger.Info("启用持久化，数据目录：%s", dataDir)
+	} else if cfg.StorageBackend == config.StorageGoLog && cfg.DataDir != "" {
+		logDir := filepath.Join(cfg.DataDir, "go-log-v1")
+		if _, err := os.Stat(logDir); err == nil {
+			mode, err := lockGoPersistenceRoot(cfg.DataDir, false)
+			if err != nil {
+				return nil, err
+			}
+			err = errors.Join(setGoMaintenance(mode.logDir, false, false), mode.close())
+			if err != nil {
+				return nil, err
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
 	}
 
-	// 创建所有数据库
+	engineOptions := DefaultEngineOptions()
+	if cfg.EngineSegmentSize > 0 {
+		engineOptions.SegmentSizeBytes = uint64(cfg.EngineSegmentSize)
+	}
+	if cfg.EngineCheckpointAfterOps > 0 {
+		engineOptions.CheckpointAfterOps = uint64(cfg.EngineCheckpointAfterOps)
+	}
+	maxMemory := cfg.MaxMemory
+	if maxMemory == 0 {
+		maxMemory = math.MaxInt64
+	}
+	if manager.goPersistence != nil && manager.goPersistence.needsImport {
+		if err := manager.goPersistence.importSnapshot(cfg, engineOptions, maxMemory); err != nil {
+			return nil, errors.Join(err, manager.closeDatabases())
+		}
+	}
 	for i := 0; i < cfg.DBCount; i++ {
-		var db *Database
-		var err error
-		maxMemory := cfg.MaxMemory
-		if maxMemory == 0 {
-			maxMemory = math.MaxInt64
+		dbConfig := &DatabaseConfig{
+			StorageBackend:  cfg.StorageBackend,
+			MaxMemory:       maxMemory,
+			MaxMemoryPolicy: cfg.MaxMemoryPolicy,
 		}
-		dbConfig := &DatabaseConfig{Type: MemoryOnly, MaxMemory: maxMemory, MaxMemoryPolicy: cfg.MaxMemoryPolicy}
-
-		if persistenceEnabled {
-			// 为每个数据库创建独立的子目录
-			dbDataDir := filepath.Join(dataDir, fmt.Sprintf("db_%d", i))
-
+		if writePersistence {
 			dbOptions := *engineOptions
-
-			dbConfig = &DatabaseConfig{
-				Type:              Persistent,
-				DataDir:           dbDataDir,
-				Options:           &dbOptions,
-				ColdStartStrategy: cfg.ColdStartStrategy,
-				StorageBackend:    cfg.StorageBackend,
-				GoLogSegmentAge:   time.Duration(cfg.GoLogSegmentAgeSeconds) * time.Second,
-				GoLogGroupMax:     cfg.GoLogGroupMax,
-				WriteMode:         cfg.PersistenceWriteMode,
-				Durability:        cfg.PersistenceDurability,
-				MaxMemory:         maxMemory,
-				MaxMemoryPolicy:   cfg.MaxMemoryPolicy,
-			}
-
-			db, err = NewDatabaseWithConfig(i, dbConfig)
-		} else {
-			db, err = NewDatabaseWithConfig(i, dbConfig)
-			logger.Debug("数据库 %d 使用纯内存模式", i)
+			dbConfig.Type = Persistent
+			dbConfig.DataDir = filepath.Join(manager.dataDir, fmt.Sprintf("db_%d", i))
+			dbConfig.Options = &dbOptions
+			dbConfig.ColdStartStrategy = cfg.ColdStartStrategy
+			dbConfig.GoLogSegmentAge = time.Duration(cfg.GoLogSegmentAgeSeconds) * time.Second
+			dbConfig.GoLogGroupMax = cfg.GoLogGroupMax
+			dbConfig.WriteMode = cfg.PersistenceWriteMode
+			dbConfig.Durability = cfg.PersistenceDurability
 		}
+		db, err := NewDatabaseWithConfig(i, dbConfig)
 		if err != nil {
-			for _, opened := range databases[:i] {
-				_ = opened.Close()
-			}
-			return nil, fmt.Errorf("initialize database %d: %w", i, err)
+			return nil, errors.Join(fmt.Errorf("initialize database %d: %w", i, err), manager.closeDatabases())
 		}
+		manager.databases = append(manager.databases, db)
+	}
 
-		databases[i] = db
+	if snapshotEnabled && !goLogEnabled {
+		if err := LoadSnapshot(manager.goPersistence.snapshotDir, manager.databases); err != nil {
+			return nil, errors.Join(fmt.Errorf("restore Go snapshot: %w", err), manager.closeDatabases())
+		}
+	}
+	if manager.goPersistence != nil {
+		if manager.goPersistence.needsImport && cfg.AllowsGoLogMaintenance() {
+			if err := setGoMaintenance(manager.goPersistence.logDir, true, true); err != nil {
+				return nil, errors.Join(err, manager.closeDatabases())
+			}
+		}
+		if err := manager.goPersistence.startWriting(); err != nil {
+			return nil, errors.Join(err, manager.closeDatabases())
+		}
+	}
+	for _, db := range manager.databases {
 		db.StartExpireCleaner()
 	}
-
-	if persistenceEnabled {
-		logger.Info("初始化 %d 个持久化数据库", cfg.DBCount)
+	if snapshotEnabled {
+		manager.startSnapshots(cfg.SnapshotInterval())
+	}
+	if manager.persistenceEnabled {
+		logger.Info("初始化 %d 个持久化数据库，数据目录：%s", cfg.DBCount, manager.dataDir)
 	} else {
 		logger.Info("初始化 %d 个数据库（纯内存模式）", cfg.DBCount)
 	}
+	return manager, nil
+}
 
-	return &DBManager{
-		databases:          databases,
-		config:             cfg,
-		persistenceEnabled: persistenceEnabled,
-		dataDir:            dataDir,
-		engineOptions:      engineOptions,
-	}, nil
+func setGoMaintenance(logDir string, useWAL, allowed bool) error {
+	if !useWAL {
+		if _, err := os.Stat(logDir); errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+	}
+	if err := golog.SetMaintenanceAllowed(logDir, allowed); err != nil {
+		return fmt.Errorf("configure Go WAL maintenance: %w", err)
+	}
+	return nil
+}
+
+func (m *DBManager) startSnapshots(interval time.Duration) {
+	m.snapshotStop = make(chan struct{})
+	m.snapshotDone = make(chan struct{})
+	go func() {
+		defer close(m.snapshotDone)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-m.snapshotStop:
+				return
+			case <-ticker.C:
+				if err := m.savePeriodicSnapshot(); err != nil {
+					logger.Error("保存 Go 快照失败：%v", err)
+				}
+			}
+		}
+	}()
+}
+
+func (m *DBManager) savePeriodicSnapshot() error {
+	if err := SaveSnapshot(m.goPersistence.snapshotDir, m.databases); err != nil {
+		return err
+	}
+	return m.goPersistence.recordSnapshotGeneration()
 }
 
 func newMemoryDBManager(cfg *config.Config) (*DBManager, error) {
@@ -235,26 +305,49 @@ func (m *DBManager) DBCount() int {
 
 // Close 关闭所有数据库
 func (m *DBManager) Close() error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	if m.UsesRustMemory() {
-		return m.closeMemoryDatabases()
-	}
+	m.closeOnce.Do(func() {
+		if m.UsesRustMemory() {
+			m.closeErr = m.closeMemoryDatabases()
+			return
+		}
+		if m.snapshotStop != nil {
+			close(m.snapshotStop)
+			<-m.snapshotDone
+			for _, db := range m.databases {
+				db.disableExpireCleaner()
+			}
+			if err := saveSnapshot(m.goPersistence.snapshotDir, m.databases, true); err != nil {
+				m.closeErr = errors.Join(fmt.Errorf("save final Go snapshot: %w", err), m.closeDatabaseHandles())
+			}
+		} else {
+			m.closeErr = m.closeDatabaseHandles()
+		}
+		if m.goPersistence != nil {
+			if m.closeErr == nil && m.snapshotStop != nil {
+				m.closeErr = m.goPersistence.finalSnapshotSaved()
+			}
+			m.closeErr = errors.Join(m.closeErr, m.goPersistence.close())
+		}
+	})
+	return m.closeErr
+}
 
-	var lastErr error
-	for i, db := range m.databases {
-		err := db.Close()
-		if err != nil {
-			logger.Error("关闭数据库 %d 失败：%v", i, err)
-			lastErr = err
+func (m *DBManager) closeDatabases() error {
+	err := m.closeDatabaseHandles()
+	if m.goPersistence != nil {
+		err = errors.Join(err, m.goPersistence.close())
+	}
+	return err
+}
+
+func (m *DBManager) closeDatabaseHandles() error {
+	var result error
+	for _, db := range m.databases {
+		if err := db.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("close database %d: %w", db.id, err))
 		}
 	}
-
-	if lastErr == nil {
-		logger.Info("已关闭所有数据库")
-	}
-
-	return lastErr
+	return result
 }
 
 func (m *DBManager) closeMemoryDatabases() error {
@@ -299,6 +392,15 @@ func (m *DBManager) GetStats() map[string]interface{} {
 
 	if m.persistenceEnabled {
 		stats["data_dir"] = m.dataDir
+	}
+	if m.config.StorageBackend == config.StorageGoLog {
+		stats["storage_backend"] = config.StorageGoLog
+		stats["go_log_enabled"] = m.config.UsesGoLog()
+		stats["snapshot_enabled"] = m.config.UsesGoSnapshot()
+		stats["log_maintenance_allowed"] = m.config.AllowsGoLogMaintenance()
+		if m.config.UsesGoSnapshot() {
+			stats["snapshot_interval_seconds"] = int64(m.config.SnapshotInterval() / time.Second)
+		}
 	}
 
 	// 收集所有数据库的统计信息

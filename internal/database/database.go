@@ -665,12 +665,20 @@ func (db *Database) Clear() error {
 
 // Close 关闭数据库
 func (db *Database) Close() error {
-	db.expireMu.Lock()
-	db.expireClosed = true
-	db.stopExpireCleanerLocked()
-	db.expireMu.Unlock()
+	db.disableExpireCleaner()
 	db.operationMu.Lock()
 	defer db.operationMu.Unlock()
+	return db.closeLocked()
+}
+
+func (db *Database) disableExpireCleaner() {
+	db.expireMu.Lock()
+	defer db.expireMu.Unlock()
+	db.expireClosed = true
+	db.stopExpireCleanerLocked()
+}
+
+func (db *Database) closeLocked() error {
 	if db.closed {
 		return nil
 	}
@@ -691,7 +699,7 @@ func (db *Database) GetStats() map[string]interface{} {
 
 	stats["db_id"] = db.id
 	stats["storage_backend"] = config.StorageLegacy
-	if db.goLog != nil {
+	if db.config.StorageBackend == config.StorageGoLog {
 		stats["storage_backend"] = config.StorageGoLog
 	}
 	keyCount := 0

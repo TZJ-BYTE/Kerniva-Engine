@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestConfigRejectsInvalidPersistenceAndLimits(t *testing.T) {
@@ -64,5 +65,83 @@ func TestConfigRejectsUnknownYAMLField(t *testing.T) {
 	}
 	if _, err := LoadFromFile(path); err == nil {
 		t.Fatal("expected unknown field to fail")
+	}
+}
+
+func TestGoPersistenceSwitches(t *testing.T) {
+	enabled, disabled := true, false
+	for _, tc := range []struct {
+		name                                   string
+		log, snapshot                          *bool
+		master                                 bool
+		wantLog, wantSnapshot, wantMaintenance bool
+	}{
+		{name: "legacy", master: true, wantLog: true, wantMaintenance: true},
+		{name: "default log with snapshots", snapshot: &enabled, master: true, wantLog: true, wantSnapshot: true, wantMaintenance: true},
+		{name: "both", log: &enabled, snapshot: &enabled, master: true, wantLog: true, wantSnapshot: true, wantMaintenance: true},
+		{name: "log only", log: &enabled, snapshot: &disabled, master: true, wantLog: true},
+		{name: "snapshot only", log: &disabled, snapshot: &enabled, master: true, wantSnapshot: true},
+		{name: "memory", log: &disabled, snapshot: &disabled, master: true},
+		{name: "master switch", log: &enabled, snapshot: &enabled, master: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := defaultConfigNoEnv()
+			cfg.StorageBackend = StorageGoLog
+			cfg.PersistenceEnabled = tc.master
+			cfg.ColdStartStrategy = "load_all"
+			cfg.GoLogEnabled, cfg.SnapshotEnabled = tc.log, tc.snapshot
+			if !tc.wantLog && !tc.wantSnapshot {
+				cfg.DataDir = ""
+			}
+			if err := cfg.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.UsesGoLog(); got != tc.wantLog {
+				t.Fatalf("WAL enabled = %t, want %t", got, tc.wantLog)
+			}
+			if got := cfg.UsesGoSnapshot(); got != tc.wantSnapshot {
+				t.Fatalf("snapshot enabled = %t, want %t", got, tc.wantSnapshot)
+			}
+			if got := cfg.AllowsGoLogMaintenance(); got != tc.wantMaintenance {
+				t.Fatalf("WAL maintenance enabled = %t, want %t", got, tc.wantMaintenance)
+			}
+		})
+	}
+}
+
+func TestGoPersistenceYAMLAndEnvironment(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("storage_backend: go-log\ncold_start_strategy: load_all\ngo_log_enabled: false\nsnapshot_enabled: true\nsnapshot_interval_seconds: 60\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFromFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UsesGoLog() || !cfg.UsesGoSnapshot() || cfg.SnapshotInterval() != time.Minute {
+		t.Fatal("expected snapshot-only YAML configuration with a one-minute interval")
+	}
+	t.Setenv("KERNIVA_GO_LOG_ENABLED", "true")
+	t.Setenv("KERNIVA_SNAPSHOT_ENABLED", "false")
+	t.Setenv("KERNIVA_SNAPSHOT_INTERVAL_SECONDS", "120")
+	cfg, err = LoadFromFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.UsesGoLog() || cfg.UsesGoSnapshot() || cfg.SnapshotInterval() != 2*time.Minute {
+		t.Fatal("expected log-only environment overrides and a two-minute interval")
+	}
+	t.Setenv("KERNIVA_SNAPSHOT_INTERVAL_SECONDS", "-1")
+	if _, err := LoadFromFile(path); err == nil {
+		t.Fatal("expected negative snapshot interval to fail validation")
+	}
+}
+
+func TestExplicitWALRequiresGoLogBackend(t *testing.T) {
+	cfg := defaultConfigNoEnv()
+	enabled := true
+	cfg.GoLogEnabled = &enabled
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected explicit Go log on legacy backend to fail")
 	}
 }

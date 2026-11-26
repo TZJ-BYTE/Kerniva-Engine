@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -62,8 +63,12 @@ type Config struct {
 	PersistenceDurability    string `yaml:"persistence_durability" json:"persistence_durability"` // "none", "flush", "sync"
 	EngineSegmentSize        int64  `yaml:"engine_segment_size" json:"engine_segment_size"`
 	EngineCheckpointAfterOps int    `yaml:"engine_checkpoint_after_ops" json:"engine_checkpoint_after_ops"`
-	GoLogSegmentAgeSeconds   int    `yaml:"go_log_segment_age_seconds" json:"go_log_segment_age_seconds"`
-	GoLogGroupMax            int    `yaml:"go_log_group_max" json:"go_log_group_max"`
+	// A nil GoLogEnabled preserves WAL for existing go-log configurations.
+	GoLogEnabled            *bool `yaml:"go_log_enabled,omitempty" json:"go_log_enabled,omitempty"`
+	SnapshotEnabled         *bool `yaml:"snapshot_enabled,omitempty" json:"snapshot_enabled,omitempty"`
+	SnapshotIntervalSeconds int   `yaml:"snapshot_interval_seconds" json:"snapshot_interval_seconds"`
+	GoLogSegmentAgeSeconds  int   `yaml:"go_log_segment_age_seconds" json:"go_log_segment_age_seconds"`
+	GoLogGroupMax           int   `yaml:"go_log_group_max" json:"go_log_group_max"`
 
 	// 日志配置
 	LogLevel      string `yaml:"log_level" json:"log_level"`
@@ -105,6 +110,7 @@ func (c *Config) applyEnvOverrides() {
 		"KERNIVA_ENGINE_CHECKPOINT_AFTER_OPS": &c.EngineCheckpointAfterOps,
 		"KERNIVA_GO_LOG_SEGMENT_AGE_SECONDS":  &c.GoLogSegmentAgeSeconds,
 		"KERNIVA_GO_LOG_GROUP_MAX":            &c.GoLogGroupMax,
+		"KERNIVA_SNAPSHOT_INTERVAL_SECONDS":   &c.SnapshotIntervalSeconds,
 		"KERNIVA_LOG_MAX_SIZE_MB":             &c.LogMaxSizeMB, "KERNIVA_LOG_MAX_BACKUPS": &c.LogMaxBackups, "KERNIVA_LOG_MAX_AGE_DAYS": &c.LogMaxAgeDays,
 	}
 	for name, target := range integersByName {
@@ -140,6 +146,40 @@ func (c *Config) applyEnvOverrides() {
 			*target = parsed
 		}
 	}
+	for name, target := range map[string]**bool{
+		"KERNIVA_GO_LOG_ENABLED":   &c.GoLogEnabled,
+		"KERNIVA_SNAPSHOT_ENABLED": &c.SnapshotEnabled,
+	} {
+		if value, ok := os.LookupEnv(name); ok {
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				c.envError = fmt.Errorf("invalid %s: %w", name, err)
+				continue
+			}
+			*target = &parsed
+		}
+	}
+}
+
+func (c *Config) UsesGoLog() bool {
+	return c.PersistenceEnabled && c.StorageBackend == StorageGoLog && (c.GoLogEnabled == nil || *c.GoLogEnabled)
+}
+
+func (c *Config) UsesGoSnapshot() bool {
+	return c.PersistenceEnabled && c.StorageBackend == StorageGoLog && c.SnapshotEnabled != nil && *c.SnapshotEnabled
+}
+
+// AllowsGoLogMaintenance preserves legacy Rust compaction for configurations
+// that omit both Go persistence switches.
+func (c *Config) AllowsGoLogMaintenance() bool {
+	return c.UsesGoLog() && (c.UsesGoSnapshot() || c.GoLogEnabled == nil && c.SnapshotEnabled == nil)
+}
+
+func (c *Config) SnapshotInterval() time.Duration {
+	if c.SnapshotIntervalSeconds == 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(c.SnapshotIntervalSeconds) * time.Second
 }
 
 // GetColdStartStrategy 解析冷启动策略
@@ -208,13 +248,22 @@ func (c *Config) Validate() error {
 	if c.GoLogGroupMax < 0 || c.GoLogGroupMax > 16 {
 		return fmt.Errorf("go_log_group_max must be from 0 to 16")
 	}
-	if c.GoLogGroupMax > 1 && (c.StorageBackend != StorageGoLog || c.PersistenceDurability == "none") {
+	if c.GoLogGroupMax > 1 && (c.StorageBackend != StorageGoLog || c.UsesGoLog() && c.PersistenceDurability == "none") {
 		return fmt.Errorf("go_log_group_max above 1 requires go-log with sync durability")
 	}
-	if c.StorageBackend == StorageGoLog {
-		if !c.PersistenceEnabled || strings.TrimSpace(c.DataDir) == "" {
-			return fmt.Errorf("go-log requires persistence_enabled=true and data_dir")
-		}
+	if c.SnapshotIntervalSeconds < 0 || uint64(c.SnapshotIntervalSeconds) > uint64((1<<63-1)/time.Second) {
+		return fmt.Errorf("snapshot_interval_seconds is outside the supported duration range")
+	}
+	if c.PersistenceEnabled && c.SnapshotEnabled != nil && *c.SnapshotEnabled && c.StorageBackend != StorageGoLog {
+		return fmt.Errorf("snapshot_enabled requires storage_backend=go-log")
+	}
+	if c.PersistenceEnabled && c.GoLogEnabled != nil && *c.GoLogEnabled && c.StorageBackend != StorageGoLog {
+		return fmt.Errorf("go_log_enabled requires storage_backend=go-log")
+	}
+	if (c.UsesGoLog() || c.UsesGoSnapshot()) && strings.TrimSpace(c.DataDir) == "" {
+		return fmt.Errorf("Go persistence requires data_dir")
+	}
+	if c.UsesGoLog() {
 		if c.ColdStartStrategy != "load_all" || c.MaxMemoryPolicy != "noeviction" {
 			return fmt.Errorf("go-log requires cold_start_strategy=load_all and max_memory_policy=noeviction")
 		}

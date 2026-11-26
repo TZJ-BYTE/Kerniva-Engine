@@ -54,8 +54,8 @@ func serve(configPath, stopFile string, serviceStop <-chan struct{}, ready func(
 		return err
 	}
 	if output := os.Getenv("KERNIVA_GOLOG_BATCH_TRACE"); output != "" {
-		if cfg.StorageBackend != config.StorageGoLog {
-			return errors.New("KERNIVA_GOLOG_BATCH_TRACE requires Go-log storage")
+		if !cfg.UsesGoLog() {
+			return errors.New("KERNIVA_GOLOG_BATCH_TRACE requires an enabled Go log")
 		}
 		trace, traceErr := writetrace.Open(output)
 		if traceErr != nil {
