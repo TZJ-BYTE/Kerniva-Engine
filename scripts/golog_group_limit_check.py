@@ -39,8 +39,8 @@ def wait_for_client(client, _run, _record, _children, _intervals, _initial, _ini
     return client.wait(timeout=duration + 15)
 
 
-def run_window(root, args, position, profile, group, ports):
-    class Primary(gc.TOPOLOGY):
+def run_window(root, args, position, profile, group, ports, *, topology=gc.TOPOLOGY, observer_factory=PassiveWindow):
+    class Primary(topology):
         def start(self, label, *cmd, env=None):
             config = Path(cmd[-1])
             settings = gc.live.read_json(config)
@@ -49,7 +49,7 @@ def run_window(root, args, position, profile, group, ports):
             return super().start(label, *cmd, env=env)
 
     with patch.object(gc.live, "Topology", Primary), patch.object(gc.live, "observe_client", wait_for_client):
-        status = gc.live.case(root, args, profile, "A", position, ports, observer_factory=PassiveWindow)
+        status = gc.live.case(root, args, profile, "A", position, ports, observer_factory=observer_factory)
     read_percent, rate = profile
     folder = root / f"{position:02d}-r{read_percent}-q{rate}-A"
     record = gc.live.read_json(folder / "case.json")
@@ -71,9 +71,9 @@ def run_window(root, args, position, profile, group, ports):
         settings["go_log_group_max"] == group and settings["network_type"] == "gnet"
         and settings["persistence_write_mode"] == "strong" and settings["persistence_durability"] == "sync"
         and not settings["pprof_enabled"] and client["keys"] == gc.live.KEYS and client["clients"] == gc.live.CLIENTS
-        and all(client[key] == rate * gc.DURATION for key in counts) and client["failures"] == 0
+        and all(client[key] == rate * args.duration for key in counts) and client["failures"] == 0
         and all(client[op][key] == 0 for key in stop_failures for op in ("get", "set"))
-        and [row["planned_second"] for row in windows] == list(range(gc.DURATION))
+        and [row["planned_second"] for row in windows] == list(range(args.duration))
         and all(sum(row[op][key] for op in ("get", "set")) == rate for row in windows for key in counts)
         and all(row[op][key] == 0 for row in windows for key in stop_failures for op in ("get", "set"))
     )
